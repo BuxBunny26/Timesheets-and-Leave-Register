@@ -1,6 +1,13 @@
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
+import StatusBadge from '../components/StatusBadge'
+import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
+import type { TimesheetStatus, Role } from '../types'
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
+
+function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
       <p className="text-sm text-gray-500">{label}</p>
@@ -25,8 +32,94 @@ function getWeekRange() {
 export default function DashboardPage() {
   const { profile } = useAuth()
 
+  const [weekStatus, setWeekStatus] = useState<TimesheetStatus | null>(null)
+  const [unreadCount, setUnreadCount] = useState<number | null>(null)
+  const [pendingOtCount, setPendingOtCount] = useState<number | null>(null)
+  const [pendingLeaveCount, setPendingLeaveCount] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const isSupervisor = profile?.role && SUPERVISOR_ROLES.includes(profile.role)
   const displayRole = profile?.role?.replace(/_/g, ' ') ?? 'Employee'
   const weekRange = getWeekRange()
+
+  useEffect(() => {
+    if (profile?.id) fetchDashboardData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id])
+
+  async function fetchDashboardData() {
+    setLoading(true)
+    try {
+      const { start } = getWeekBounds()
+      const weekStartStr = formatDateISO(start)
+
+      async function fetchWeekStatus() {
+        try {
+          const { data } = await supabase
+            .from('timesheet_weeks')
+            .select('status')
+            .eq('employee_id', profile!.id)
+            .eq('week_start', weekStartStr)
+            .single()
+          setWeekStatus(data?.status ?? null)
+        } catch {
+          setWeekStatus(null)
+        }
+      }
+
+      async function fetchUnread() {
+        try {
+          const { count } = await supabase
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('recipient_id', profile!.id)
+            .eq('is_read', false)
+          setUnreadCount(count ?? 0)
+        } catch {
+          setUnreadCount(null)
+        }
+      }
+
+      async function fetchPendingOt() {
+        try {
+          const { count } = await supabase
+            .from('ot_approvals')
+            .select('id', { count: 'exact', head: true })
+            .eq('approver_id', profile!.id)
+            .eq('status', 'pending')
+          setPendingOtCount(count ?? 0)
+        } catch {
+          setPendingOtCount(null)
+        }
+      }
+
+      async function fetchPendingLeave() {
+        try {
+          const { count } = await supabase
+            .from('leave_requests')
+            .select('id', { count: 'exact', head: true })
+            .eq('supervisor_id', profile!.id)
+            .eq('status', 'pending')
+          setPendingLeaveCount(count ?? 0)
+        } catch {
+          setPendingLeaveCount(null)
+        }
+      }
+
+      const tasks: Promise<void>[] = [fetchWeekStatus(), fetchUnread()]
+      if (isSupervisor) {
+        tasks.push(fetchPendingOt(), fetchPendingLeave())
+      }
+
+      await Promise.all(tasks)
+    } catch (err) {
+      console.error('Dashboard fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const timesheetStatusDisplay = weekStatus ?? 'draft'
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -46,18 +139,52 @@ export default function DashboardPage() {
       <div className="bg-[#1B5EA6] text-white rounded-lg p-5 mb-6">
         <p className="text-blue-200 text-sm">Current week</p>
         <p className="text-lg font-semibold mt-0.5">{weekRange}</p>
-        <div className="mt-3 inline-flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
-          <span className="w-2 h-2 rounded-full bg-yellow-300 inline-block" />
-          <span className="text-sm">Timesheet: Draft</span>
+        <div className="mt-3">
+          {loading ? (
+            <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
+              <span className="text-sm text-blue-100">Loading…</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
+              <span className="text-sm">Timesheet:</span>
+              <StatusBadge status={timesheetStatusDisplay} />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
-        <StatCard label="Timesheets submitted" value="—" sub="This month" />
-        <StatCard label="Leave days remaining" value="—" sub="Annual leave" />
-        <StatCard label="OT requests" value="—" sub="Pending approval" />
-        <StatCard label="Notifications" value="—" sub="Unread" />
+        <StatCard
+          label="Timesheet status"
+          value={loading ? '…' : (weekStatus ? weekStatus.charAt(0).toUpperCase() + weekStatus.slice(1) : 'No entry')}
+          sub="This week"
+        />
+        <StatCard
+          label="Notifications"
+          value={loading ? '…' : (unreadCount ?? '—')}
+          sub="Unread"
+        />
+        {isSupervisor && (
+          <>
+            <StatCard
+              label="OT requests"
+              value={loading ? '…' : (pendingOtCount ?? '—')}
+              sub="Pending approval"
+            />
+            <StatCard
+              label="Leave requests"
+              value={loading ? '…' : (pendingLeaveCount ?? '—')}
+              sub="Pending approval"
+            />
+          </>
+        )}
+        {!isSupervisor && (
+          <>
+            <StatCard label="Leave days" value="—" sub="Annual leave balance" />
+            <StatCard label="OT hours" value="—" sub="This month" />
+          </>
+        )}
       </div>
 
       {/* Quick actions */}
@@ -76,6 +203,14 @@ export default function DashboardPage() {
           >
             <span>🌴</span> Apply for leave
           </a>
+          {isSupervisor && (
+            <a
+              href="/approvals"
+              className="flex items-center gap-3 text-sm text-[#1B5EA6] hover:underline"
+            >
+              <span>✅</span> Review pending approvals
+            </a>
+          )}
           <a
             href="/notifications"
             className="flex items-center gap-3 text-sm text-[#1B5EA6] hover:underline"

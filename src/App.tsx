@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import TimesheetsPage from './pages/TimesheetsPage'
 import LeavePage from './pages/LeavePage'
+import ApprovalsPage from './pages/ApprovalsPage'
 import NotificationsPage from './pages/NotificationsPage'
 import ProfilePage from './pages/ProfilePage'
 import Layout from './components/Layout'
@@ -33,6 +34,7 @@ function AppRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="timesheets" element={<TimesheetsPage />} />
         <Route path="leave" element={<LeavePage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>

@@ -1,16 +1,32 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import type { Role } from '../types'
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: '⊞', exact: true },
-  { to: '/timesheets', label: 'Timesheets', icon: '📋' },
-  { to: '/leave', label: 'Leave', icon: '🌴' },
-  { to: '/notifications', label: 'Notifications', icon: '🔔' },
-  { to: '/profile', label: 'Profile', icon: '👤' },
+const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
+
+interface NavItem {
+  to: string
+  label: string
+  icon: string
+  exact?: boolean
+  roles: Role[] | null
+}
+
+const navItems: NavItem[] = [
+  { to: '/', label: 'Dashboard', icon: '⊞', exact: true, roles: null },
+  { to: '/timesheets', label: 'Timesheets', icon: '📋', roles: null },
+  { to: '/leave', label: 'Leave', icon: '🌴', roles: null },
+  { to: '/approvals', label: 'Approvals', icon: '✅', roles: SUPERVISOR_ROLES },
+  { to: '/notifications', label: 'Notifications', icon: '🔔', roles: null },
+  { to: '/profile', label: 'Profile', icon: '👤', roles: null },
 ]
 
 export default function Layout() {
   const { profile, signOut } = useAuth()
+
+  const visibleItems = navItems.filter(
+    item => item.roles === null || (profile?.role && item.roles.includes(profile.role))
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -27,7 +43,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map(item => (
+          {visibleItems.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -72,7 +88,7 @@ export default function Layout() {
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
-        {navItems.map(item => (
+        {visibleItems.map(item => (
           <NavLink
             key={item.to}
             to={item.to}
