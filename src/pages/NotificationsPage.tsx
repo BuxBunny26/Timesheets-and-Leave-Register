@@ -1,4 +1,4 @@
-import { useNotifications } from '../hooks/useNotifications'
+import { useNotifications } from '../contexts/NotificationsContext'
 import { IconBell, IconCheck } from '../components/Icons'
 
 export default function NotificationsPage() {
