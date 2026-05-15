@@ -7,6 +7,7 @@ import LeavePage from './pages/LeavePage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import NotificationsPage from './pages/NotificationsPage'
 import ProfilePage from './pages/ProfilePage'
+import ReportsPage from './pages/ReportsPage'
 import Layout from './components/Layout'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="timesheets" element={<TimesheetsPage />} />
         <Route path="leave" element={<LeavePage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
