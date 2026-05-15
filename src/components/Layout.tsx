@@ -1,4 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
+import { Suspense } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconClipboardCheck, IconShield } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
@@ -12,16 +13,17 @@ interface NavItem {
   icon: React.ReactNode
   exact?: boolean
   roles: Role[] | null
+  mobileVisible?: boolean
 }
 
 const navItems: NavItem[] = [
   { to: '/',             label: 'Dashboard',    icon: <IconGrid />,           exact: true,  roles: null },
   { to: '/timesheets',   label: 'Timesheets',   icon: <IconClipboard />,      roles: null },
   { to: '/leave',        label: 'Leave',        icon: <IconCalendar />,       roles: null },
-  { to: '/verify',       label: 'Verify Hours', icon: <IconClipboardCheck />, roles: null },
+  { to: '/verify',       label: 'Verify Hours', icon: <IconClipboardCheck />, roles: null,                mobileVisible: false },
   { to: '/approvals',    label: 'Approvals',    icon: <IconCheckCircle />,    roles: SUPERVISOR_ROLES },
-  { to: '/reports',      label: 'Reports',      icon: <IconChartBar />,       roles: ['manager', 'admin_manager', 'system_admin'] as Role[] },
-  { to: '/admin',        label: 'Admin',        icon: <IconShield />,         roles: ['admin_manager', 'system_admin'] as Role[] },
+  { to: '/reports',      label: 'Reports',      icon: <IconChartBar />,       roles: ['manager', 'admin_manager', 'system_admin'] as Role[], mobileVisible: false },
+  { to: '/admin',        label: 'Admin',        icon: <IconShield />,         roles: ['admin_manager', 'system_admin'] as Role[],            mobileVisible: false },
   { to: '/notifications', label: 'Notifications', icon: <IconBell />,         roles: null },
   { to: '/profile',      label: 'Profile',      icon: <IconUser />,           roles: null },
 ]
@@ -33,6 +35,7 @@ export default function Layout() {
   const visibleItems = navItems.filter(
     item => item.roles === null || (profile?.role && item.roles.includes(profile.role))
   )
+  const mobileItems = visibleItems.filter(item => item.mobileVisible !== false)
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -99,13 +102,19 @@ export default function Layout() {
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-6">
-          <Outlet />
+          <Suspense fallback={
+            <div className="flex justify-center py-16">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1B5EA6]" />
+            </div>
+          }>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
-        {visibleItems.map(item => (
+        {mobileItems.map(item => (
           <NavLink
             key={item.to}
             to={item.to}

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
-import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight } from '../components/Icons'
+import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight, IconClipboardCheck } from '../components/Icons'
 import type { TimesheetStatus, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [pendingLeaveCount, setPendingLeaveCount] = useState<number | null>(null)
   const [annualLeaveRemaining, setAnnualLeaveRemaining] = useState<number | null>(null)
   const [monthlyOtHours, setMonthlyOtHours] = useState<number | null>(null)
+  const [verifyWarning, setVerifyWarning] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const isSupervisor = profile?.role && SUPERVISOR_ROLES.includes(profile.role)
@@ -109,7 +111,7 @@ export default function DashboardPage() {
         }
       }
 
-      const tasks: Promise<void>[] = [fetchWeekStatus(), fetchUnread(), fetchLeaveBalance(), fetchMonthlyOt()]
+      const tasks: Promise<void>[] = [fetchWeekStatus(), fetchUnread(), fetchLeaveBalance(), fetchMonthlyOt(), fetchVerificationStatus()]
       if (isSupervisor) {
         tasks.push(fetchPendingOt(), fetchPendingLeave())
       }
@@ -160,6 +162,24 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchVerificationStatus() {
+    try {
+      const now = new Date()
+      if (now.getDate() < 5) { setVerifyWarning(false); return }
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const periodMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}-01`
+      const { data } = await supabase
+        .from('timesheet_verifications')
+        .select('status')
+        .eq('employee_id', profile!.id)
+        .eq('period_month', periodMonth)
+        .single()
+      setVerifyWarning(!data || data.status === 'pending' || data.status === 'overdue')
+    } catch {
+      setVerifyWarning(false)
+    }
+  }
+
   const timesheetStatusDisplay = weekStatus ?? 'draft'
 
   return (
@@ -193,6 +213,20 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Verification reminder banner */}
+      {verifyWarning && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+          <IconClipboardCheck className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">Last month&apos;s hours not yet verified</p>
+            <p className="text-xs text-amber-600 mt-0.5">Please review and verify your hours for last month.</p>
+          </div>
+          <Link to="/verify" className="text-xs font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap">
+            Verify now
+          </Link>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
@@ -240,36 +274,36 @@ export default function DashboardPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick actions</h2>
         <div className="divide-y divide-gray-50">
-          <a href="/timesheets" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+          <Link to="/timesheets" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
             <div className="flex items-center gap-3">
               <IconClipboard className="w-4 h-4 text-gray-400" />
               Open this week&apos;s timesheet
             </div>
             <IconArrowRight className="w-4 h-4 text-gray-300" />
-          </a>
-          <a href="/leave" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+          </Link>
+          <Link to="/leave" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
             <div className="flex items-center gap-3">
               <IconCalendar className="w-4 h-4 text-gray-400" />
               Apply for leave
             </div>
             <IconArrowRight className="w-4 h-4 text-gray-300" />
-          </a>
+          </Link>
           {isSupervisor && (
-            <a href="/approvals" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+            <Link to="/approvals" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
               <div className="flex items-center gap-3">
                 <IconCheckCircle className="w-4 h-4 text-gray-400" />
                 Review pending approvals
               </div>
               <IconArrowRight className="w-4 h-4 text-gray-300" />
-            </a>
+            </Link>
           )}
-          <a href="/notifications" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+          <Link to="/notifications" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
             <div className="flex items-center gap-3">
               <IconBell className="w-4 h-4 text-gray-400" />
               View notifications
             </div>
             <IconArrowRight className="w-4 h-4 text-gray-300" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>

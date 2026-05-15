@@ -56,7 +56,6 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState('')
   const [emergencyContactName, setEmergencyContactName] = useState('')
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('')
-  const [_avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   const [saving, setSaving] = useState(false)
@@ -74,7 +73,6 @@ export default function ProfilePage() {
       setPhone(profile.phone ?? '')
       setEmergencyContactName(profile.emergency_contact_name ?? '')
       setEmergencyContactPhone(profile.emergency_contact_phone ?? '')
-      setAvatarUrl(profile.avatar_url ?? null)
       setAvatarPreview(profile.avatar_url ?? null)
     }
   }, [profile])
@@ -142,7 +140,6 @@ export default function ProfilePage() {
     if (updateError) {
       showToast('error', 'Failed to save avatar URL: ' + updateError.message)
     } else {
-      setAvatarUrl(publicUrl)
       showToast('success', 'Avatar updated.')
       await refreshProfile()
     }

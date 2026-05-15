@@ -187,6 +187,12 @@ export default function LeavePage() {
     return { total: b.total_days, used: b.used_days, remaining: Math.max(0, b.total_days - b.used_days) }
   }
 
+  const balanceTypeValues = BALANCE_TYPES.map(b => b.value) as BalanceLeaveType[]
+  const currentBalance = balanceTypeValues.includes(leaveType as BalanceLeaveType)
+    ? getBalance(leaveType as BalanceLeaveType)
+    : null
+  const exceedsBalance = !!(startDate && endDate && totalDays > 0 && currentBalance && totalDays > currentBalance.remaining)
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -296,6 +302,13 @@ export default function LeavePage() {
             {startDate && endDate && (
               <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-700">
                 Working days: <strong>{totalDays}</strong>
+              </div>
+            )}
+
+            {/* Balance warning */}
+            {exceedsBalance && currentBalance && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-700">
+                <strong>Balance warning:</strong> This request ({totalDays} {totalDays === 1 ? 'day' : 'days'}) exceeds your remaining {leaveType} leave ({currentBalance.remaining} {currentBalance.remaining === 1 ? 'day' : 'days'}). It can still be submitted but may require additional approval.
               </div>
             )}
 

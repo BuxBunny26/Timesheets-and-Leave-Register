@@ -1,18 +1,28 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
-import TimesheetsPage from './pages/TimesheetsPage'
-import LeavePage from './pages/LeavePage'
-import ApprovalsPage from './pages/ApprovalsPage'
-import NotificationsPage from './pages/NotificationsPage'
-import ProfilePage from './pages/ProfilePage'
-import ReportsPage from './pages/ReportsPage'
-import AdminPage from './pages/AdminPage'
-import VerificationPage from './pages/VerificationPage'
-import Layout from './components/Layout'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import Layout from './components/Layout'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+
+const DashboardPage     = lazy(() => import('./pages/DashboardPage'))
+const TimesheetsPage    = lazy(() => import('./pages/TimesheetsPage'))
+const LeavePage         = lazy(() => import('./pages/LeavePage'))
+const ApprovalsPage     = lazy(() => import('./pages/ApprovalsPage'))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
+const ProfilePage       = lazy(() => import('./pages/ProfilePage'))
+const ReportsPage       = lazy(() => import('./pages/ReportsPage'))
+const AdminPage         = lazy(() => import('./pages/AdminPage'))
+const VerificationPage  = lazy(() => import('./pages/VerificationPage'))
+
+function PageLoader() {
+  return (
+    <div className="flex justify-center py-16">
+      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1B5EA6]" />
+    </div>
+  )
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth()
@@ -33,22 +43,24 @@ function AppRoutes() {
     </div>
   )
   return (
-    <Routes>
-      <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<DashboardPage />} />
-        <Route path="timesheets" element={<TimesheetsPage />} />
-        <Route path="leave" element={<LeavePage />} />
-        <Route path="approvals" element={<ApprovalsPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="verify" element={<VerificationPage />} />
-        <Route path="admin" element={<AdminPage />} />
-        <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route index element={<DashboardPage />} />
+          <Route path="timesheets" element={<TimesheetsPage />} />
+          <Route path="leave" element={<LeavePage />} />
+          <Route path="approvals" element={<ApprovalsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="verify" element={<VerificationPage />} />
+          <Route path="admin" element={<AdminPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 
