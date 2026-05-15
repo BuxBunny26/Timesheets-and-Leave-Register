@@ -49,6 +49,11 @@ export interface Profile {
   role: Role
   country_code: CountryCode
   status: 'active' | 'inactive'
+  preferred_name: string | null
+  phone: string | null
+  emergency_contact_name: string | null
+  emergency_contact_phone: string | null
+  avatar_url: string | null
   created_at: string
   updated_at: string
   // joined fields

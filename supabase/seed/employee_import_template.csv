@@ -1,0 +1,4 @@
+employee_code,first_name,surname,preferred_name,email,phone,role,division,department,site,payment_centre,supervisor_email
+WC001,John,Smith,Johnny,john.smith@wearcheck.co.za,+27821234567,employee,WearCheck,Operations,Johannesburg,WearCheck,manager@wearcheck.co.za
+WC002,Jane,Doe,,jane.doe@wearcheck.co.za,+27831234567,supervisor,WearCheck,Operations,Cape Town,WearCheck,manager@wearcheck.co.za
+GP001,Bob,Jones,,bob.jones@wearcheck.co.za,,employee,GP_Consult,Consulting,Johannesburg,GP_Consult,supervisor@wearcheck.co.za

@@ -3,12 +3,17 @@ import Holidays from 'date-holidays'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
+import TeamOverview from '../components/TeamOverview'
 import {
   getWeekBounds,
   formatDateISO,
   getDaysOfWeek,
 } from '../lib/dateUtils'
 import type { TimesheetWeek, TimesheetDay, DayStatus, TimesheetStatus } from '../types'
+import type { Role } from '../types'
+
+const MANAGER_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
+type ViewMode = 'my' | 'team'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday', 'standby']
@@ -52,6 +57,8 @@ function formatDayHeading(d: Date, idx: number): string {
 
 export default function TimesheetsPage() {
   const { profile } = useAuth()
+  const [viewMode, setViewMode] = useState<ViewMode>('my')
+  const canSeeTeam = profile?.role && MANAGER_ROLES.includes(profile.role)
   const [weekOffset, setWeekOffset] = useState(0)
   const [weekStart, setWeekStart] = useState<Date>(new Date())
   const [weekEnd, setWeekEnd] = useState<Date>(new Date())
@@ -285,13 +292,49 @@ export default function TimesheetsPage() {
       <div className="flex items-start justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Timesheets</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Weekly timesheet entry</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {viewMode === 'my' ? 'Weekly timesheet entry' : 'Team timesheet overview'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <StatusBadge status={weekStatus} />
+          {viewMode === 'my' && <StatusBadge status={weekStatus} />}
           {saving && <span className="text-xs text-gray-400">Saving…</span>}
         </div>
       </div>
+
+      {/* View toggle */}
+      {canSeeTeam && (
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
+          <button
+            type="button"
+            onClick={() => setViewMode('my')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'my'
+                ? 'bg-white text-[#1B5EA6] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            My Timesheet
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('team')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'team'
+                ? 'bg-white text-[#1B5EA6] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Team Overview
+          </button>
+        </div>
+      )}
+
+      {/* Team overview */}
+      {viewMode === 'team' && <TeamOverview />}
+
+      {/* My timesheet (hidden when in team mode) */}
+      {viewMode === 'my' && (<>
 
       {/* Week navigation */}
       <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4">
@@ -501,6 +544,7 @@ export default function TimesheetsPage() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }

@@ -47,7 +47,7 @@ export default function LoginPage() {
           </div>
         </div>
         <h2 className="mt-5 text-center text-2xl font-bold tracking-tight text-gray-900">
-          WearCheck RS
+          WearCheck ARC
         </h2>
         <p className="mt-1 text-center text-sm text-gray-500">
           Timesheet &amp; Leave Management

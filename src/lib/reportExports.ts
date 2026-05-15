@@ -67,7 +67,7 @@ export function printReport(elementId: string) {
   printWindow.document.write(`
     <html>
       <head>
-        <title>WearCheck RS — Report</title>
+        <title>WearCheck ARC — Report</title>
         <style>
           body { font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #111; }
           table { border-collapse: collapse; width: 100%; margin-top: 12px; }

@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const FROM_EMAIL = 'WearCheck RS <timesheets@wearcheckrs.com>'
+const FROM_EMAIL = 'WearCheck ARC <timesheets@wearcheckrs.com>'
 
 async function sendEmail(to: string, subject: string, html: string) {
   if (!RESEND_API_KEY) return
@@ -37,7 +37,7 @@ serve(async (req) => {
       `<p>Hi ${emp.first_name},</p>
        <p>Your <strong>${leave.leave_type} leave</strong> request from <strong>${leave.start_date}</strong> to <strong>${leave.end_date}</strong> has been <strong>${statusLabel}</strong>.</p>
        ${leave.supervisor_comment ? `<p>Note from your supervisor: ${leave.supervisor_comment}</p>` : ''}
-       <p>— WearCheck RS Timesheets</p>`
+       <p>— WearCheck ARC Timesheets</p>`
     )
   }
 
