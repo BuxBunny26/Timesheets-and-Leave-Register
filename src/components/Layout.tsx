@@ -1,6 +1,7 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser } from './Icons'
+import { useNotifications } from '../hooks/useNotifications'
 import type { Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -24,6 +25,7 @@ const navItems: NavItem[] = [
 
 export default function Layout() {
   const { profile, signOut } = useAuth()
+  const { unreadCount } = useNotifications()
 
   const visibleItems = navItems.filter(
     item => item.roles === null || (profile?.role && item.roles.includes(profile.role))
@@ -57,7 +59,16 @@ export default function Layout() {
                 }`
               }
             >
-              {item.icon}
+              {item.to === '/notifications' ? (
+                <div className="relative">
+                  <IconBell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+              ) : item.icon}
               {item.label}
             </NavLink>
           ))}
@@ -102,7 +113,18 @@ export default function Layout() {
               }`
             }
           >
-            <span className="w-5 h-5">{item.icon}</span>
+            <span className="w-5 h-5">
+              {item.to === '/notifications' ? (
+                <div className="relative">
+                  <IconBell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+              ) : item.icon}
+            </span>
             <span>{item.label}</span>
           </NavLink>
         ))}
