@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import { formatDateDisplay, countWorkingDays } from '../lib/dateUtils'
+import { IconCalendar } from '../components/Icons'
 import type { LeaveRequest, LeaveType, LeaveStatus } from '../types'
 
 const LEAVE_TYPES: { value: LeaveType; label: string }[] = [
@@ -300,7 +301,7 @@ export default function LeavePage() {
           </div>
         ) : filteredRequests.length === 0 ? (
           <div className="py-16 text-center">
-            <span className="text-4xl">🌴</span>
+            <IconCalendar className="w-12 h-12 text-gray-300 mx-auto" />
             <p className="mt-3 text-gray-600 font-medium">No leave requests yet</p>
             <p className="mt-1 text-sm text-gray-400">
               {statusFilter !== 'all'

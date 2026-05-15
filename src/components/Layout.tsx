@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser } from './Icons'
 import type { Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -7,18 +8,18 @@ const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'sys
 interface NavItem {
   to: string
   label: string
-  icon: string
+  icon: React.ReactNode
   exact?: boolean
   roles: Role[] | null
 }
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: '⊞', exact: true, roles: null },
-  { to: '/timesheets', label: 'Timesheets', icon: '📋', roles: null },
-  { to: '/leave', label: 'Leave', icon: '🌴', roles: null },
-  { to: '/approvals', label: 'Approvals', icon: '✅', roles: SUPERVISOR_ROLES },
-  { to: '/notifications', label: 'Notifications', icon: '🔔', roles: null },
-  { to: '/profile', label: 'Profile', icon: '👤', roles: null },
+  { to: '/', label: 'Dashboard', icon: <IconGrid />, exact: true, roles: null },
+  { to: '/timesheets', label: 'Timesheets', icon: <IconClipboard />, roles: null },
+  { to: '/leave', label: 'Leave', icon: <IconCalendar />, roles: null },
+  { to: '/approvals', label: 'Approvals', icon: <IconCheckCircle />, roles: SUPERVISOR_ROLES },
+  { to: '/notifications', label: 'Notifications', icon: <IconBell />, roles: null },
+  { to: '/profile', label: 'Profile', icon: <IconUser />, roles: null },
 ]
 
 export default function Layout() {
@@ -34,7 +35,9 @@ export default function Layout() {
       <aside className="hidden md:flex md:flex-col md:w-64 bg-[#1B5EA6] text-white">
         <div className="flex items-center gap-3 px-6 py-5 border-b border-blue-700">
           <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-            <span className="text-[#1B5EA6] text-sm font-bold">W</span>
+            <svg className="w-5 h-5 text-[#1B5EA6]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
           </div>
           <div>
             <p className="font-semibold text-sm">WearCheck RS</p>
@@ -54,7 +57,7 @@ export default function Layout() {
                 }`
               }
             >
-              <span>{item.icon}</span>
+              {item.icon}
               {item.label}
             </NavLink>
           ))}
@@ -99,7 +102,7 @@ export default function Layout() {
               }`
             }
           >
-            <span className="text-lg">{item.icon}</span>
+            <span className="w-5 h-5">{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>
         ))}

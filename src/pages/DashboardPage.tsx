@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
+import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight } from '../components/Icons'
 import type { TimesheetStatus, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -126,7 +127,7 @@ export default function DashboardPage() {
       {/* Welcome header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome, {profile?.first_name ?? 'there'} 👋
+          Welcome, {profile?.first_name ?? 'there'}
         </h1>
         <p className="text-gray-500 mt-1 capitalize">
           {displayRole}
@@ -190,32 +191,36 @@ export default function DashboardPage() {
       {/* Quick actions */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick actions</h2>
-        <div className="space-y-2">
-          <a
-            href="/timesheets"
-            className="flex items-center gap-3 text-sm text-[#1B5EA6] hover:underline"
-          >
-            <span>📋</span> Open this week&apos;s timesheet
+        <div className="divide-y divide-gray-50">
+          <a href="/timesheets" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+            <div className="flex items-center gap-3">
+              <IconClipboard className="w-4 h-4 text-gray-400" />
+              Open this week&apos;s timesheet
+            </div>
+            <IconArrowRight className="w-4 h-4 text-gray-300" />
           </a>
-          <a
-            href="/leave"
-            className="flex items-center gap-3 text-sm text-[#1B5EA6] hover:underline"
-          >
-            <span>🌴</span> Apply for leave
+          <a href="/leave" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+            <div className="flex items-center gap-3">
+              <IconCalendar className="w-4 h-4 text-gray-400" />
+              Apply for leave
+            </div>
+            <IconArrowRight className="w-4 h-4 text-gray-300" />
           </a>
           {isSupervisor && (
-            <a
-              href="/approvals"
-              className="flex items-center gap-3 text-sm text-[#1B5EA6] hover:underline"
-            >
-              <span>✅</span> Review pending approvals
+            <a href="/approvals" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+              <div className="flex items-center gap-3">
+                <IconCheckCircle className="w-4 h-4 text-gray-400" />
+                Review pending approvals
+              </div>
+              <IconArrowRight className="w-4 h-4 text-gray-300" />
             </a>
           )}
-          <a
-            href="/notifications"
-            className="flex items-center gap-3 text-sm text-[#1B5EA6] hover:underline"
-          >
-            <span>🔔</span> View notifications
+          <a href="/notifications" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+            <div className="flex items-center gap-3">
+              <IconBell className="w-4 h-4 text-gray-400" />
+              View notifications
+            </div>
+            <IconArrowRight className="w-4 h-4 text-gray-300" />
           </a>
         </div>
       </div>

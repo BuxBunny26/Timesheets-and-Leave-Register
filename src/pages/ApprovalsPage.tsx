@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatDateDisplay } from '../lib/dateUtils'
+import { IconCheckCircle } from '../components/Icons'
 import type { OTApprovalStatus, LeaveType, LeaveStatus } from '../types'
 
 type Tab = 'ot' | 'leave'
@@ -240,7 +241,7 @@ export default function ApprovalsPage() {
             </div>
           ) : otApprovals.length === 0 ? (
             <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
-              <span className="text-4xl">✅</span>
+              <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
               <p className="mt-3 text-gray-600 font-medium">No pending OT approvals</p>
               <p className="mt-1 text-sm text-gray-400">All caught up!</p>
             </div>
@@ -335,7 +336,7 @@ export default function ApprovalsPage() {
             </div>
           ) : leaveApprovals.length === 0 ? (
             <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
-              <span className="text-4xl">✅</span>
+              <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
               <p className="mt-3 text-gray-600 font-medium">No pending leave approvals</p>
               <p className="mt-1 text-sm text-gray-400">All caught up!</p>
             </div>
