@@ -62,11 +62,11 @@ export default function TeamOverview() {
   const [rows, setRows] = useState<EmployeeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState({ search: '', department: '', site: '', division: '' })
+  const [filter, setFilter] = useState({ search: '', department: '', site: '', division: '', jobTitle: '' })
 
   const mondays = getLastEightMondays()
   const weekStarts = mondays.map(d => formatDateISO(d))
-  const isAdmin = profile?.role === 'admin_manager' || profile?.role === 'system_admin'
+  const isAdmin = profile?.role === 'admin_manager' || profile?.role === 'system_admin' || profile?.role === 'manager'
 
   useEffect(() => {
     if (!profile?.id) return
@@ -138,10 +138,11 @@ export default function TeamOverview() {
   const currentWeekStart = weekStarts[weekStarts.length - 1]
 
   // Derived filter options (from loaded rows)
-  const deptOptions = [...new Set(rows.map(r => r.profile.department?.name).filter((v): v is string => !!v))].sort()
-  const siteOptions = [...new Set(rows.map(r => r.profile.site?.name).filter((v): v is string => !!v))].sort()
-  const divOptions  = [...new Set(rows.map(r => r.profile.division?.name).filter((v): v is string => !!v))].sort()
-  const hasFilter = !!(filter.search || filter.department || filter.site || filter.division)
+  const deptOptions     = [...new Set(rows.map(r => r.profile.department?.name).filter((v): v is string => !!v))].sort()
+  const siteOptions     = [...new Set(rows.map(r => r.profile.site?.name).filter((v): v is string => !!v))].sort()
+  const divOptions      = [...new Set(rows.map(r => r.profile.division?.name).filter((v): v is string => !!v))].sort()
+  const jobTitleOptions = [...new Set(rows.map(r => r.profile.job_title).filter((v): v is string => !!v))].sort()
+  const hasFilter = !!(filter.search || filter.department || filter.site || filter.division || filter.jobTitle)
 
   const filteredRows = rows.filter(r => {
     const p = r.profile
@@ -154,6 +155,7 @@ export default function TeamOverview() {
     if (filter.department && p.department?.name !== filter.department) return false
     if (filter.site && p.site?.name !== filter.site) return false
     if (filter.division && p.division?.name !== filter.division) return false
+    if (filter.jobTitle && p.job_title !== filter.jobTitle) return false
     return true
   })
 
@@ -245,9 +247,19 @@ export default function TeamOverview() {
             {divOptions.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         )}
+        {jobTitleOptions.length > 1 && (
+          <select
+            value={filter.jobTitle}
+            onChange={e => setFilter(f => ({ ...f, jobTitle: e.target.value }))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All job titles</option>
+            {jobTitleOptions.map(j => <option key={j} value={j}>{j}</option>)}
+          </select>
+        )}
         {hasFilter && (
           <button
-            onClick={() => setFilter({ search: '', department: '', site: '', division: '' })}
+            onClick={() => setFilter({ search: '', department: '', site: '', division: '', jobTitle: '' })}
             className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5"
           >
             Clear
