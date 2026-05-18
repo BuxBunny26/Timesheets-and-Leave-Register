@@ -18,6 +18,7 @@ type ViewMode = 'my' | 'team'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday', 'standby']
+const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday', 'standby']
 
 interface DayState {
   primary_status: DayStatus
@@ -32,9 +33,9 @@ interface DayState {
   is_locked: boolean
 }
 
-function defaultDay(isHoliday: boolean, holidayName: string): DayState {
+function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false): DayState {
   return {
-    primary_status: isHoliday ? 'public_holiday' : 'present',
+    primary_status: isHoliday ? 'public_holiday' : isWeekend ? 'standby' : 'present',
     overtime_flag: false,
     overtime_hours: 0.5,
     overtime_reason: '',
@@ -104,13 +105,13 @@ export default function TimesheetsPage() {
 
   function buildDaysFromDates(weekStartDate: Date): DayState[] {
     const dateArr = getDaysOfWeek(weekStartDate)
-    return dateArr.map(d => {
+    return dateArr.map((d, i) => {
       const holidayResult = hd.current.isHoliday(d)
       const isHoliday = !!holidayResult
       const holidayName = isHoliday && Array.isArray(holidayResult) && holidayResult.length > 0
         ? holidayResult[0].name
         : ''
-      return defaultDay(isHoliday, holidayName)
+      return defaultDay(isHoliday, holidayName, i >= 5)
     })
   }
 
@@ -514,18 +515,19 @@ export default function TimesheetsPage() {
                     </span>
                   )}
 
-                  {/* Primary status */}
+                  {/* Primary status — no 'present' on weekends */}
                   <select
                     value={day.primary_status}
                     disabled={locked}
-                    onChange={e =>
-                      handleDayChange(idx, { primary_status: e.target.value as DayStatus })
-                    }
+                    onChange={e => {
+                      const newStatus = e.target.value as DayStatus
+                      handleDayChange(idx, { primary_status: newStatus })
+                    }}
                     className={`w-full text-xs border border-gray-200 rounded px-2 py-1.5 mb-2 bg-white ${
                       locked ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700'
                     }`}
                   >
-                    {STATUS_OPTIONS.map(s => (
+                    {(isWeekend ? WEEKEND_STATUS_OPTIONS : STATUS_OPTIONS).map(s => (
                       <option key={s} value={s}>
                         {s.replace('_', ' ')}
                       </option>
