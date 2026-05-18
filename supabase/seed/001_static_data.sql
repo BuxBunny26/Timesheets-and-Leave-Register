@@ -1,7 +1,7 @@
 -- Divisions
 INSERT INTO divisions (code, name) VALUES
-('ARC', 'Advanced Reliability Centre'),
-('AFS', 'Applied Field Services')
+('ARC', 'Asset Reliability Care'),
+('AFS', 'AFS')
 ON CONFLICT (code) DO NOTHING;
 
 -- Departments
@@ -9,7 +9,7 @@ INSERT INTO departments (code, name, division_code) VALUES
 ('ARC-RCM', 'Reliability Condition Monitoring', 'ARC'),
 ('ARC-NDT', 'Non-Destructive Testing', 'ARC'),
 ('ARC-TCA', 'Technical Condition Assessment', 'ARC'),
-('ARC-RCA', 'Root Cause Analysis', 'ARC'),
+('ARC-RCA', 'Rope Condition Assessment', 'ARC'),
 ('AFS-NDT', 'Non-Destructive Testing', 'AFS'),
 ('AFS-RCA', 'Rope Condition Assessment', 'AFS'),
 ('AFS-TC',  'Technical Compliance', 'AFS')
