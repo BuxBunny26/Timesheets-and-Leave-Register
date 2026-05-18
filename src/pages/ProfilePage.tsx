@@ -47,7 +47,7 @@ function FormField({
 }
 
 export default function ProfilePage() {
-  const { profile, refreshProfile } = useAuth()
+  const { profile, user, refreshProfile } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [firstName, setFirstName] = useState('')
@@ -242,7 +242,7 @@ export default function ProfilePage() {
             value={
               profile.supervisor
                 ? `${profile.supervisor.first_name} ${profile.supervisor.surname}`
-                : undefined
+                : (user?.user_metadata?.supervisor_name ?? undefined)
             }
           />
         </dl>

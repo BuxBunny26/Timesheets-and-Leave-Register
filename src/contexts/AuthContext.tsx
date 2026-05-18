@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchProfile(userId: string) {
     const { data } = await supabase
       .from('profiles')
-      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*)')
+      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*), supervisor:profiles!supervisor_id(first_name, surname)')
       .eq('id', userId)
       .single()
     setProfile(data)
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!session?.user) return
     const { data } = await supabase
       .from('profiles')
-      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*)')
+      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*), supervisor:profiles!supervisor_id(first_name, surname)')
       .eq('id', session.user.id)
       .single()
     if (data) setProfile(data)

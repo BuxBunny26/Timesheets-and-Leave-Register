@@ -1,4 +1,7 @@
 employee_code,first_name,surname,preferred_name,email,phone,role,division,department,site,payment_centre,supervisor_email
-WC001,John,Smith,Johnny,john.smith@wearcheck.co.za,+27821234567,employee,WearCheck,Operations,Johannesburg,WearCheck,manager@wearcheck.co.za
-WC002,Jane,Doe,,jane.doe@wearcheck.co.za,+27831234567,supervisor,WearCheck,Operations,Cape Town,WearCheck,manager@wearcheck.co.za
-GP001,Bob,Jones,,bob.jones@wearcheck.co.za,,employee,GP_Consult,Consulting,Johannesburg,GP_Consult,supervisor@wearcheck.co.za
+WC253,Philip,Schutte,,philip@wearcheckrs.com,,manager,ARC,ARC-RCM,SA-HO,WEARCHECK,
+WC319,Annemie,Willer,,annemie@wearcheckrs.com,,manager,ARC,ARC-RCM,SA-HO,WEARCHECK,philip@wearcheckrs.com
+WC352,Jaco,Willer,,jaco@wearcheckrs.com,,manager,ARC,ARC-RCM,SA-HO,WEARCHECK,philip@wearcheckrs.com
+WC508,Johan,Stols,,Johans@wearcheckrs.com,,manager,AFS,AFS-TC,SA-HO,WEARCHECK,philip@wearcheckrs.com
+WC504,Roger,Henwood,,rogerh@wearcheckrs.com,,manager,AFS,AFS-RCA,SA-HO,WEARCHECK,philip@wearcheckrs.com
+WC492,Adri,Ludick,,a.ludick@wearcheckrs.com,,manager,AFS,AFS-NDT,SA-HO,WEARCHECK,philip@wearcheckrs.com

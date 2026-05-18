@@ -25,7 +25,7 @@ const ACTION_LABELS: Record<string, string> = {
   ot_threshold_reached:    'OT threshold reached',
 }
 
-type EmployeeSummary = Pick<Profile, 'id' | 'first_name' | 'surname' | 'employee_code' | 'department'>
+type EmployeeSummary = Pick<Profile, 'id' | 'first_name' | 'surname' | 'employee_code' | 'department' | 'site' | 'division' | 'job_title'>
 
 interface BalanceRow extends Omit<LeaveBalance, 'employee'> {
   employee?: EmployeeSummary
@@ -57,6 +57,7 @@ export default function AdminPage() {
   const [balances, setBalances] = useState<BalanceRow[]>([])
   const [loadingBalances, setLoadingBalances] = useState(true)
   const [balanceYear, setBalanceYear] = useState(new Date().getFullYear())
+  const [balanceFilter, setBalanceFilter] = useState({ search: '', department: '', site: '', division: '', jobTitle: '' })
   const [edit, setEdit] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
   const [employees, setEmployees] = useState<Pick<Profile, 'id' | 'first_name' | 'surname' | 'employee_code'>[]>([])
@@ -110,7 +111,7 @@ export default function AdminPage() {
     setLoadingBalances(true)
     const { data, error } = await supabase
       .from('leave_balances')
-      .select('*, employee:profiles!leave_balances_employee_id_fkey(id, first_name, surname, employee_code, department:departments(name))')
+      .select('*, employee:profiles!leave_balances_employee_id_fkey(id, first_name, surname, employee_code, job_title, department:departments(name), site:sites(name), division:divisions(name))')
       .eq('year', balanceYear)
       .order('employee_id')
     if (error) console.error(error)
@@ -208,6 +209,30 @@ export default function AdminPage() {
     setResolvingId(null)
   }
 
+  // ── Derived balance filter options + filtered list ──────────────────────
+  const departmentOptions = [...new Set(balances.map(b => b.employee?.department?.name).filter((v): v is string => !!v))].sort()
+  const siteOptions       = [...new Set(balances.map(b => b.employee?.site?.name).filter((v): v is string => !!v))].sort()
+  const divisionOptions   = [...new Set(balances.map(b => b.employee?.division?.name).filter((v): v is string => !!v))].sort()
+  const jobTitleOptions   = [...new Set(balances.map(b => b.employee?.job_title).filter((v): v is string => !!v))].sort()
+
+  const filteredBalances = balances.filter(b => {
+    const emp = b.employee
+    if (!emp) return true
+    const search = balanceFilter.search.toLowerCase()
+    if (search) {
+      const name = `${emp.first_name} ${emp.surname}`.toLowerCase()
+      const code = (emp.employee_code ?? '').toLowerCase()
+      if (!name.includes(search) && !code.includes(search)) return false
+    }
+    if (balanceFilter.department && emp.department?.name !== balanceFilter.department) return false
+    if (balanceFilter.site && emp.site?.name !== balanceFilter.site) return false
+    if (balanceFilter.division && emp.division?.name !== balanceFilter.division) return false
+    if (balanceFilter.jobTitle && emp.job_title !== balanceFilter.jobTitle) return false
+    return true
+  })
+
+  const hasFilter = !!(balanceFilter.search || balanceFilter.department || balanceFilter.site || balanceFilter.division || balanceFilter.jobTitle)
+
   if (!isAdmin) {
     return (
       <div className="max-w-xl mx-auto py-20 text-center text-gray-400">
@@ -279,6 +304,70 @@ export default function AdminPage() {
               Add / Set Balance
             </button>
           </div>
+
+          {/* Filters */}
+          {balances.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-4 bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+              <input
+                type="search"
+                placeholder="Search name or code…"
+                value={balanceFilter.search}
+                onChange={e => setBalanceFilter(f => ({ ...f, search: e.target.value }))}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+              />
+              {departmentOptions.length > 0 && (
+                <select
+                  value={balanceFilter.department}
+                  onChange={e => setBalanceFilter(f => ({ ...f, department: e.target.value }))}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All departments</option>
+                  {departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              )}
+              {siteOptions.length > 0 && (
+                <select
+                  value={balanceFilter.site}
+                  onChange={e => setBalanceFilter(f => ({ ...f, site: e.target.value }))}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All sites</option>
+                  {siteOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              )}
+              {divisionOptions.length > 0 && (
+                <select
+                  value={balanceFilter.division}
+                  onChange={e => setBalanceFilter(f => ({ ...f, division: e.target.value }))}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All divisions</option>
+                  {divisionOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              )}
+              {jobTitleOptions.length > 0 && (
+                <select
+                  value={balanceFilter.jobTitle}
+                  onChange={e => setBalanceFilter(f => ({ ...f, jobTitle: e.target.value }))}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All job titles</option>
+                  {jobTitleOptions.map(j => <option key={j} value={j}>{j}</option>)}
+                </select>
+              )}
+              {hasFilter && (
+                <button
+                  onClick={() => setBalanceFilter({ search: '', department: '', site: '', division: '', jobTitle: '' })}
+                  className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5"
+                >
+                  Clear
+                </button>
+              )}
+              {hasFilter && (
+                <span className="text-xs text-gray-400 ml-auto">{filteredBalances.length} of {balances.length}</span>
+              )}
+            </div>
+          )}
 
           {/* Edit modal */}
           {edit !== null && (
@@ -383,17 +472,21 @@ export default function AdminPage() {
                 <p>No leave balances set for {balanceYear}.</p>
                 <p className="text-xs mt-1">Click "Add / Set Balance" to create records for employees.</p>
               </div>
+            ) : filteredBalances.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-sm">No employees match the current filters.</p>
+              </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Employee', 'Type', 'Total', 'Used', 'Remaining', ''].map(h => (
+                    {['Employee', 'Department', 'Site', 'Type', 'Total', 'Used', 'Remaining', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {balances.map(b => {
+                  {filteredBalances.map(b => {
                     const remaining = Math.max(0, b.total_days - b.used_days)
                     const pct = b.total_days > 0 ? (remaining / b.total_days) * 100 : 0
                     return (
@@ -401,7 +494,10 @@ export default function AdminPage() {
                         <td className="px-4 py-3">
                           <p className="text-sm font-medium text-gray-900">{b.employee?.first_name} {b.employee?.surname}</p>
                           {b.employee?.employee_code && <p className="text-xs text-gray-400">{b.employee.employee_code}</p>}
+                          {b.employee?.job_title && <p className="text-xs text-gray-400 italic">{b.employee.job_title}</p>}
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{b.employee?.department?.name ?? <span className="text-gray-300">—</span>}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{b.employee?.site?.name ?? <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 capitalize">{b.leave_type}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{b.total_days}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">{b.used_days}</td>

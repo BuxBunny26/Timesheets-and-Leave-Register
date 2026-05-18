@@ -62,6 +62,7 @@ export default function TeamOverview() {
   const [rows, setRows] = useState<EmployeeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState({ search: '', department: '', site: '', division: '' })
 
   const mondays = getLastEightMondays()
   const weekStarts = mondays.map(d => formatDateISO(d))
@@ -135,11 +136,32 @@ export default function TeamOverview() {
 
   // Summary counts for current week
   const currentWeekStart = weekStarts[weekStarts.length - 1]
-  const submittedThisWeek = rows.filter(r => {
+
+  // Derived filter options (from loaded rows)
+  const deptOptions = [...new Set(rows.map(r => r.profile.department?.name).filter((v): v is string => !!v))].sort()
+  const siteOptions = [...new Set(rows.map(r => r.profile.site?.name).filter((v): v is string => !!v))].sort()
+  const divOptions  = [...new Set(rows.map(r => r.profile.division?.name).filter((v): v is string => !!v))].sort()
+  const hasFilter = !!(filter.search || filter.department || filter.site || filter.division)
+
+  const filteredRows = rows.filter(r => {
+    const p = r.profile
+    const search = filter.search.toLowerCase()
+    if (search) {
+      const name = `${p.first_name} ${p.surname}`.toLowerCase()
+      const code = (p.employee_code ?? '').toLowerCase()
+      if (!name.includes(search) && !code.includes(search)) return false
+    }
+    if (filter.department && p.department?.name !== filter.department) return false
+    if (filter.site && p.site?.name !== filter.site) return false
+    if (filter.division && p.division?.name !== filter.division) return false
+    return true
+  })
+
+  const submittedThisWeek = filteredRows.filter(r => {
     const cell = r.weeks.find(w => w.weekStart === currentWeekStart)
     return cell?.status === 'submitted'
   }).length
-  const notStartedThisWeek = rows.filter(r => {
+  const notStartedThisWeek = filteredRows.filter(r => {
     const cell = r.weeks.find(w => w.weekStart === currentWeekStart)
     return !cell?.status
   }).length
@@ -179,6 +201,58 @@ export default function TeamOverview() {
         <span>
           <span className="font-semibold text-red-600">{notStartedThisWeek}</span> not started this week
         </span>
+        {hasFilter && (
+          <span className="text-gray-400 ml-auto text-xs">{filteredRows.length} of {rows.length} employees</span>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 bg-white rounded-lg border border-gray-100 px-4 py-3">
+        <input
+          type="search"
+          placeholder="Search name or code…"
+          value={filter.search}
+          onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+        />
+        {deptOptions.length > 1 && (
+          <select
+            value={filter.department}
+            onChange={e => setFilter(f => ({ ...f, department: e.target.value }))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All departments</option>
+            {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+        {siteOptions.length > 1 && (
+          <select
+            value={filter.site}
+            onChange={e => setFilter(f => ({ ...f, site: e.target.value }))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All sites</option>
+            {siteOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {divOptions.length > 1 && (
+          <select
+            value={filter.division}
+            onChange={e => setFilter(f => ({ ...f, division: e.target.value }))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All divisions</option>
+            {divOptions.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+        {hasFilter && (
+          <button
+            onClick={() => setFilter({ search: '', department: '', site: '', division: '' })}
+            className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Grid */}
@@ -195,7 +269,7 @@ export default function TeamOverview() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {rows.map(row => (
+            {filteredRows.map(row => (
               <tr key={row.profile.id} className="hover:bg-gray-50/50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
