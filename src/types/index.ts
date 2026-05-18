@@ -41,6 +41,7 @@ export interface Profile {
   surname: string
   email: string
   cell_number: string | null
+  job_title: string | null
   division_id: string | null
   department_id: string | null
   payment_centre_id: string | null
