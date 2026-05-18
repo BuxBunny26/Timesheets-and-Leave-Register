@@ -4,12 +4,13 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import TeamOverview from '../components/TeamOverview'
+import { IconPaperclip, IconDocument, IconTrash, IconDownload, IconXMark } from '../components/Icons'
 import {
   getWeekBounds,
   formatDateISO,
   getDaysOfWeek,
 } from '../lib/dateUtils'
-import type { TimesheetWeek, TimesheetDay, DayStatus, TimesheetStatus } from '../types'
+import type { TimesheetWeek, TimesheetDay, DayStatus, TimesheetStatus, Attachment } from '../types'
 import type { Role } from '../types'
 
 const MANAGER_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -22,6 +23,7 @@ interface DayState {
   primary_status: DayStatus
   overtime_flag: boolean
   overtime_hours: number
+  overtime_reason: string
   lol_flag: boolean
   loi_flag: boolean
   notes: string
@@ -35,6 +37,7 @@ function defaultDay(isHoliday: boolean, holidayName: string): DayState {
     primary_status: isHoliday ? 'public_holiday' : 'present',
     overtime_flag: false,
     overtime_hours: 0.5,
+    overtime_reason: '',
     lol_flag: false,
     loi_flag: false,
     notes: '',
@@ -70,6 +73,10 @@ export default function TimesheetsPage() {
   const [saving, setSaving] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hd = useRef<InstanceType<typeof Holidays>>(new Holidays())
 
@@ -117,6 +124,7 @@ export default function TimesheetsPage() {
         primary_status: db.primary_status,
         overtime_flag: db.overtime_flag,
         overtime_hours: db.overtime_hours ?? 0.5,
+        overtime_reason: db.overtime_reason ?? '',
         lol_flag: db.lol_flag,
         loi_flag: db.loi_flag,
         notes: db.notes ?? '',
@@ -231,6 +239,7 @@ export default function TimesheetsPage() {
           primary_status: day.primary_status,
           overtime_flag: day.overtime_flag,
           overtime_hours: day.overtime_flag ? day.overtime_hours : null,
+          overtime_reason: day.overtime_flag ? (day.overtime_reason || null) : null,
           lol_flag: day.lol_flag,
           loi_flag: day.loi_flag,
           notes: day.notes || null,
@@ -282,7 +291,75 @@ export default function TimesheetsPage() {
     }
   }
 
+  async function loadAttachments(id: string) {
+    const { data } = await supabase
+      .from('attachments')
+      .select('*')
+      .eq('linked_to_type', 'timesheet')
+      .eq('linked_to_id', id)
+      .order('uploaded_at', { ascending: false })
+    if (data) setAttachments(data as Attachment[])
+  }
+
+  async function handleFileUpload(file: File) {
+    if (!weekId || !profile?.id) return
+    setUploadingFile(true)
+    setUploadError(null)
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `${profile.id}/${formatDateISO(weekStart)}/${Date.now()}_${safeName}`
+    const { error: storageErr } = await supabase.storage.from('attachments').upload(path, file)
+    if (storageErr) {
+      setUploadError(storageErr.message)
+      setUploadingFile(false)
+      return
+    }
+    const { error: dbErr } = await supabase.from('attachments').insert({
+      linked_to_type: 'timesheet',
+      linked_to_id: weekId,
+      display_name: file.name,
+      storage_path: path,
+      file_size_bytes: file.size,
+      mime_type: file.type,
+      uploaded_by: profile.id,
+    })
+    if (dbErr) {
+      setUploadError(dbErr.message)
+      setUploadingFile(false)
+      return
+    }
+    await loadAttachments(weekId)
+    setUploadingFile(false)
+  }
+
+  async function handleDownloadAttachment(attachment: Attachment) {
+    const { data } = await supabase.storage
+      .from('attachments')
+      .createSignedUrl(attachment.storage_path, 120)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
+  async function handleDeleteAttachment(attachment: Attachment) {
+    await supabase.storage.from('attachments').remove([attachment.storage_path])
+    await supabase.from('attachments').delete().eq('id', attachment.id)
+    setAttachments(prev => prev.filter(a => a.id !== attachment.id))
+  }
+
+  function formatBytes(bytes: number | null): string {
+    if (!bytes) return ''
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`
+    return `${(bytes / 1048576).toFixed(1)} MB`
+  }
+
+  // Load attachments when weekId becomes known
+  useEffect(() => {
+    if (weekId) loadAttachments(weekId)
+    else setAttachments([])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekId])
+
   const isLocked = weekStatus === 'submitted' || weekStatus === 'approved'
+  const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
   const weekStartStr = formatDateISO(weekStart)
   const dateArr = getDaysOfWeek(weekStart)
 
@@ -436,13 +513,13 @@ export default function TimesheetsPage() {
                       type="checkbox"
                       checked={day.overtime_flag}
                       disabled={locked}
-                      onChange={e => handleDayChange(idx, { overtime_flag: e.target.checked })}
+                      onChange={e => handleDayChange(idx, { overtime_flag: e.target.checked, overtime_reason: '' })}
                       className="rounded border-gray-300"
                     />
                     <span className="text-xs text-gray-600">OT</span>
                   </label>
                   {day.overtime_flag && (
-                    <div className="mb-2">
+                    <div className="mb-2 space-y-1">
                       <input
                         type="number"
                         min={0.5}
@@ -456,7 +533,20 @@ export default function TimesheetsPage() {
                         placeholder="Hours"
                       />
                       {day.overtime_flag && (day.overtime_hours ?? 0) <= 0 && (
-                        <p className="text-xs text-red-500 mt-0.5">Must be &gt; 0</p>
+                        <p className="text-xs text-red-500">Must be &gt; 0</p>
+                      )}
+                      <textarea
+                        value={day.overtime_reason}
+                        disabled={locked}
+                        onChange={e => handleDayChange(idx, { overtime_reason: e.target.value })}
+                        rows={2}
+                        placeholder="OT reason (required)…"
+                        className={`w-full text-xs border rounded px-2 py-1 resize-none placeholder:text-gray-300 ${
+                          !day.overtime_reason.trim() && !locked ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        }`}
+                      />
+                      {!day.overtime_reason.trim() && !locked && (
+                        <p className="text-xs text-red-500">Reason required</p>
                       )}
                     </div>
                   )}
@@ -499,12 +589,105 @@ export default function TimesheetsPage() {
             })}
           </div>
 
+          {/* Attachments */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <IconPaperclip className="w-4 h-4 text-gray-500" />
+                <h3 className="text-sm font-semibold text-gray-700">Attachments</h3>
+                {attachments.length > 0 && (
+                  <span className="text-xs text-gray-400">({attachments.length})</span>
+                )}
+              </div>
+              {!isLocked && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingFile || !weekId}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B5EA6] border border-[#1B5EA6] rounded-lg hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <IconPaperclip className="w-3.5 h-3.5" />
+                    {uploadingFile ? 'Uploading…' : 'Add file'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.xls,.xlsx,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) handleFileUpload(file)
+                      e.target.value = ''
+                    }}
+                  />
+                </>
+              )}
+            </div>
+
+            {!weekId && !isLocked && (
+              <p className="text-xs text-gray-400 italic">Save the timesheet first before adding attachments.</p>
+            )}
+
+            {uploadError && (
+              <div className="mb-2 flex items-center justify-between bg-red-50 border border-red-200 rounded px-3 py-2">
+                <p className="text-xs text-red-700">{uploadError}</p>
+                <button onClick={() => setUploadError(null)}><IconXMark className="w-3.5 h-3.5 text-red-500" /></button>
+              </div>
+            )}
+
+            {attachments.length === 0 && weekId && (
+              <p className="text-xs text-gray-400 italic">No attachments yet. Upload sick notes, OT approval emails, or any supporting documents.</p>
+            )}
+
+            {attachments.length > 0 && (
+              <ul className="space-y-2">
+                {attachments.map(att => (
+                  <li key={att.id} className="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <IconDocument className="w-4 h-4 text-gray-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-700 truncate">{att.display_name}</p>
+                        {att.file_size_bytes && (
+                          <p className="text-[10px] text-gray-400">{formatBytes(att.file_size_bytes)}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadAttachment(att)}
+                        className="p-1 rounded hover:bg-gray-200 text-gray-500"
+                        title="Download"
+                      >
+                        <IconDownload className="w-3.5 h-3.5" />
+                      </button>
+                      {!isLocked && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(att)}
+                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                          title="Remove"
+                        >
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {/* Submit */}
-          <div className="flex justify-end gap-3">
+          <div className="flex items-center justify-end gap-3">
+            {weekStatus === 'draft' && hasOtWithoutReason && (
+              <p className="text-xs text-red-600">Please add a reason for all overtime days before submitting.</p>
+            )}
             {weekStatus === 'draft' && (
               <button
                 onClick={() => setShowConfirm(true)}
-                disabled={saving || !weekId}
+                disabled={saving || !weekId || hasOtWithoutReason}
                 className="px-5 py-2 bg-[#1B5EA6] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Submit timesheet

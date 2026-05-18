@@ -90,6 +90,7 @@ export interface TimesheetDay {
   primary_status: DayStatus
   overtime_flag: boolean
   overtime_hours: number | null
+  overtime_reason: string | null
   lol_flag: boolean
   loi_flag: boolean
   notes: string | null
@@ -154,6 +155,8 @@ export interface Attachment {
   mime_type: string | null
   uploaded_by: string | null
   uploaded_at: string
+  // joined
+  uploader?: Pick<Profile, 'id' | 'first_name' | 'surname'>
 }
 
 export type BalanceLeaveType = 'annual' | 'sick' | 'family' | 'study'
