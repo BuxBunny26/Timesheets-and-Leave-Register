@@ -175,6 +175,7 @@ export interface TimesheetVerification {
   id: string
   employee_id: string
   week_start: string
+  period_month: string | null
   status: 'pending' | 'verified' | 'disputed'
   dispute_note: string | null
   verified_at: string | null
@@ -187,10 +188,11 @@ export interface TimesheetVerification {
 export interface AuditLog {
   id: string
   actor_id: string | null
-  action: string
+  action_type: string
   entity_type: string | null
   entity_id: string | null
-  payload: Record<string, unknown> | null
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
   created_at: string
   // joined
   actor?: Pick<Profile, 'id' | 'first_name' | 'surname'>

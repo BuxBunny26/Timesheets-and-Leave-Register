@@ -669,7 +669,7 @@ export default function AdminPage() {
                               {ACTION_LABELS[l.action_type] ?? l.action_type.replace(/_/g, ' ')}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-gray-500 text-xs capitalize">{l.entity_type.replace(/_/g, ' ')}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs capitalize">{l.entity_type?.replace(/_/g, ' ')}</td>
                           <td className="px-4 py-3 text-xs text-gray-600 max-w-xs truncate">
                             {l.old_value && <span className="text-red-500 line-through mr-1">{JSON.stringify(l.old_value)}</span>}
                             {l.new_value && <span className="text-green-600">{JSON.stringify(l.new_value)}</span>}
