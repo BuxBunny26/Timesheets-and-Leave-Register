@@ -155,3 +155,43 @@ export interface Attachment {
   uploaded_by: string | null
   uploaded_at: string
 }
+
+export type BalanceLeaveType = 'annual' | 'sick' | 'family' | 'study'
+
+export interface LeaveBalance {
+  id: string
+  employee_id: string
+  leave_type: BalanceLeaveType
+  year: number
+  total_days: number
+  used_days: number
+  created_at: string
+  updated_at: string
+  // joined
+  employee?: Profile
+}
+
+export interface TimesheetVerification {
+  id: string
+  employee_id: string
+  week_start: string
+  status: 'pending' | 'verified' | 'disputed'
+  dispute_note: string | null
+  verified_at: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  employee?: Profile
+}
+
+export interface AuditLog {
+  id: string
+  actor_id: string | null
+  action: string
+  entity_type: string | null
+  entity_id: string | null
+  payload: Record<string, unknown> | null
+  created_at: string
+  // joined
+  actor?: Pick<Profile, 'id' | 'first_name' | 'surname'>
+}
