@@ -1,7 +1,8 @@
 -- Divisions
 INSERT INTO divisions (code, name) VALUES
-('ARC', 'Asset Reliability Care'),
-('AFS', 'AFS')
+('ARC',        'WearCheck'),
+('GP_CONSULT',  'GP Consult'),
+('AFS',         'AFS')
 ON CONFLICT (code) DO NOTHING;
 
 -- Departments

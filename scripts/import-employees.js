@@ -154,12 +154,15 @@ const PC_NAME_MAP = {
 };
 
 // ---------------------------------------------------------------------------
-// Derive division code from department code (ARC-* → ARC, AFS* → AFS)
+// Derive division code from department code + payment centre
+// GP Consult employees share ARC-* department codes but belong to their own division
 // ---------------------------------------------------------------------------
-function divisionFromDept(dept) {
+function divisionFromDept(dept, pcCode) {
   const d = dept.trim().toUpperCase();
-  if (d.startsWith('ARC')) return 'ARC';
   if (d.startsWith('AFS') || d === 'AFS') return 'AFS';
+  if (pcCode === 'GP_CONSULT') return 'GP_CONSULT';
+  if (d.startsWith('ARC'))    return 'ARC';
+  if (pcCode === 'WEARCHECK') return 'ARC';
   return null;
 }
 
@@ -358,8 +361,8 @@ async function main() {
 
     // Resolve org structure
     const deptCode = dept.replace(/^\s+/, '').toUpperCase();   // trim leading spaces seen in CSV
-    const divCode  = divisionFromDept(deptCode);
     const pcCode   = PC_NAME_MAP[(paymentCtr ?? '').toLowerCase().trim()] ?? null;
+    const divCode  = divisionFromDept(deptCode, pcCode);
     const siteCode = resolveLocation(location);
     const role     = deriveRole(jobTitle);
 
