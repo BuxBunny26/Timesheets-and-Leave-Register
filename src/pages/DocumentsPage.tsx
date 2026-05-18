@@ -64,10 +64,12 @@ export default function DocumentsPage() {
           .in('id', timesheetIds)
 
         if (weeks) {
-          for (const w of weeks as { id: string; week_start: string; employee: { first_name: string; surname: string } | null }[]) {
+          type WeekRow = { id: string; week_start: string; employee: { first_name: string; surname: string }[] | null }
+          for (const w of (weeks as unknown as WeekRow[])) {
+            const emp = Array.isArray(w.employee) ? w.employee[0] : w.employee
             weekMap[w.id] = {
               week_start: w.week_start,
-              employee_name: w.employee ? `${w.employee.first_name} ${w.employee.surname}` : '—',
+              employee_name: emp ? `${emp.first_name} ${emp.surname}` : '—',
             }
           }
         }
