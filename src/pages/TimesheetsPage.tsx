@@ -14,7 +14,7 @@ import type { TimesheetWeek, TimesheetDay, DayStatus, TimesheetStatus, Attachmen
 import type { Role } from '../types'
 
 const MANAGER_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
-type ViewMode = 'my' | 'team'
+type ViewMode = 'my' | 'team' | 'history'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday', 'standby']
@@ -46,6 +46,15 @@ function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false):
     holiday_name: holidayName,
     is_locked: isHoliday,
   }
+}
+
+interface HistoryWeek {
+  id: string
+  week_start: string
+  week_end: string
+  status: TimesheetStatus
+  submitted_at: string | null
+  reviewer_comment: string | null
 }
 
 function formatWeekRange(start: Date, end: Date): string {
@@ -80,6 +89,11 @@ export default function TimesheetsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hd = useRef<InstanceType<typeof Holidays>>(new Holidays())
+  const [historyWeeks, setHistoryWeeks] = useState<HistoryWeek[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<TimesheetStatus | 'all'>('all')
+  const [historyDateFrom, setHistoryDateFrom] = useState('')
+  const [historyDateTo, setHistoryDateTo] = useState('')
 
   // Init holidays based on country code
   useEffect(() => {
@@ -230,6 +244,7 @@ export default function TimesheetsPage() {
 
         const currentWeekId = upsertedWeek.id
         if (!weekId) setWeekId(currentWeekId)
+        setWeekStatus('draft')
 
         // Upsert each day — skip weekend days with no status selected
         const dateArr = getDaysOfWeek(weekStart)
@@ -270,7 +285,7 @@ export default function TimesheetsPage() {
       // Debounce auto-save
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => {
-        if (weekStatus === 'draft') autoSave(updated)
+        if (weekStatus !== 'approved') autoSave(updated)
       }, 2000)
       return updated
     })
@@ -380,6 +395,34 @@ export default function TimesheetsPage() {
     return `${(bytes / 1048576).toFixed(1)} MB`
   }
 
+  function navigateToWeek(weekStartStr: string) {
+    const target = new Date(weekStartStr + 'T00:00:00')
+    const { start: currentStart } = getWeekBounds(new Date())
+    const diffMs = target.getTime() - currentStart.getTime()
+    const diffWeeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000))
+    setWeekOffset(diffWeeks)
+    setViewMode('my')
+  }
+
+  async function loadHistory() {
+    if (!profile?.id) return
+    setHistoryLoading(true)
+    try {
+      let query = supabase
+        .from('timesheet_weeks')
+        .select('id, week_start, week_end, status, submitted_at, reviewer_comment')
+        .eq('employee_id', profile.id)
+        .order('week_start', { ascending: false })
+      if (historyStatusFilter !== 'all') query = query.eq('status', historyStatusFilter)
+      if (historyDateFrom) query = query.gte('week_start', historyDateFrom)
+      if (historyDateTo) query = query.lte('week_start', historyDateTo)
+      const { data } = await query
+      setHistoryWeeks((data ?? []) as HistoryWeek[])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   // Load attachments when weekId becomes known
   useEffect(() => {
     if (weekId) loadAttachments(weekId)
@@ -387,7 +430,13 @@ export default function TimesheetsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekId])
 
-  const isLocked = weekStatus === 'submitted' || weekStatus === 'approved'
+  // Reload history when tab selected or filters change
+  useEffect(() => {
+    if (viewMode === 'history') loadHistory()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, historyStatusFilter, historyDateFrom, historyDateTo, profile?.id])
+
+  const isLocked = weekStatus === 'approved'
   const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
   const weekStartStr = formatDateISO(weekStart)
   const dateArr = getDaysOfWeek(weekStart)
@@ -409,19 +458,30 @@ export default function TimesheetsPage() {
       </div>
 
       {/* View toggle */}
-      {canSeeTeam && (
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
-          <button
-            type="button"
-            onClick={() => setViewMode('my')}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'my'
-                ? 'bg-white text-[#1B5EA6] shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            My Timesheet
-          </button>
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
+        <button
+          type="button"
+          onClick={() => setViewMode('my')}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            viewMode === 'my'
+              ? 'bg-white text-[#1B5EA6] shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          My Timesheet
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('history')}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            viewMode === 'history'
+              ? 'bg-white text-[#1B5EA6] shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          History
+        </button>
+        {canSeeTeam && (
           <button
             type="button"
             onClick={() => setViewMode('team')}
@@ -433,11 +493,106 @@ export default function TimesheetsPage() {
           >
             Team Overview
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Team overview */}
       {viewMode === 'team' && <TeamOverview />}
+
+      {/* History */}
+      {viewMode === 'history' && (
+        <div>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-4 mb-4 bg-white rounded-lg border border-gray-200 p-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Status</label>
+              <select
+                value={historyStatusFilter}
+                onChange={e => setHistoryStatusFilter(e.target.value as TimesheetStatus | 'all')}
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700"
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">From week</label>
+              <input
+                type="date"
+                value={historyDateFrom}
+                onChange={e => setHistoryDateFrom(e.target.value)}
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">To week</label>
+              <input
+                type="date"
+                value={historyDateTo}
+                onChange={e => setHistoryDateTo(e.target.value)}
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700"
+              />
+            </div>
+            {(historyDateFrom || historyDateTo || historyStatusFilter !== 'all') && (
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => { setHistoryStatusFilter('all'); setHistoryDateFrom(''); setHistoryDateTo('') }}
+                  className="text-xs text-gray-400 underline py-1.5 hover:text-gray-600"
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* List */}
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : historyWeeks.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-10 text-center">
+              <p className="text-sm text-gray-400">No timesheets found.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+              {historyWeeks.map(week => {
+                const ws = new Date(week.week_start + 'T00:00:00')
+                const we = new Date(week.week_end + 'T00:00:00')
+                return (
+                  <div key={week.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{formatWeekRange(ws, we)}</p>
+                      {week.submitted_at && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Submitted {new Date(week.submitted_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
+                      {week.status === 'rejected' && week.reviewer_comment && (
+                        <p className="text-xs text-red-500 mt-0.5">Rejected: {week.reviewer_comment}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={week.status} />
+                      <button
+                        type="button"
+                        onClick={() => navigateToWeek(week.week_start)}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        {week.status === 'approved' ? 'View' : 'Edit'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* My timesheet (hidden when in team mode) */}
       {viewMode === 'my' && (<>
@@ -723,10 +878,13 @@ export default function TimesheetsPage() {
                 Submit timesheet
               </button>
             )}
-            {weekStatus !== 'draft' && (
+            {weekStatus === 'approved' && (
               <p className="text-sm text-gray-500 italic">
-                Timesheet is <strong>{weekStatus}</strong> and cannot be edited.
+                Timesheet is <strong>approved</strong> and locked.
               </p>
+            )}
+            {weekStatus === 'submitted' && (
+              <p className="text-xs text-amber-600 italic">Submitted — any edits will revert this to draft for resubmission.</p>
             )}
           </div>
         </>
