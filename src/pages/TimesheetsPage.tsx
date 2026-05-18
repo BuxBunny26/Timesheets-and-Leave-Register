@@ -21,7 +21,7 @@ const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public
 const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday', 'standby']
 
 interface DayState {
-  primary_status: DayStatus
+  primary_status: DayStatus | ''
   overtime_flag: boolean
   overtime_hours: number
   overtime_reason: string
@@ -35,7 +35,7 @@ interface DayState {
 
 function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false): DayState {
   return {
-    primary_status: isHoliday ? 'public_holiday' : isWeekend ? 'standby' : 'present',
+    primary_status: isHoliday ? 'public_holiday' : isWeekend ? '' : 'present',
     overtime_flag: false,
     overtime_hours: 0.5,
     overtime_reason: '',
@@ -231,20 +231,23 @@ export default function TimesheetsPage() {
         const currentWeekId = upsertedWeek.id
         if (!weekId) setWeekId(currentWeekId)
 
-        // Upsert each day
+        // Upsert each day — skip weekend days with no status selected
         const dateArr = getDaysOfWeek(weekStart)
-        const dayUpserts = updatedDays.map((day, idx) => ({
-          timesheet_week_id: currentWeekId,
-          date: formatDateISO(dateArr[idx]),
-          day_of_week: DAY_NAMES[idx],
-          primary_status: day.primary_status,
-          overtime_flag: day.overtime_flag,
-          overtime_hours: day.overtime_flag ? day.overtime_hours : null,
-          overtime_reason: day.overtime_flag ? (day.overtime_reason || null) : null,
-          lol_flag: day.lol_flag,
-          loi_flag: day.loi_flag,
-          notes: day.notes || null,
-        }))
+        const dayUpserts = updatedDays
+          .map((day, idx) => ({ day, idx }))
+          .filter(({ day }) => day.primary_status !== '')
+          .map(({ day, idx }) => ({
+            timesheet_week_id: currentWeekId,
+            date: formatDateISO(dateArr[idx]),
+            day_of_week: DAY_NAMES[idx],
+            primary_status: day.primary_status,
+            overtime_flag: day.overtime_flag,
+            overtime_hours: day.overtime_flag ? day.overtime_hours : null,
+            overtime_reason: day.overtime_flag ? (day.overtime_reason || null) : null,
+            lol_flag: day.lol_flag,
+            loi_flag: day.loi_flag,
+            notes: day.notes || null,
+          }))
 
         const { error: daysErr } = await supabase
           .from('timesheet_days')
@@ -520,13 +523,14 @@ export default function TimesheetsPage() {
                     value={day.primary_status}
                     disabled={locked}
                     onChange={e => {
-                      const newStatus = e.target.value as DayStatus
+                      const newStatus = e.target.value as DayStatus | ''
                       handleDayChange(idx, { primary_status: newStatus })
                     }}
                     className={`w-full text-xs border border-gray-200 rounded px-2 py-1.5 mb-2 bg-white ${
                       locked ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700'
                     }`}
                   >
+                    {isWeekend && <option value="">— select —</option>}
                     {(isWeekend ? WEEKEND_STATUS_OPTIONS : STATUS_OPTIONS).map(s => (
                       <option key={s} value={s}>
                         {s.replace('_', ' ')}
