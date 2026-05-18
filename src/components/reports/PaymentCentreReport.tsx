@@ -21,7 +21,7 @@ interface PCRow {
 }
 
 export default function PaymentCentreReport() {
-  const [centre, setCentre] = useState<'WEARCHECK' | 'GP_CONSULT'>('WEARCHECK')
+  const [centre, setCentre] = useState<'WEARCHECK' | 'GP_CONSULT' | 'AFS'>('WEARCHECK')
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [rows, setRows] = useState<PCRow[]>([])
@@ -111,7 +111,7 @@ export default function PaymentCentreReport() {
   return (
     <ReportShell
       title="Payment Centre Export"
-      subtitle={centre === 'WEARCHECK' ? 'WearCheck employees' : 'GP Consult employees'}
+      subtitle={centre === 'WEARCHECK' ? 'WearCheck employees' : centre === 'GP_CONSULT' ? 'GP Consult employees' : 'AFS employees'}
       onExcel={rows.length ? handleExcel : undefined}
       onPrint={rows.length ? () => printReport('pc-report') : undefined}
       loading={loading}
@@ -120,10 +120,11 @@ export default function PaymentCentreReport() {
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Payment Centre</label>
-          <select value={centre} onChange={e => setCentre(e.target.value as 'WEARCHECK' | 'GP_CONSULT')}
+          <select value={centre} onChange={e => setCentre(e.target.value as 'WEARCHECK' | 'GP_CONSULT' | 'AFS')}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
             <option value="WEARCHECK">WearCheck</option>
             <option value="GP_CONSULT">GP Consult</option>
+            <option value="AFS">AFS</option>
           </select>
         </div>
       </DateRangeFilter>

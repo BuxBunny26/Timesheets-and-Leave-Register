@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
@@ -20,8 +20,14 @@ export default function DepartmentReport() {
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [divisionFilter, setDivisionFilter] = useState('')
+  const [divisions, setDivisions] = useState<string[]>([])
   const [rows, setRows] = useState<DeptRow[]>([])
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    supabase.from('divisions').select('name').order('name')
+      .then(({ data }) => { if (data) setDivisions(data.map(d => d.name)) })
+  }, [])
 
   async function runReport() {
     setLoading(true)
@@ -69,8 +75,6 @@ export default function DepartmentReport() {
     setRows(result)
     setLoading(false)
   }
-
-  const divisions = [...new Set(rows.map(r => r.division).filter(d => d !== '—'))].sort()
 
   return (
     <ReportShell title="Department Summary"

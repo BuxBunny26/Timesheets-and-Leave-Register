@@ -15,7 +15,7 @@ interface VerifRow {
 
 export default function VerificationReport() {
   const now = new Date()
-  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const [month, setMonth] = useState(defaultMonth)
   const [rows, setRows] = useState<VerifRow[]>([])
   const [loading, setLoading] = useState(false)

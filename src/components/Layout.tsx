@@ -43,7 +43,7 @@ export default function Layout() {
             </svg>
           </div>
           <div>
-            <p className="font-semibold text-sm">WearCheck ARC</p>
+            <p className="font-semibold text-sm">WearCheck</p>
             <p className="text-blue-200 text-xs">Timesheets</p>
           </div>
         </div>
@@ -91,7 +91,7 @@ export default function Layout() {
       <main className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
         <header className="md:hidden bg-[#1B5EA6] text-white px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="font-semibold text-sm">WearCheck ARC</p>
+            <p className="font-semibold text-sm">WearCheck</p>
           </div>
           <button onClick={signOut} className="text-xs text-blue-200">Sign out</button>
         </header>

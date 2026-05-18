@@ -39,7 +39,7 @@ export default function TeamSummaryReport() {
     const result: TeamRow[] = (data ?? [])
       .filter((w: unknown) => {
         const week = w as { employee: { supervisor_id: string | null } }
-        return profile.role === 'admin_manager' || week.employee?.supervisor_id === profile.id
+        return ['admin_manager', 'system_admin', 'manager'].includes(profile.role ?? '') || week.employee?.supervisor_id === profile.id
       })
       .map((w: unknown) => {
         const week = w as { week_start: string; status: TimesheetStatus; submitted_at: string | null; employee: { first_name: string; surname: string; employee_code: string | null }; days: Array<{ overtime_flag: boolean; overtime_hours: number | null }> }
