@@ -291,6 +291,25 @@ export default function TimesheetsPage() {
     }
   }
 
+  // Ensure the week record exists in DB and return its id
+  async function ensureWeekSaved(): Promise<string | null> {
+    if (weekId) return weekId
+    if (!profile?.id) return null
+    const weekStartStr = formatDateISO(weekStart)
+    const weekEndStr = formatDateISO(weekEnd)
+    const { data, error } = await supabase
+      .from('timesheet_weeks')
+      .upsert(
+        { employee_id: profile.id, week_start: weekStartStr, week_end: weekEndStr, status: 'draft' },
+        { onConflict: 'employee_id,week_start' }
+      )
+      .select('id')
+      .single()
+    if (error || !data) return null
+    setWeekId(data.id)
+    return data.id
+  }
+
   async function loadAttachments(id: string) {
     const { data } = await supabase
       .from('attachments')
@@ -302,9 +321,15 @@ export default function TimesheetsPage() {
   }
 
   async function handleFileUpload(file: File) {
-    if (!weekId || !profile?.id) return
+    if (!profile?.id) return
     setUploadingFile(true)
     setUploadError(null)
+    const currentWeekId = await ensureWeekSaved()
+    if (!currentWeekId) {
+      setUploadError('Could not save timesheet. Please try again.')
+      setUploadingFile(false)
+      return
+    }
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const path = `${profile.id}/${formatDateISO(weekStart)}/${Date.now()}_${safeName}`
     const { error: storageErr } = await supabase.storage.from('attachments').upload(path, file)
@@ -315,7 +340,7 @@ export default function TimesheetsPage() {
     }
     const { error: dbErr } = await supabase.from('attachments').insert({
       linked_to_type: 'timesheet',
-      linked_to_id: weekId,
+      linked_to_id: currentWeekId,
       display_name: file.name,
       storage_path: path,
       file_size_bytes: file.size,
@@ -327,7 +352,7 @@ export default function TimesheetsPage() {
       setUploadingFile(false)
       return
     }
-    await loadAttachments(weekId)
+    await loadAttachments(currentWeekId)
     setUploadingFile(false)
   }
 
@@ -604,7 +629,7 @@ export default function TimesheetsPage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingFile || !weekId}
+                    disabled={uploadingFile}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B5EA6] border border-[#1B5EA6] rounded-lg hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <IconPaperclip className="w-3.5 h-3.5" />
@@ -625,19 +650,18 @@ export default function TimesheetsPage() {
               )}
             </div>
 
-            {!weekId && !isLocked && (
-              <p className="text-xs text-gray-400 italic">Save the timesheet first before adding attachments.</p>
+            {attachments.length === 0 && weekId && (
+              <p className="text-xs text-gray-400 italic">No attachments yet. Upload sick notes, OT approval emails, or any supporting documents.</p>
+            )}
+            {attachments.length === 0 && !weekId && !isLocked && (
+              <p className="text-xs text-gray-400 italic">No attachments yet. Click "Add file" to upload a sick note, OT approval email, or any supporting document.</p>
             )}
 
             {uploadError && (
-              <div className="mb-2 flex items-center justify-between bg-red-50 border border-red-200 rounded px-3 py-2">
+              <div className="mt-2 flex items-center justify-between bg-red-50 border border-red-200 rounded px-3 py-2">
                 <p className="text-xs text-red-700">{uploadError}</p>
                 <button onClick={() => setUploadError(null)}><IconXMark className="w-3.5 h-3.5 text-red-500" /></button>
               </div>
-            )}
-
-            {attachments.length === 0 && weekId && (
-              <p className="text-xs text-gray-400 italic">No attachments yet. Upload sick notes, OT approval emails, or any supporting documents.</p>
             )}
 
             {attachments.length > 0 && (
