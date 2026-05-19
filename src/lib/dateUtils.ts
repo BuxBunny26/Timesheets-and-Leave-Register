@@ -15,7 +15,13 @@ export function formatDateISO(date: Date): string {
 }
 
 export function formatDateDisplay(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-ZA', {
+  if (!dateStr) return '—'
+  // Accept both date-only (YYYY-MM-DD) and full ISO timestamps.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    ? new Date(dateStr + 'T00:00:00')
+    : new Date(dateStr)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-ZA', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
