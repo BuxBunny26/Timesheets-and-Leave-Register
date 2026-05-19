@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTeamScope } from '../../hooks/useTeamScope'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
 import { exportToExcel, printReport } from '../../lib/reportExports'
@@ -25,6 +26,7 @@ interface DayRow {
 
 export default function TimesheetReport() {
   const { profile } = useAuth()
+  const { scope } = useTeamScope()
   const [employees, setEmployees] = useState<Profile[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState(profile?.id ?? '')
   const [startDate, setStartDate] = useState(() => {
@@ -35,9 +37,17 @@ export default function TimesheetReport() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
-      .then(({ data }) => { if (data) setEmployees(data as Profile[]) })
-  }, [])
+    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
+    if (scope) q = q.in('id', scope)
+    q.then(({ data }) => {
+      if (!data) return
+      setEmployees(data as Profile[])
+      // If currently selected employee is no longer in scope, fall back to self.
+      if (selectedEmployee && !data.find((e: { id: string }) => e.id === selectedEmployee)) {
+        setSelectedEmployee(profile?.id ?? '')
+      }
+    })
+  }, [scope, profile?.id, selectedEmployee])
 
   async function runReport() {
     if (!selectedEmployee) return

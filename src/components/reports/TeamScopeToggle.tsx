@@ -1,15 +1,16 @@
 interface Props {
-  isManager: boolean
+  show: boolean
   myTeamOnly: boolean
   onChange: (v: boolean) => void
 }
 
 /**
  * "My team only" toggle styled as a pill button to match adjacent inputs.
- * Hidden for non-managers (supervisors are always team-scoped).
+ * Only shown when `show` is true (admin-tier roles); supervisors and employees
+ * are always team/self scoped so they don't need a toggle.
  */
-export default function TeamScopeToggle({ isManager, myTeamOnly, onChange }: Props) {
-  if (!isManager) return null
+export default function TeamScopeToggle({ show, myTeamOnly, onChange }: Props) {
+  if (!show) return null
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">Scope</label>

@@ -23,7 +23,7 @@ interface PCRow {
 }
 
 export default function PaymentCentreReport() {
-  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
+  const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [centre, setCentre] = useState<'WEARCHECK' | 'GP_CONSULT' | 'AFS'>('WEARCHECK')
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -134,7 +134,7 @@ export default function PaymentCentreReport() {
             <option value="AFS">AFS</option>
           </select>
         </div>
-        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+        <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

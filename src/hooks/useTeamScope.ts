@@ -3,37 +3,72 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Role } from '../types'
 
-const MANAGER_ROLES: Role[] = ['manager', 'admin_manager', 'system_admin']
+const ADMIN_ROLES: Role[] = ['manager', 'admin_manager', 'system_admin']
 
 /**
- * Returns an "allowed employee ids" filter that each report should apply.
+ * Resolves which employee_ids the current viewer is allowed to see in reports.
  *
- *  - For supervisors: scope = own profile id + every profile whose `supervisor_id` is them.
- *  - For managers/admins: scope = null when "My team only" toggle is OFF (no restriction),
- *    or the supervisor's own team when toggle is ON.
+ *  - employee:        scope = [self]                         (no toggle)
+ *  - supervisor:      scope = self + direct reports          (no toggle)
+ *  - manager+:        scope = self + supervisors + their reports (recursive 1 level)
+ *                     Toggle ("My team only") defaults OFF -> scope = null (unrestricted).
+ *                     Toggle ON                              -> scope = recursive team.
+ *  - admin_manager / system_admin behave the same as manager re: scoping.
  *
- * `myTeamOnly` defaults to `true` for supervisors and stays locked there.
+ * `null` scope means "no restriction" (admins viewing the whole org).
  */
 export function useTeamScope() {
   const { profile } = useAuth()
   const [teamIds, setTeamIds] = useState<string[]>([])
-  const [myTeamOnly, setMyTeamOnly] = useState(true)
-  const isManager = !!profile?.role && MANAGER_ROLES.includes(profile.role)
+  const isAdmin = !!profile?.role && ADMIN_ROLES.includes(profile.role)
+  const isSupervisor = profile?.role === 'supervisor'
+  // Admins default to seeing everything; supervisors are locked to their team.
+  const [myTeamOnly, setMyTeamOnly] = useState(!isAdmin)
 
   useEffect(() => {
     if (!profile?.id) return
-    supabase
-      .from('profiles')
-      .select('id')
-      .eq('supervisor_id', profile.id)
-      .then(({ data }) => {
-        const ids = (data ?? []).map(d => d.id as string)
-        setTeamIds([profile.id, ...ids])
-      })
-  }, [profile?.id])
+    if (isAdmin) {
+      // Recursive: profile -> direct reports -> their reports
+      supabase
+        .from('profiles')
+        .select('id')
+        .eq('supervisor_id', profile.id)
+        .then(async ({ data: level1 }) => {
+          const level1Ids = (level1 ?? []).map(r => r.id as string)
+          if (level1Ids.length === 0) {
+            setTeamIds([profile.id])
+            return
+          }
+          const { data: level2 } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('supervisor_id', level1Ids)
+          const level2Ids = (level2 ?? []).map(r => r.id as string)
+          setTeamIds([profile.id, ...level1Ids, ...level2Ids])
+        })
+      return
+    }
+    if (isSupervisor) {
+      supabase
+        .from('profiles')
+        .select('id')
+        .eq('supervisor_id', profile.id)
+        .then(({ data }) => {
+          const ids = (data ?? []).map(r => r.id as string)
+          setTeamIds([profile.id, ...ids])
+        })
+      return
+    }
+    // Regular employee: only themselves
+    setTeamIds([profile.id])
+  }, [profile?.id, isAdmin, isSupervisor])
 
-  // When manager+ and toggle is off, no restriction. Otherwise restrict to team.
-  const scope: string[] | null = (isManager && !myTeamOnly) ? null : teamIds
+  // Effective filter applied to queries:
+  //   admin + toggle OFF -> null (no restriction)
+  //   admin + toggle ON  -> teamIds
+  //   supervisor         -> teamIds (always)
+  //   employee           -> [self]   (always)
+  const scope: string[] | null = (isAdmin && !myTeamOnly) ? null : teamIds
 
-  return { scope, isManager, myTeamOnly, setMyTeamOnly, teamIds }
+  return { scope, isAdmin, isSupervisor, myTeamOnly, setMyTeamOnly, teamIds }
 }

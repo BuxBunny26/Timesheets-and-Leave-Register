@@ -17,7 +17,7 @@ interface OTRow {
 }
 
 export default function OvertimeReport() {
-  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
+  const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [employees, setEmployees] = useState<Profile[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
@@ -84,7 +84,7 @@ export default function OvertimeReport() {
             {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name}</option>)}
           </select>
         </div>
-        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+        <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

@@ -18,7 +18,7 @@ interface TeamRow {
 }
 
 export default function TeamSummaryReport() {
-  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
+  const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [rows, setRows] = useState<TeamRow[]>([])
@@ -65,7 +65,7 @@ export default function TeamSummaryReport() {
       loading={loading} reportId="team-report"
     >
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
-        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+        <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
       {rows.length === 0 && !loading ? (
         <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>

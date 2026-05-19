@@ -18,7 +18,7 @@ interface VerifRow {
 }
 
 export default function VerificationReport() {
-  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
+  const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const now = new Date()
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const [month, setMonth] = useState(defaultMonth)
@@ -130,7 +130,7 @@ export default function VerificationReport() {
           <input type="month" value={month} onChange={e => setMonth(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]" />
         </div>
-        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+        <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
         <button onClick={runReport} disabled={loading}
           className="px-4 py-2 bg-[#1B5EA6] text-white text-sm font-medium rounded-lg hover:bg-[#154d8a] disabled:opacity-50 transition-colors">
           {loading ? 'Loading…' : 'Run Report'}

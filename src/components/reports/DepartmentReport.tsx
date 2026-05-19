@@ -19,7 +19,7 @@ interface DeptRow {
 }
 
 export default function DepartmentReport() {
-  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
+  const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [divisionFilter, setDivisionFilter] = useState('')
@@ -101,7 +101,7 @@ export default function DepartmentReport() {
             {divisions.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
-        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+        <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

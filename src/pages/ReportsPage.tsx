@@ -10,31 +10,45 @@ import DepartmentReport from '../components/reports/DepartmentReport'
 import VerificationReport from '../components/reports/VerificationReport'
 
 const REPORT_TYPES = [
-  { id: 'timesheet', label: 'Individual Timesheet', managerOnly: false },
-  { id: 'team', label: 'Team Summary', managerOnly: false },
-  { id: 'department', label: 'Department Summary', managerOnly: false },
-  { id: 'payment', label: 'Payment Centre Export', managerOnly: true },
-  { id: 'overtime', label: 'Overtime Report', managerOnly: false },
-  { id: 'leave', label: 'Leave Report', managerOnly: false },
-  { id: 'awol', label: 'AWOL Report', managerOnly: false },
-  { id: 'verification', label: 'Monthly Verification', managerOnly: false },
+  { id: 'timesheet', label: 'Individual Timesheet', minRole: 'employee' as const },
+  { id: 'team', label: 'Team Summary', minRole: 'supervisor' as const },
+  { id: 'department', label: 'Department Summary', minRole: 'manager' as const },
+  { id: 'payment', label: 'Payment Centre Export', minRole: 'admin' as const },
+  { id: 'overtime', label: 'Overtime Report', minRole: 'employee' as const },
+  { id: 'leave', label: 'Leave Report', minRole: 'employee' as const },
+  { id: 'awol', label: 'AWOL Report', minRole: 'supervisor' as const },
+  { id: 'verification', label: 'Monthly Verification', minRole: 'supervisor' as const },
 ]
 
-const REPORT_ROLES = ['supervisor', 'manager', 'admin_manager', 'system_admin']
-const MANAGER_ROLES = ['manager', 'admin_manager', 'system_admin']
+const ALL_ROLES = ['employee', 'supervisor', 'manager', 'admin_manager', 'system_admin']
 
 export default function ReportsPage() {
   const { profile } = useAuth()
   const [activeReport, setActiveReport] = useState('timesheet')
 
-  const canAccess = profile && REPORT_ROLES.includes(profile.role)
-  const isManager = profile && MANAGER_ROLES.includes(profile.role)
+  const canAccess = profile && ALL_ROLES.includes(profile.role)
   if (!canAccess) return (
     <div className="max-w-2xl mx-auto py-12 text-center text-gray-500">
       You do not have permission to access reports.
     </div>
   )
-  const visibleReports = REPORT_TYPES.filter(r => isManager || !r.managerOnly)
+
+  const isSupervisor = ['supervisor', 'manager', 'admin_manager', 'system_admin'].includes(profile!.role)
+  const isManager = ['manager', 'admin_manager', 'system_admin'].includes(profile!.role)
+  const isAdmin = ['admin_manager', 'system_admin'].includes(profile!.role)
+
+  const visibleReports = REPORT_TYPES.filter(r => {
+    if (r.minRole === 'employee') return true
+    if (r.minRole === 'supervisor') return isSupervisor
+    if (r.minRole === 'manager') return isManager
+    if (r.minRole === 'admin') return isAdmin
+    return false
+  })
+
+  // If the currently active tab is hidden for this role, fall back to first visible.
+  if (!visibleReports.find(r => r.id === activeReport) && visibleReports.length > 0 && activeReport !== visibleReports[0].id) {
+    setActiveReport(visibleReports[0].id)
+  }
 
   return (
     <div className="max-w-6xl mx-auto">

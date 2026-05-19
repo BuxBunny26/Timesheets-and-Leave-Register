@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { to: '/timesheets', label: 'Timesheets', icon: <IconClipboard />, roles: null },
   { to: '/leave', label: 'Leave', icon: <IconCalendar />, roles: null },
   { to: '/approvals', label: 'Approvals', icon: <IconCheckCircle />, roles: SUPERVISOR_ROLES },
-  { to: '/reports', label: 'Reports', icon: <IconChartBar />, exact: false, roles: SUPERVISOR_ROLES },
+  { to: '/reports', label: 'Reports', icon: <IconChartBar />, exact: false, roles: null },
   { to: '/my-verification', label: 'Verify Month', icon: <IconCheckCircle />, roles: null },
   { to: '/documents', label: 'Documents', icon: <IconFolder />, exact: false, roles: null },
   { to: '/notifications', label: 'Notifications', icon: <IconBell />, roles: null },

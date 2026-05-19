@@ -20,7 +20,7 @@ interface LeaveRow {
 }
 
 export default function LeaveReport() {
-  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
+  const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [employees, setEmployees] = useState<Profile[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [leaveType, setLeaveType] = useState('')
@@ -99,7 +99,7 @@ export default function LeaveReport() {
             ))}
           </select>
         </div>
-        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+        <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
