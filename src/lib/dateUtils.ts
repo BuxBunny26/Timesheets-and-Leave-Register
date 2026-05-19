@@ -30,13 +30,33 @@ export function getDaysOfWeek(weekStart: Date): Date[] {
   })
 }
 
-export function countWorkingDays(start: Date, end: Date): number {
+export function countWorkingDays(start: Date, end: Date, holidayISO: Set<string> = new Set()): number {
   let count = 0
   const cur = new Date(start)
   while (cur <= end) {
     const day = cur.getDay()
-    if (day !== 0 && day !== 6) count++
+    const iso = formatDateISO(cur)
+    if (day !== 0 && day !== 6 && !holidayISO.has(iso)) count++
     cur.setDate(cur.getDate() + 1)
   }
   return count
+}
+
+/**
+ * Returns the FY-end year for the supplied date using a 1-July financial year.
+ * E.g. 5 Aug 2025 → 2026 (FY 1 Jul 2025 – 30 Jun 2026).
+ */
+export function fyEndYearFor(date: Date): number {
+  return date.getMonth() >= 6 ? date.getFullYear() + 1 : date.getFullYear()
+}
+
+/**
+ * Returns the human label for a FY-end year.
+ * 2026 → "FY 2026 (Jul 2025 – Jun 2026)".
+ */
+export function fyLabel(fyEndYear: number): string {
+  const start = new Date(fyEndYear - 1, 6, 1)
+  const end = new Date(fyEndYear, 5, 30)
+  const fmt = (d: Date) => d.toLocaleDateString('en-ZA', { month: 'short', year: 'numeric' })
+  return `FY ${fyEndYear} (${fmt(start)} – ${fmt(end)})`
 }

@@ -116,6 +116,7 @@ export interface LeaveRequest {
   start_date: string
   end_date: string
   total_days: number
+  leave_year: number | null
   reason: string | null
   status: LeaveStatus
   supervisor_id: string | null

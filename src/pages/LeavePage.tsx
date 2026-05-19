@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
-import { formatDateDisplay, countWorkingDays } from '../lib/dateUtils'
+import { formatDateDisplay, formatDateISO, countWorkingDays, fyEndYearFor, fyLabel } from '../lib/dateUtils'
 import { IconCalendar } from '../components/Icons'
-import type { LeaveRequest, LeaveType, LeaveStatus } from '../types'
+import type { LeaveRequest, LeaveType, LeaveStatus, CountryCode } from '../types'
 
 const LEAVE_TYPES: { value: LeaveType; label: string }[] = [
   { value: 'annual', label: 'Annual Leave' },
@@ -48,10 +48,87 @@ export default function LeavePage() {
   const [statusFilter, setStatusFilter] = useState<'all' | LeaveStatus>('all')
   const [cancelling, setCancelling] = useState<string | null>(null)
 
+  // Public holidays in range (date ISO → name)
+  const [holidays, setHolidays] = useState<Map<string, string>>(new Map())
+
+  // FY bucket selection (FY-end year)
+  const [leaveYear, setLeaveYear] = useState<number | null>(null)
+  const [leaveYearTouched, setLeaveYearTouched] = useState(false)
+
+  const country: CountryCode = (profile?.site?.country_code ?? 'ZA') as CountryCode
+
+  const startDateObj = startDate ? parseLocalDate(startDate) : null
+  const endDateObj = endDate ? parseLocalDate(endDate) : null
+
+  // Default FY bucket from start date whenever user hasn't manually changed it.
+  useEffect(() => {
+    if (!startDateObj) return
+    if (leaveYearTouched) return
+    setLeaveYear(fyEndYearFor(startDateObj))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate])
+
+  // Fetch public holidays whenever the date range changes.
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      if (!startDateObj || !endDateObj || endDateObj < startDateObj) {
+        if (!cancelled) setHolidays(new Map())
+        return
+      }
+      const { data } = await supabase
+        .from('public_holidays')
+        .select('date, name')
+        .eq('country_code', country)
+        .gte('date', startDate)
+        .lte('date', endDate)
+      if (cancelled) return
+      const map = new Map<string, string>()
+      for (const r of (data ?? []) as { date: string; name: string }[]) {
+        map.set(r.date, r.name)
+      }
+      setHolidays(map)
+    }
+    load()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, country])
+
+  const holidayISO = useMemo(() => new Set(holidays.keys()), [holidays])
+
   const totalDays =
-    startDate && endDate
-      ? countWorkingDays(parseLocalDate(startDate), parseLocalDate(endDate))
+    startDateObj && endDateObj
+      ? countWorkingDays(startDateObj, endDateObj, holidayISO)
       : 0
+
+  // Count weekend / weekday breakdown for display.
+  const breakdown = useMemo(() => {
+    if (!startDateObj || !endDateObj) return null
+    let weekdays = 0
+    let weekends = 0
+    let holidaysOnWeekdays = 0
+    const cur = new Date(startDateObj)
+    while (cur <= endDateObj) {
+      const day = cur.getDay()
+      const iso = formatDateISO(cur)
+      const isHoliday = holidayISO.has(iso)
+      if (day === 0 || day === 6) {
+        weekends++
+      } else if (isHoliday) {
+        holidaysOnWeekdays++
+      } else {
+        weekdays++
+      }
+      cur.setDate(cur.getDate() + 1)
+    }
+    return { weekdays, weekends, holidaysOnWeekdays }
+  }, [startDate, endDate, holidayISO])
+
+  const bucketOptions = useMemo(() => {
+    if (!startDateObj) return [] as number[]
+    const natural = fyEndYearFor(startDateObj)
+    return [natural - 1, natural]
+  }, [startDate])
 
   const reasonRequired = leaveType === 'unpaid' || leaveType === 'other'
 
@@ -109,6 +186,7 @@ export default function LeavePage() {
         start_date: startDate,
         end_date: endDate,
         total_days: totalDays,
+        leave_year: leaveYear,
         reason: reason.trim() || null,
         supervisor_id: profile!.supervisor_id,
         status: 'pending',
@@ -119,6 +197,8 @@ export default function LeavePage() {
       setStartDate('')
       setEndDate('')
       setReason('')
+      setLeaveYear(null)
+      setLeaveYearTouched(false)
       setShowForm(false)
       await fetchRequests()
     } catch (err) {
@@ -223,9 +303,48 @@ export default function LeavePage() {
             </div>
 
             {/* Total working days */}
-            {startDate && endDate && (
-              <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-700">
-                Working days: <strong>{totalDays}</strong>
+            {startDate && endDate && breakdown && (
+              <div className="bg-blue-50 rounded-lg px-3 py-2 text-sm text-blue-700 space-y-1">
+                <p>
+                  Leave days: <strong>{totalDays}</strong>
+                </p>
+                <p className="text-xs text-blue-600/80">
+                  {breakdown.weekdays} weekday{breakdown.weekdays !== 1 ? 's' : ''}
+                  {breakdown.weekends > 0 && <> &middot; {breakdown.weekends} weekend day{breakdown.weekends !== 1 ? 's' : ''} excluded</>}
+                  {breakdown.holidaysOnWeekdays > 0 && <> &middot; {breakdown.holidaysOnWeekdays} public holiday{breakdown.holidaysOnWeekdays !== 1 ? 's' : ''} excluded</>}
+                </p>
+                {holidays.size > 0 && (
+                  <ul className="text-[11px] text-blue-600/70 list-disc list-inside">
+                    {Array.from(holidays.entries()).map(([d, n]) => (
+                      <li key={d}>{formatDateDisplay(d)} — {n}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* Leave bucket (financial year) */}
+            {startDate && bucketOptions.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Charge against leave bucket
+                </label>
+                <select
+                  value={leaveYear ?? ''}
+                  onChange={e => {
+                    setLeaveYear(parseInt(e.target.value, 10))
+                    setLeaveYearTouched(true)
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {bucketOptions.map(y => (
+                    <option key={y} value={y}>{fyLabel(y)}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Defaults to the financial year that contains the start date. Switch to the
+                  previous FY if you are using leftover days from that bucket.
+                </p>
               </div>
             )}
 
@@ -324,6 +443,11 @@ export default function LeavePage() {
                     <p className="text-sm text-gray-600 mt-1">
                       {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
                       <span className="ml-2 text-gray-400">({req.total_days} working day{req.total_days !== 1 ? 's' : ''})</span>
+                      {req.leave_year != null && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                          FY {req.leave_year}
+                        </span>
+                      )}
                     </p>
                     {req.reason && (
                       <p className="text-xs text-gray-500 mt-1 truncate">{req.reason}</p>
