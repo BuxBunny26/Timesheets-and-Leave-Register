@@ -18,14 +18,15 @@ const MANAGER_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system
 type ViewMode = 'my' | 'team' | 'history'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday', 'standby']
-const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday', 'standby']
+const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday']
+const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday']
 
 interface DayState {
   primary_status: DayStatus | ''
   overtime_flag: boolean
   overtime_hours: number
   overtime_reason: string
+  standby_flag: boolean
   lol_flag: boolean
   loi_flag: boolean
   notes: string
@@ -40,6 +41,7 @@ function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false):
     overtime_flag: false,
     overtime_hours: 0.5,
     overtime_reason: '',
+    standby_flag: false,
     lol_flag: false,
     loi_flag: false,
     notes: '',
@@ -152,6 +154,7 @@ export default function TimesheetsPage() {
         overtime_flag: db.overtime_flag,
         overtime_hours: db.overtime_hours ?? 0.5,
         overtime_reason: db.overtime_reason ?? '',
+        standby_flag: db.standby_flag ?? false,
         lol_flag: db.lol_flag,
         loi_flag: db.loi_flag,
         notes: db.notes ?? '',
@@ -264,15 +267,18 @@ export default function TimesheetsPage() {
         const dateArr = getDaysOfWeek(weekStart)
         const dayUpserts = updatedDays
           .map((day, idx) => ({ day, idx }))
-          .filter(({ day }) => day.primary_status !== '')
+          // Include any day that has a status OR an additive flag set
+          .filter(({ day }) => day.primary_status !== '' || day.standby_flag || day.overtime_flag || day.lol_flag || day.loi_flag)
           .map(({ day, idx }) => ({
             timesheet_week_id: currentWeekId,
             date: formatDateISO(dateArr[idx]),
             day_of_week: DAY_NAMES[idx],
-            primary_status: day.primary_status,
+            // Standby/OT/LOL/LOI on a weekend without an explicit status default to 'present'
+            primary_status: day.primary_status || 'present',
             overtime_flag: day.overtime_flag,
             overtime_hours: day.overtime_flag ? day.overtime_hours : null,
             overtime_reason: day.overtime_flag ? (day.overtime_reason || null) : null,
+            standby_flag: day.standby_flag,
             lol_flag: day.lol_flag,
             loi_flag: day.loi_flag,
             notes: day.notes || null,
@@ -759,6 +765,9 @@ export default function TimesheetsPage() {
                                       {d.overtime_flag && d.overtime_hours && (
                                         <p className="text-[9px] text-amber-600 mt-0.5">+{d.overtime_hours}h OT</p>
                                       )}
+                                      {d.standby_flag && (
+                                        <p className="text-[9px] text-indigo-600 mt-0.5">Standby</p>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -981,6 +990,18 @@ export default function TimesheetsPage() {
                       )}
                     </div>
                   )}
+
+                  {/* Standby */}
+                  <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={day.standby_flag}
+                      disabled={locked}
+                      onChange={e => handleDayChange(idx, { standby_flag: e.target.checked })}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-xs text-gray-600">Standby</span>
+                  </label>
 
                   {/* LOL */}
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">

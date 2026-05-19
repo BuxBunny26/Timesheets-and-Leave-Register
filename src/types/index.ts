@@ -92,6 +92,7 @@ export interface TimesheetDay {
   overtime_flag: boolean
   overtime_hours: number | null
   overtime_reason: string | null
+  standby_flag: boolean
   lol_flag: boolean
   loi_flag: boolean
   notes: string | null
