@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
+import TeamScopeToggle from './TeamScopeToggle'
+import { useTeamScope } from '../../hooks/useTeamScope'
 import { exportToExcel, printReport } from '../../lib/reportExports'
 import StatusBadge from '../StatusBadge'
 import type { Profile, LeaveType, LeaveStatus } from '../../types'
@@ -18,8 +20,9 @@ interface LeaveRow {
 }
 
 export default function LeaveReport() {
+  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [employees, setEmployees] = useState<Profile[]>([])
-  const [_selectedEmployee, setSelectedEmployee] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState('')
   const [leaveType, setLeaveType] = useState('')
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -27,9 +30,10 @@ export default function LeaveReport() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
-      .then(({ data }) => { if (data) setEmployees(data as Profile[]) })
-  }, [])
+    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
+    if (scope) q = q.in('id', scope)
+    q.then(({ data }) => { if (data) setEmployees(data as Profile[]) })
+  }, [scope])
 
   async function runReport() {
     setLoading(true)
@@ -42,6 +46,8 @@ export default function LeaveReport() {
       .order('start_date')
 
     if (leaveType) query = query.eq('leave_type', leaveType)
+    if (selectedEmployee) query = query.eq('employee_id', selectedEmployee)
+    if (scope) query = query.in('employee_id', scope)
 
     const { data } = await query
 
@@ -77,7 +83,7 @@ export default function LeaveReport() {
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Employee (optional)</label>
-          <select onChange={e => setSelectedEmployee(e.target.value)}
+          <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
             <option value="">All employees</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name}</option>)}
@@ -93,6 +99,7 @@ export default function LeaveReport() {
             ))}
           </select>
         </div>
+        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
+import TeamScopeToggle from './TeamScopeToggle'
+import { useTeamScope } from '../../hooks/useTeamScope'
 import { exportToExcel, printReport } from '../../lib/reportExports'
 import StatusBadge from '../StatusBadge'
 import type { Profile } from '../../types'
@@ -15,6 +17,7 @@ interface OTRow {
 }
 
 export default function OvertimeReport() {
+  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [employees, setEmployees] = useState<Profile[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
@@ -23,9 +26,10 @@ export default function OvertimeReport() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
-      .then(({ data }) => { if (data) setEmployees(data as Profile[]) })
-  }, [])
+    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
+    if (scope) q = q.in('id', scope)
+    q.then(({ data }) => { if (data) setEmployees(data as Profile[]) })
+  }, [scope])
 
   async function runReport() {
     setLoading(true)
@@ -48,6 +52,7 @@ export default function OvertimeReport() {
         ot_approvals: Array<{ status: string }>
       }
       if (selectedEmployee && day.timesheet_week?.employee_id !== selectedEmployee) continue
+      if (scope && !scope.includes(day.timesheet_week?.employee_id)) continue
       result.push({
         employee_name: `${day.timesheet_week.employee.first_name} ${day.timesheet_week.employee.surname}`,
         employee_code: day.timesheet_week.employee.employee_code ?? '',
@@ -79,6 +84,7 @@ export default function OvertimeReport() {
             {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name}</option>)}
           </select>
         </div>
+        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

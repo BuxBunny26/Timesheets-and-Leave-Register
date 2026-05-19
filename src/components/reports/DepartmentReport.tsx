@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
+import TeamScopeToggle from './TeamScopeToggle'
+import { useTeamScope } from '../../hooks/useTeamScope'
 import { exportToExcel, printReport } from '../../lib/reportExports'
 import StatusBadge from '../StatusBadge'
 import type { TimesheetStatus } from '../../types'
@@ -17,6 +19,7 @@ interface DeptRow {
 }
 
 export default function DepartmentReport() {
+  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [divisionFilter, setDivisionFilter] = useState('')
@@ -32,7 +35,7 @@ export default function DepartmentReport() {
   async function runReport() {
     setLoading(true)
 
-    const { data } = await supabase
+    let query = supabase
       .from('timesheet_weeks')
       .select(`week_start, status,
         employee:profiles!employee_id(
@@ -44,6 +47,10 @@ export default function DepartmentReport() {
       .gte('week_start', startDate)
       .lte('week_start', endDate)
       .order('week_start')
+
+    if (scope) query = query.in('employee_id', scope)
+
+    const { data } = await query
 
     const result: DeptRow[] = (data ?? [])
       .map((w: unknown) => {
@@ -94,6 +101,7 @@ export default function DepartmentReport() {
             {divisions.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
+        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

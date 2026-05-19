@@ -10,26 +10,31 @@ import DepartmentReport from '../components/reports/DepartmentReport'
 import VerificationReport from '../components/reports/VerificationReport'
 
 const REPORT_TYPES = [
-  { id: 'timesheet', label: 'Individual Timesheet' },
-  { id: 'team', label: 'Team Summary' },
-  { id: 'department', label: 'Department Summary' },
-  { id: 'payment', label: 'Payment Centre Export' },
-  { id: 'overtime', label: 'Overtime Report' },
-  { id: 'leave', label: 'Leave Report' },
-  { id: 'awol', label: 'AWOL Report' },
-  { id: 'verification', label: 'Monthly Verification' },
+  { id: 'timesheet', label: 'Individual Timesheet', managerOnly: false },
+  { id: 'team', label: 'Team Summary', managerOnly: false },
+  { id: 'department', label: 'Department Summary', managerOnly: false },
+  { id: 'payment', label: 'Payment Centre Export', managerOnly: true },
+  { id: 'overtime', label: 'Overtime Report', managerOnly: false },
+  { id: 'leave', label: 'Leave Report', managerOnly: false },
+  { id: 'awol', label: 'AWOL Report', managerOnly: false },
+  { id: 'verification', label: 'Monthly Verification', managerOnly: false },
 ]
+
+const REPORT_ROLES = ['supervisor', 'manager', 'admin_manager', 'system_admin']
+const MANAGER_ROLES = ['manager', 'admin_manager', 'system_admin']
 
 export default function ReportsPage() {
   const { profile } = useAuth()
   const [activeReport, setActiveReport] = useState('timesheet')
 
-  const canAccess = profile && ['manager', 'admin_manager', 'system_admin'].includes(profile.role)
+  const canAccess = profile && REPORT_ROLES.includes(profile.role)
+  const isManager = profile && MANAGER_ROLES.includes(profile.role)
   if (!canAccess) return (
     <div className="max-w-2xl mx-auto py-12 text-center text-gray-500">
       You do not have permission to access reports.
     </div>
   )
+  const visibleReports = REPORT_TYPES.filter(r => isManager || !r.managerOnly)
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -47,11 +52,11 @@ export default function ReportsPage() {
             value={activeReport}
             onChange={e => setActiveReport(e.target.value)}
           >
-            {REPORT_TYPES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            {visibleReports.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
           {/* Desktop list */}
           <nav className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden">
-            {REPORT_TYPES.map(r => (
+            {visibleReports.map(r => (
               <button
                 key={r.id}
                 onClick={() => setActiveReport(r.id)}

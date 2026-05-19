@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
+import TeamScopeToggle from './TeamScopeToggle'
+import { useTeamScope } from '../../hooks/useTeamScope'
 import { exportPaymentCentreExcel, printReport } from '../../lib/reportExports'
 import { formatDateDisplay } from '../../lib/dateUtils'
 import StatusBadge from '../StatusBadge'
@@ -21,6 +23,7 @@ interface PCRow {
 }
 
 export default function PaymentCentreReport() {
+  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [centre, setCentre] = useState<'WEARCHECK' | 'GP_CONSULT' | 'AFS'>('WEARCHECK')
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -30,7 +33,7 @@ export default function PaymentCentreReport() {
   async function runReport() {
     setLoading(true)
 
-    const { data: employees } = await supabase
+    let empQuery = supabase
       .from('profiles')
       .select(`id, first_name, surname, employee_code,
         division:divisions!division_id(name),
@@ -38,6 +41,10 @@ export default function PaymentCentreReport() {
         site:sites!site_id(name),
         payment_centre:payment_centres!payment_centre_id(code)`)
       .eq('status', 'active')
+
+    if (scope) empQuery = empQuery.in('id', scope)
+
+    const { data: employees } = await empQuery
 
     const centreEmployees = (employees ?? []).filter((e: unknown) => {
       const emp = e as { payment_centre: { code: string } | null }
@@ -127,6 +134,7 @@ export default function PaymentCentreReport() {
             <option value="AFS">AFS</option>
           </select>
         </div>
+        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (

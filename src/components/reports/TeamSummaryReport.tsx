@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
+import TeamScopeToggle from './TeamScopeToggle'
+import { useTeamScope } from '../../hooks/useTeamScope'
 import { exportToExcel, printReport } from '../../lib/reportExports'
 import StatusBadge from '../StatusBadge'
 import type { TimesheetStatus } from '../../types'
@@ -17,17 +18,16 @@ interface TeamRow {
 }
 
 export default function TeamSummaryReport() {
-  const { profile } = useAuth()
+  const { scope, isManager, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [startDate, setStartDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0] })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [rows, setRows] = useState<TeamRow[]>([])
   const [loading, setLoading] = useState(false)
 
   async function runReport() {
-    if (!profile) return
     setLoading(true)
 
-    const { data } = await supabase
+    let query = supabase
       .from('timesheet_weeks')
       .select(`week_start, status, submitted_at,
         employee:profiles!employee_id(id, first_name, surname, employee_code, supervisor_id),
@@ -36,11 +36,11 @@ export default function TeamSummaryReport() {
       .lte('week_start', endDate)
       .order('week_start')
 
+    if (scope) query = query.in('employee_id', scope)
+
+    const { data } = await query
+
     const result: TeamRow[] = (data ?? [])
-      .filter((w: unknown) => {
-        const week = w as { employee: { supervisor_id: string | null } }
-        return ['admin_manager', 'system_admin', 'manager'].includes(profile.role ?? '') || week.employee?.supervisor_id === profile.id
-      })
       .map((w: unknown) => {
         const week = w as { week_start: string; status: TimesheetStatus; submitted_at: string | null; employee: { first_name: string; surname: string; employee_code: string | null }; days: Array<{ overtime_flag: boolean; overtime_hours: number | null }> }
         const otHours = week.days?.filter(d => d.overtime_flag).reduce((s, d) => s + (d.overtime_hours ?? 0), 0) ?? 0
@@ -64,7 +64,9 @@ export default function TeamSummaryReport() {
       onPrint={rows.length ? () => printReport('team-report') : undefined}
       loading={loading} reportId="team-report"
     >
-      <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading} />
+      <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
+        <TeamScopeToggle isManager={isManager} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
+      </DateRangeFilter>
       {rows.length === 0 && !loading ? (
         <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
       ) : (
