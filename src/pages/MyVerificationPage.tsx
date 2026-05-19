@@ -16,6 +16,12 @@ interface Verification {
   notes: string | null
 }
 
+interface WeekStatus {
+  week_start: string
+  week_end: string
+  status: 'draft' | 'submitted' | 'approved' | 'rejected'
+}
+
 function monthOptions(count = 6): string[] {
   const out: string[] = []
   const now = new Date()
@@ -40,6 +46,8 @@ export default function MyVerificationPage() {
   const [period, setPeriod] = useState(months[0])
   const [summary, setSummary] = useState<MonthSummary | null>(null)
   const [verification, setVerification] = useState<Verification | null>(null)
+  const [weeks, setWeeks] = useState<WeekStatus[]>([])
+  const [expectedWeeks, setExpectedWeeks] = useState(0)
   const [notes, setNotes] = useState('')
   const [confirm, setConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -53,7 +61,8 @@ export default function MyVerificationPage() {
     setError(null)
     const { start, end } = periodBounds(period)
 
-    const [{ data: otDays }, { data: leaves }, { data: verif }] = await Promise.all([
+    const [{ data: otDays }, { data: leaves }, { data: verif }, { data: weekRows }] = await Promise.all([
+
       supabase
         .from('timesheet_days')
         .select('date, overtime_hours, timesheet_week:timesheet_weeks!timesheet_week_id(employee_id)')
@@ -74,7 +83,25 @@ export default function MyVerificationPage() {
         .eq('employee_id', profile.id)
         .eq('period_month', period)
         .maybeSingle(),
+      supabase
+        .from('timesheet_weeks')
+        .select('week_start, week_end, status')
+        .eq('employee_id', profile.id)
+        .lte('week_start', end)
+        .gte('week_end', start)
+        .order('week_start'),
     ])
+
+    // Expected ISO weeks (Monday-anchored) that overlap the month
+    const startD = new Date(start)
+    const endD = new Date(end)
+    const firstMon = new Date(startD)
+    const dayShift = (firstMon.getDay() + 6) % 7 // 0 = Monday
+    firstMon.setDate(firstMon.getDate() - dayShift)
+    let expected = 0
+    for (let d = new Date(firstMon); d <= endD; d.setDate(d.getDate() + 7)) expected++
+    setExpectedWeeks(expected)
+    setWeeks((weekRows ?? []) as WeekStatus[])
 
     const myOt = (otDays ?? [])
       .filter((d: unknown) => (d as { timesheet_week: { employee_id: string } }).timesheet_week?.employee_id === profile.id)
@@ -129,6 +156,9 @@ export default function MyVerificationPage() {
   }
 
   const alreadyVerified = verification?.status === 'verified'
+  const unsubmittedWeeks = weeks.filter(w => w.status !== 'submitted' && w.status !== 'approved')
+  const missingCount = Math.max(0, expectedWeeks - weeks.length)
+  const canVerify = unsubmittedWeeks.length === 0 && missingCount === 0 && weeks.length > 0
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -200,6 +230,24 @@ export default function MyVerificationPage() {
                   )}
                 </div>
               </div>
+            ) : !canVerify ? (
+              <div>
+                <p className="text-sm font-medium text-gray-900 mb-2">Cannot verify yet</p>
+                <p className="text-xs text-gray-600 mb-3">
+                  All weeks in {period} must be submitted before you can verify the month.
+                </p>
+                <ul className="text-xs text-gray-700 space-y-1">
+                  {unsubmittedWeeks.map(w => (
+                    <li key={w.week_start} className="flex justify-between">
+                      <span>{w.week_start} → {w.week_end}</span>
+                      <span className="capitalize text-red-600">{w.status}</span>
+                    </li>
+                  ))}
+                  {missingCount > 0 && (
+                    <li className="text-red-600">{missingCount} week(s) not started.</li>
+                  )}
+                </ul>
+              </div>
             ) : (
               <>
                 <p className="text-sm font-medium text-gray-900 mb-2">Confirm your monthly totals</p>
@@ -224,7 +272,7 @@ export default function MyVerificationPage() {
                 {savedAt && <p className="text-xs text-green-600 mb-2">Saved.</p>}
                 <button
                   onClick={handleVerify}
-                  disabled={!confirm || saving}
+                  disabled={!confirm || saving || !canVerify}
                   className="px-4 py-2 bg-[#1B5EA6] text-white text-sm font-medium rounded-lg hover:bg-[#154d8a] disabled:opacity-50 transition-colors"
                 >
                   {saving ? 'Saving…' : 'Mark as verified'}
