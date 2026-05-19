@@ -145,6 +145,47 @@ export interface PublicHoliday {
   is_custom: boolean
 }
 
+export type DocumentCategory =
+  | 'sick_note'
+  | 'doctors_certificate'
+  | 'medical_report'
+  | 'leave_form'
+  | 'id_document'
+  | 'overtime_form'
+  | 'payslip'
+  | 'contract'
+  | 'accident_report'
+  | 'affidavit'
+  | 'other'
+
+export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+  sick_note: 'Sick Note',
+  doctors_certificate: "Doctor's Certificate",
+  medical_report: 'Medical Report',
+  leave_form: 'Leave Form',
+  id_document: 'ID Document',
+  overtime_form: 'Overtime Form',
+  payslip: 'Payslip',
+  contract: 'Contract',
+  accident_report: 'Accident Report',
+  affidavit: 'Affidavit',
+  other: 'Other',
+}
+
+export const DOCUMENT_CATEGORY_COLOURS: Record<DocumentCategory, string> = {
+  sick_note: 'bg-red-100 text-red-700',
+  doctors_certificate: 'bg-rose-100 text-rose-700',
+  medical_report: 'bg-pink-100 text-pink-700',
+  leave_form: 'bg-blue-100 text-blue-700',
+  id_document: 'bg-indigo-100 text-indigo-700',
+  overtime_form: 'bg-amber-100 text-amber-700',
+  payslip: 'bg-emerald-100 text-emerald-700',
+  contract: 'bg-violet-100 text-violet-700',
+  accident_report: 'bg-orange-100 text-orange-700',
+  affidavit: 'bg-cyan-100 text-cyan-700',
+  other: 'bg-gray-100 text-gray-600',
+}
+
 export interface Attachment {
   id: string
   linked_to_type: 'timesheet' | 'leave_request'
@@ -155,6 +196,10 @@ export interface Attachment {
   mime_type: string | null
   uploaded_by: string | null
   uploaded_at: string
+  // AI classification fields (populated async after upload)
+  category: DocumentCategory | null
+  ai_display_name: string | null
+  ai_classified_at: string | null
   // joined
   uploader?: Pick<Profile, 'id' | 'first_name' | 'surname'>
 }

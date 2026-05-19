@@ -4,13 +4,14 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import TeamOverview from '../components/TeamOverview'
-import { IconPaperclip, IconDocument, IconTrash, IconDownload, IconXMark } from '../components/Icons'
+import { IconPaperclip, IconDocument, IconTrash, IconDownload, IconXMark, IconSparkles } from '../components/Icons'
 import {
   getWeekBounds,
   formatDateISO,
   getDaysOfWeek,
 } from '../lib/dateUtils'
 import type { TimesheetWeek, TimesheetDay, DayStatus, TimesheetStatus, Attachment } from '../types'
+import { DOCUMENT_CATEGORY_LABELS, DOCUMENT_CATEGORY_COLOURS } from '../types'
 import type { Role } from '../types'
 
 const MANAGER_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -357,7 +358,7 @@ export default function TimesheetsPage() {
       setUploadingFile(false)
       return
     }
-    const { error: dbErr } = await supabase.from('attachments').insert({
+    const { error: dbErr, data: inserted } = await supabase.from('attachments').insert({
       linked_to_type: 'timesheet',
       linked_to_id: currentWeekId,
       display_name: file.name,
@@ -365,7 +366,7 @@ export default function TimesheetsPage() {
       file_size_bytes: file.size,
       mime_type: file.type,
       uploaded_by: profile.id,
-    })
+    }).select('id').single()
     if (dbErr) {
       setUploadError(dbErr.message)
       setUploadingFile(false)
@@ -373,6 +374,13 @@ export default function TimesheetsPage() {
     }
     await loadAttachments(currentWeekId)
     setUploadingFile(false)
+
+    // Trigger AI classification in the background — no await so user isn't blocked
+    if (inserted?.id) {
+      supabase.functions.invoke('classify-document', { body: { attachmentId: inserted.id } })
+        .then(() => loadAttachments(currentWeekId))
+        .catch(() => { /* classification is best-effort; silent failure is fine */ })
+    }
   }
 
   async function handleDownloadAttachment(attachment: Attachment) {
@@ -832,10 +840,22 @@ export default function TimesheetsPage() {
                     <div className="flex items-center gap-2 min-w-0">
                       <IconDocument className="w-4 h-4 text-gray-400 shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs font-medium text-gray-700 truncate">{att.display_name}</p>
-                        {att.file_size_bytes && (
-                          <p className="text-[10px] text-gray-400">{formatBytes(att.file_size_bytes)}</p>
-                        )}
+                        <p className="text-xs font-medium text-gray-700 truncate">
+                          {att.ai_display_name ?? att.display_name}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {att.category && att.category !== 'other' ? (
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${DOCUMENT_CATEGORY_COLOURS[att.category]}`}>
+                              <IconSparkles className="w-2.5 h-2.5" />
+                              {DOCUMENT_CATEGORY_LABELS[att.category]}
+                            </span>
+                          ) : att.ai_classified_at === null ? (
+                            <span className="text-[10px] text-gray-400 italic">Classifying…</span>
+                          ) : null}
+                          {att.file_size_bytes && (
+                            <span className="text-[10px] text-gray-400">{formatBytes(att.file_size_bytes)}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

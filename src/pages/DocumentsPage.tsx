@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { IconFolder, IconDocument, IconDownload, IconTrash, IconXMark } from '../components/Icons'
-import type { Attachment, Profile } from '../types'
+import { IconFolder, IconDocument, IconDownload, IconTrash, IconXMark, IconSparkles } from '../components/Icons'
+import type { Attachment, Profile, DocumentCategory } from '../types'
+import { DOCUMENT_CATEGORY_LABELS, DOCUMENT_CATEGORY_COLOURS } from '../types'
 
 interface AttachmentRow extends Attachment {
   uploader?: Pick<Profile, 'id' | 'first_name' | 'surname'>
@@ -30,7 +31,7 @@ export default function DocumentsPage() {
   const [rows, setRows] = useState<AttachmentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState({ search: '', type: '' as '' | 'timesheet' | 'leave_request', month: '' })
+  const [filter, setFilter] = useState({ search: '', type: '' as '' | 'timesheet' | 'leave_request', month: '', category: '' as '' | DocumentCategory })
   const [deleting, setDeleting] = useState<string | null>(null)
 
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function DocumentsPage() {
   }
 
   async function handleDelete(att: AttachmentRow) {
-    if (!window.confirm(`Delete "${att.display_name}"? This cannot be undone.`)) return
+    if (!window.confirm(`Delete "${att.ai_display_name ?? att.display_name}"? This cannot be undone.`)) return
     setDeleting(att.id)
     await supabase.storage.from('attachments').remove([att.storage_path])
     await supabase.from('attachments').delete().eq('id', att.id)
@@ -112,14 +113,13 @@ export default function DocumentsPage() {
 
   const filtered = rows.filter(r => {
     if (filter.type && r.linked_to_type !== filter.type) return false
+    if (filter.category && r.category !== filter.category) return false
     if (filter.month && r.week_start && !r.week_start.startsWith(filter.month)) return false
     if (filter.month && !r.week_start && !r.uploaded_at.startsWith(filter.month)) return false
     if (filter.search) {
       const q = filter.search.toLowerCase()
-      return (
-        r.display_name.toLowerCase().includes(q) ||
-        (r.employee_name ?? '').toLowerCase().includes(q)
-      )
+      const name = (r.ai_display_name ?? r.display_name).toLowerCase()
+      return name.includes(q) || (r.employee_name ?? '').toLowerCase().includes(q)
     }
     return true
   })
@@ -163,15 +163,25 @@ export default function DocumentsPage() {
           <option value="timesheet">Timesheet</option>
           <option value="leave_request">Leave</option>
         </select>
+        <select
+          value={filter.category}
+          onChange={e => setFilter(f => ({ ...f, category: e.target.value as typeof filter.category }))}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+        >
+          <option value="">All categories</option>
+          {(Object.entries(DOCUMENT_CATEGORY_LABELS) as [DocumentCategory, string][]).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
         <input
           type="month"
           value={filter.month}
           onChange={e => setFilter(f => ({ ...f, month: e.target.value }))}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
         />
-        {(filter.search || filter.type || filter.month) && (
+        {(filter.search || filter.type || filter.month || filter.category) && (
           <button
-            onClick={() => setFilter({ search: '', type: '', month: '' })}
+            onClick={() => setFilter({ search: '', type: '', month: '', category: '' })}
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
           >
             <IconXMark className="w-3.5 h-3.5" />
@@ -202,7 +212,7 @@ export default function DocumentsPage() {
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">File</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Employee</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Type</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Category</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Week</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Size</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Uploaded</th>
@@ -215,18 +225,30 @@ export default function DocumentsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <IconDocument className="w-4 h-4 text-gray-400 shrink-0" />
-                      <span className="font-medium text-gray-800 truncate max-w-[180px]">{att.display_name}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-800 truncate max-w-[200px]">
+                          {att.ai_display_name ?? att.display_name}
+                        </p>
+                        {att.ai_display_name && att.ai_display_name !== att.display_name && (
+                          <p className="text-[10px] text-gray-400 truncate max-w-[200px]">{att.display_name}</p>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{att.employee_name ?? '—'}</td>
                   <td className="px-4 py-3 hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      att.linked_to_type === 'timesheet'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}>
-                      {att.linked_to_type === 'timesheet' ? 'Timesheet' : 'Leave'}
-                    </span>
+                    {att.category && att.category !== 'other' ? (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${DOCUMENT_CATEGORY_COLOURS[att.category]}`}>
+                        <IconSparkles className="w-3 h-3" />
+                        {DOCUMENT_CATEGORY_LABELS[att.category]}
+                      </span>
+                    ) : att.ai_classified_at === null ? (
+                      <span className="text-xs text-gray-400 italic">Classifying…</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                        Other
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
                     {att.week_start ? formatDate(att.week_start) : '—'}
