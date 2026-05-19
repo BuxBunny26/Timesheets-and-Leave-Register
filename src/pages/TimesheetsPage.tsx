@@ -56,6 +56,7 @@ interface HistoryWeek {
   status: TimesheetStatus
   submitted_at: string | null
   reviewer_comment: string | null
+  resubmission_count: number
 }
 
 interface ExpandedData {
@@ -85,6 +86,7 @@ export default function TimesheetsPage() {
   const [days, setDays] = useState<DayState[]>([])
   const [weekId, setWeekId] = useState<string | null>(null)
   const [weekStatus, setWeekStatus] = useState<TimesheetStatus>('draft')
+  const [resubmissionCount, setResubmissionCount] = useState<number>(0)
   const [reviewerComment, setReviewerComment] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -186,6 +188,7 @@ export default function TimesheetsPage() {
         const typedWeek = week as TimesheetWeek & { days: TimesheetDay[] }
         setWeekId(typedWeek.id)
         setWeekStatus(typedWeek.status)
+        setResubmissionCount(typedWeek.resubmission_count ?? 0)
         setReviewerComment(typedWeek.reviewer_comment ?? null)
         const merged = mergeDaysWithDb(baseDays, typedWeek.days ?? [])
         setDays(merged)
@@ -193,6 +196,7 @@ export default function TimesheetsPage() {
         // No DB record yet — use localStorage draft or blank
         setWeekId(null)
         setWeekStatus('draft')
+        setResubmissionCount(0)
         setReviewerComment(null)
         if (localDraft) {
           try {
@@ -306,12 +310,27 @@ export default function TimesheetsPage() {
     setShowConfirm(false)
     setSaving(true)
     try {
+      // Look up current row to know if this is a resubmission
+      const { data: existing } = await supabase
+        .from('timesheet_weeks')
+        .select('submitted_at, resubmission_count')
+        .eq('id', weekId)
+        .single()
+      const wasSubmittedBefore = existing?.submitted_at != null
+      const newCount = wasSubmittedBefore
+        ? (existing?.resubmission_count ?? 0) + 1
+        : 0
       const { error } = await supabase
         .from('timesheet_weeks')
-        .update({ status: 'submitted', submitted_at: new Date().toISOString() })
+        .update({
+          status: 'submitted',
+          submitted_at: new Date().toISOString(),
+          resubmission_count: newCount,
+        })
         .eq('id', weekId)
       if (error) throw error
       setWeekStatus('submitted')
+      setResubmissionCount(newCount)
     } catch (err) {
       setSaveError('Failed to submit timesheet.')
       console.error(err)
@@ -498,7 +517,7 @@ export default function TimesheetsPage() {
     try {
       let query = supabase
         .from('timesheet_weeks')
-        .select('id, week_start, week_end, status, submitted_at, reviewer_comment')
+        .select('id, week_start, week_end, status, submitted_at, reviewer_comment, resubmission_count')
         .eq('employee_id', profile.id)
         .order('week_start', { ascending: false })
       if (historyStatusFilter !== 'all') query = query.eq('status', historyStatusFilter)
@@ -562,7 +581,15 @@ export default function TimesheetsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {viewMode === 'my' && <StatusBadge status={weekStatus} />}
+          {viewMode === 'my' && (
+            <StatusBadge
+              status={
+                weekStatus === 'submitted' && resubmissionCount > 0
+                  ? 'resubmitted'
+                  : weekStatus
+              }
+            />
+          )}
           {saving && <span className="text-xs text-gray-400">Saving…</span>}
         </div>
       </div>
@@ -692,7 +719,13 @@ export default function TimesheetsPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <StatusBadge status={week.status} />
+                        <StatusBadge
+                          status={
+                            week.status === 'submitted' && (week.resubmission_count ?? 0) > 0
+                              ? 'resubmitted'
+                              : week.status
+                          }
+                        />
                         <button
                           type="button"
                           onClick={e => { e.stopPropagation(); navigateToWeek(week.week_start) }}
@@ -1130,7 +1163,11 @@ export default function TimesheetsPage() {
               </p>
             )}
             {weekStatus === 'submitted' && (
-              <p className="text-xs text-amber-600 italic">Submitted — any edits will revert this to draft for resubmission.</p>
+              <p className="text-xs text-amber-600 italic">
+                {resubmissionCount > 0
+                  ? `Resubmitted (${resubmissionCount}× re-sent) — any further edits will revert this to draft again.`
+                  : 'Submitted — any edits will revert this to draft for resubmission.'}
+              </p>
             )}
           </div>
         </>

@@ -75,6 +75,7 @@ export interface TimesheetWeek {
   reviewed_at: string | null
   reviewed_by: string | null
   reviewer_comment: string | null
+  resubmission_count: number
   created_at: string
   updated_at: string
   // joined
