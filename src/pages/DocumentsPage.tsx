@@ -40,11 +40,22 @@ export default function DocumentsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-refresh every 5 s while any document is still being classified
+  // Auto-refresh every 5 s while any document is still being classified.
+  // Also retry classification on stale rows (uploaded > 15 s ago, still null).
   useEffect(() => {
-    const hasPending = rows.some(r => r.ai_classified_at === null)
-    if (!hasPending) return
-    const timer = setTimeout(() => loadDocuments(), 5000)
+    const pending = rows.filter(r => r.ai_classified_at === null)
+    if (pending.length === 0) return
+    const timer = setTimeout(async () => {
+      const now = Date.now()
+      for (const r of pending) {
+        const uploadedMs = new Date(r.uploaded_at).getTime()
+        if (now - uploadedMs > 15000) {
+          await handleReclassify(r.id)
+          return
+        }
+      }
+      loadDocuments()
+    }, 5000)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows])
@@ -110,6 +121,25 @@ export default function DocumentsPage() {
       .from('attachments')
       .createSignedUrl(att.storage_path, 120)
     if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
+  async function handleReclassify(attId: string) {
+    try {
+      const { data, error: invokeErr } = await supabase.functions.invoke('classify-document', {
+        body: { attachmentId: attId },
+      })
+      if (invokeErr) {
+        console.error('classify-document invoke error:', invokeErr)
+        setError(`Classification failed: ${invokeErr.message ?? 'edge function error'}`)
+      } else if (data?.error) {
+        console.error('classify-document returned error:', data.error)
+        setError(`Classification failed: ${data.error}`)
+      }
+      await loadDocuments()
+    } catch (err) {
+      console.error('classify-document threw:', err)
+      setError(`Classification failed: ${String(err)}`)
+    }
   }
 
   async function handleUpdateCategory(attId: string, newCategory: DocumentCategory) {
@@ -274,7 +304,10 @@ export default function DocumentsPage() {
                     ) : att.ai_classified_at === null ? (
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-gray-400 italic">Classifying…</span>
-                        <button type="button" onClick={() => setEditingCategoryId(att.id)} title="Set category" className="p-0.5 rounded hover:bg-gray-100">
+                        <button type="button" onClick={() => handleReclassify(att.id)} title="Retry classification" className="p-0.5 rounded hover:bg-gray-100">
+                          <IconSparkles className="w-3 h-3 text-blue-500" />
+                        </button>
+                        <button type="button" onClick={() => setEditingCategoryId(att.id)} title="Set category manually" className="p-0.5 rounded hover:bg-gray-100">
                           <IconPencil className="w-3 h-3 text-gray-400" />
                         </button>
                       </div>

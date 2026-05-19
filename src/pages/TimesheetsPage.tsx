@@ -386,9 +386,26 @@ export default function TimesheetsPage() {
 
     // Trigger AI classification in the background — no await so user isn't blocked
     if (inserted?.id) {
-      supabase.functions.invoke('classify-document', { body: { attachmentId: inserted.id } })
-        .then(() => loadAttachments(currentWeekId))
-        .catch(() => { /* classification is best-effort; silent failure is fine */ })
+      triggerClassification(inserted.id, currentWeekId)
+    }
+  }
+
+  async function triggerClassification(attachmentId: string, weekIdForRefresh: string) {
+    try {
+      const { data, error } = await supabase.functions.invoke('classify-document', {
+        body: { attachmentId },
+      })
+      if (error) {
+        console.error('classify-document invoke error:', error)
+        setUploadError(`Classification failed: ${error.message ?? 'edge function error'}. You can set the category manually.`)
+      } else if (data?.error) {
+        console.error('classify-document returned error:', data.error)
+        setUploadError(`Classification failed: ${data.error}. You can set the category manually.`)
+      }
+      await loadAttachments(weekIdForRefresh)
+    } catch (err) {
+      console.error('classify-document threw:', err)
+      setUploadError(`Classification failed: ${String(err)}. You can set the category manually.`)
     }
   }
 
@@ -501,12 +518,24 @@ export default function TimesheetsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekId])
 
-  // Poll every 5 s while any attachment is still being classified
+  // Poll every 5 s while any attachment is still being classified.
+  // After 15 s of being pending, re-invoke classification (first call may have failed).
   useEffect(() => {
     if (!weekId) return
-    const hasPending = attachments.some(a => a.ai_classified_at === null)
-    if (!hasPending) return
-    const timer = setTimeout(() => loadAttachments(weekId), 5000)
+    const pending = attachments.filter(a => a.ai_classified_at === null)
+    if (pending.length === 0) return
+    const timer = setTimeout(() => {
+      // For any attachment older than 15 s and still pending, retry once
+      const now = Date.now()
+      for (const a of pending) {
+        const uploadedMs = new Date(a.uploaded_at).getTime()
+        if (now - uploadedMs > 15000) {
+          triggerClassification(a.id, weekId)
+          return
+        }
+      }
+      loadAttachments(weekId)
+    }, 5000)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachments, weekId])
