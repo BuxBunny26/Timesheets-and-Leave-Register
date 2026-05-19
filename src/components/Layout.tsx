@@ -20,7 +20,7 @@ const navItems: NavItem[] = [
   { to: '/leave', label: 'Leave', icon: <IconCalendar />, roles: null },
   { to: '/approvals', label: 'Approvals', icon: <IconCheckCircle />, roles: SUPERVISOR_ROLES },
   { to: '/reports', label: 'Reports', icon: <IconChartBar />, exact: false, roles: ['manager', 'admin_manager', 'system_admin'] as Role[] },
-  { to: '/documents', label: 'Documents', icon: <IconFolder />, exact: false, roles: ['admin_manager', 'system_admin'] as Role[] },
+  { to: '/documents', label: 'Documents', icon: <IconFolder />, exact: false, roles: null },
   { to: '/notifications', label: 'Notifications', icon: <IconBell />, roles: null },
   { to: '/profile', label: 'Profile', icon: <IconUser />, roles: null },
 ]

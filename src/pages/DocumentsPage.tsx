@@ -23,10 +23,12 @@ function formatDate(iso: string): string {
 }
 
 const ADMIN_ROLES = ['admin_manager', 'system_admin']
+const SUPERVISOR_ROLES = ['supervisor', 'manager', 'admin_manager', 'system_admin']
 
 export default function DocumentsPage() {
   const { profile } = useAuth()
   const isAdmin = ADMIN_ROLES.includes(profile?.role ?? '')
+  const isSupervisor = SUPERVISOR_ROLES.includes(profile?.role ?? '')
 
   const [rows, setRows] = useState<AttachmentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -177,11 +179,7 @@ export default function DocumentsPage() {
   })
 
   if (!isAdmin) {
-    return (
-      <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
-        Admin access required.
-      </div>
-    )
+    // Non-admins fall through to the rendered list; RLS limits what they can see.
   }
 
   return (
@@ -193,7 +191,13 @@ export default function DocumentsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-gray-500 text-sm">All uploaded attachments across timesheets and leave requests</p>
+          <p className="text-gray-500 text-sm">
+            {isAdmin
+              ? 'All uploaded attachments across timesheets and leave requests'
+              : isSupervisor
+                ? 'Your uploads and documents submitted by your direct reports'
+                : 'Documents you have uploaded to your timesheets and leave requests'}
+          </p>
         </div>
       </div>
 
@@ -338,15 +342,17 @@ export default function DocumentsPage() {
                       >
                         <IconDownload className="w-4 h-4" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(att)}
-                        disabled={deleting === att.id}
-                        className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 disabled:opacity-50"
-                        title="Delete"
-                      >
-                        <IconTrash className="w-4 h-4" />
-                      </button>
+                      {(isAdmin || att.uploaded_by === profile?.id) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(att)}
+                          disabled={deleting === att.id}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                          title="Delete"
+                        >
+                          <IconTrash className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
