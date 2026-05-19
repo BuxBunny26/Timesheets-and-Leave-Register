@@ -1179,7 +1179,7 @@ export default function TimesheetsPage() {
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Submit timesheet?</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Once submitted you cannot make changes. Are you sure?
+              You can still edit this timesheet until your supervisor approves it. Once approved, no further changes can be made. Submit now?
             </p>
             <div className="flex gap-3 justify-end">
               <button
