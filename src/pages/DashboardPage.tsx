@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
+import LeaveCalendar from '../components/LeaveCalendar'
 import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
 import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight } from '../components/Icons'
 import type { TimesheetStatus, Role } from '../types'
@@ -123,7 +124,7 @@ export default function DashboardPage() {
   const timesheetStatusDisplay = weekStatus ?? 'draft'
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* Welcome header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
@@ -186,6 +187,11 @@ export default function DashboardPage() {
             <StatCard label="OT hours" value="—" sub="This month" />
           </>
         )}
+      </div>
+
+      {/* Team leave calendar */}
+      <div className="mb-6">
+        <LeaveCalendar />
       </div>
 
       {/* Quick actions */}
