@@ -50,14 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .single()
 
-    let supervisor: Profile['supervisor'] = null
+    let supervisor: Profile['supervisor'] | undefined
     if (data?.supervisor_id) {
       const { data: sup } = await supabase
         .from('profiles')
         .select('first_name, surname')
         .eq('id', data.supervisor_id)
         .maybeSingle()
-      if (sup) supervisor = sup
+      if (sup) supervisor = sup as unknown as Profile['supervisor']
     }
 
     setProfile(data ? { ...data, supervisor } : null)
@@ -73,14 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single()
     if (!data) return
 
-    let supervisor: Profile['supervisor'] = null
+    let supervisor: Profile['supervisor'] | undefined
     if (data.supervisor_id) {
       const { data: sup } = await supabase
         .from('profiles')
         .select('first_name, surname')
         .eq('id', data.supervisor_id)
         .maybeSingle()
-      if (sup) supervisor = sup
+      if (sup) supervisor = sup as unknown as Profile['supervisor']
     }
     setProfile({ ...data, supervisor })
   }, [session])
