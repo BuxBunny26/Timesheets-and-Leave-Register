@@ -7,12 +7,20 @@ import type { Profile, TimesheetStatus } from '../types'
 interface EmployeeWeekCell {
   weekStart: string
   status: TimesheetStatus | null
+  monthKey: string         // YYYY-MM for verification lookup
+  verified: boolean        // employee verified this cell's month
 }
 
 interface EmployeeRow {
   profile: Profile
   weeks: EmployeeWeekCell[]
   pendingCount: number
+  currentMonthVerified: boolean
+}
+
+function monthKeyOf(isoDate: string): string {
+  // isoDate = YYYY-MM-DD
+  return isoDate.slice(0, 7)
 }
 
 function getLastEightMondays(): Date[] {
@@ -62,7 +70,10 @@ export default function TeamOverview() {
   const [rows, setRows] = useState<EmployeeRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState({ search: '', department: '', site: '', division: '', jobTitle: '' })
+  const [filter, setFilter] = useState({
+    search: '', department: '', site: '', division: '', jobTitle: '',
+    approval: '', verification: '',
+  })
 
   const mondays = getLastEightMondays()
   const weekStarts = mondays.map(d => formatDateISO(d))
@@ -116,13 +127,36 @@ export default function TeamOverview() {
         weekMap.set(`${row.employee_id}__${row.week_start}`, row.status as TimesheetStatus)
       }
 
+      // Fetch monthly verifications covering the visible months
+      const monthKeys = [...new Set(weekStarts.map(monthKeyOf))]
+      const { data: verifData, error: verifError } = await supabase
+        .from('timesheet_verifications')
+        .select('employee_id, period_month, status')
+        .in('employee_id', employeeIds)
+        .in('period_month', monthKeys)
+
+      if (verifError) throw verifError
+
+      const verifMap = new Map<string, string>()
+      for (const row of verifData ?? []) {
+        verifMap.set(`${row.employee_id}__${row.period_month}`, row.status as string)
+      }
+
+      const currentMonthKey = monthKeyOf(weekStarts[weekStarts.length - 1])
+
       const employeeRows: EmployeeRow[] = typedEmployees.map(emp => {
-        const weeks: EmployeeWeekCell[] = weekStarts.map(ws => ({
-          weekStart: ws,
-          status: weekMap.get(`${emp.id}__${ws}`) ?? null,
-        }))
+        const weeks: EmployeeWeekCell[] = weekStarts.map(ws => {
+          const mk = monthKeyOf(ws)
+          return {
+            weekStart: ws,
+            status: weekMap.get(`${emp.id}__${ws}`) ?? null,
+            monthKey: mk,
+            verified: !!verifMap.get(`${emp.id}__${mk}`),
+          }
+        })
         const pendingCount = weeks.filter(w => w.status === 'submitted').length
-        return { profile: emp, weeks, pendingCount }
+        const currentMonthVerified = !!verifMap.get(`${emp.id}__${currentMonthKey}`)
+        return { profile: emp, weeks, pendingCount, currentMonthVerified }
       })
 
       setRows(employeeRows)
@@ -142,7 +176,7 @@ export default function TeamOverview() {
   const siteOptions     = [...new Set(rows.map(r => r.profile.site?.name).filter((v): v is string => !!v))].sort()
   const divOptions      = [...new Set(rows.map(r => r.profile.division?.name).filter((v): v is string => !!v))].sort()
   const jobTitleOptions = [...new Set(rows.map(r => r.profile.job_title).filter((v): v is string => !!v))].sort()
-  const hasFilter = !!(filter.search || filter.department || filter.site || filter.division || filter.jobTitle)
+  const hasFilter = !!(filter.search || filter.department || filter.site || filter.division || filter.jobTitle || filter.approval || filter.verification)
 
   const filteredRows = rows.filter(r => {
     const p = r.profile
@@ -156,6 +190,19 @@ export default function TeamOverview() {
     if (filter.site && p.site?.name !== filter.site) return false
     if (filter.division && p.division?.name !== filter.division) return false
     if (filter.jobTitle && p.job_title !== filter.jobTitle) return false
+
+    if (filter.approval) {
+      const cwCell = r.weeks.find(w => w.weekStart === currentWeekStart)
+      const s = cwCell?.status ?? null
+      if (filter.approval === 'approved'   && s !== 'approved') return false
+      if (filter.approval === 'pending'    && s !== 'submitted') return false
+      if (filter.approval === 'rejected'   && s !== 'rejected') return false
+      if (filter.approval === 'not_started' && s !== null) return false
+    }
+    if (filter.verification) {
+      if (filter.verification === 'verified'     && !r.currentMonthVerified) return false
+      if (filter.verification === 'not_verified' && r.currentMonthVerified) return false
+    }
     return true
   })
 
@@ -257,9 +304,31 @@ export default function TeamOverview() {
             {jobTitleOptions.map(j => <option key={j} value={j}>{j}</option>)}
           </select>
         )}
+        <select
+          value={filter.approval}
+          onChange={e => setFilter(f => ({ ...f, approval: e.target.value }))}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          title="Approval status this week"
+        >
+          <option value="">Any approval</option>
+          <option value="approved">Approved</option>
+          <option value="pending">To be approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="not_started">Not started</option>
+        </select>
+        <select
+          value={filter.verification}
+          onChange={e => setFilter(f => ({ ...f, verification: e.target.value }))}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          title="Self-verification status this month"
+        >
+          <option value="">Any verification</option>
+          <option value="verified">Verified</option>
+          <option value="not_verified">Not verified</option>
+        </select>
         {hasFilter && (
           <button
-            onClick={() => setFilter({ search: '', department: '', site: '', division: '', jobTitle: '' })}
+            onClick={() => setFilter({ search: '', department: '', site: '', division: '', jobTitle: '', approval: '', verification: '' })}
             className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5"
           >
             Clear
@@ -300,11 +369,27 @@ export default function TeamOverview() {
                 </td>
                 {row.weeks.map((cell, ci) => (
                   <td key={ci} className="px-2 py-3 text-center">
-                    <span
-                      className={`inline-block px-2 py-1 rounded border text-[10px] font-medium whitespace-nowrap ${cellClass(cell.status)}`}
-                    >
-                      {cellLabel(cell.status)}
-                    </span>
+                    <div className="inline-flex flex-col items-center gap-0.5">
+                      <span
+                        className={`inline-block px-2 py-1 rounded border text-[10px] font-medium whitespace-nowrap ${cellClass(cell.status)}`}
+                      >
+                        {cellLabel(cell.status)}
+                      </span>
+                      <div className="flex items-center gap-0.5 h-3">
+                        {cell.status === 'approved' && (
+                          <span
+                            title="Supervisor approved"
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-green-600 text-white text-[8px] font-bold leading-none"
+                          >A</span>
+                        )}
+                        {cell.verified && (
+                          <span
+                            title="Employee verified this month"
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-indigo-600 text-white text-[8px] font-bold leading-none"
+                          >V</span>
+                        )}
+                      </div>
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -329,6 +414,14 @@ export default function TeamOverview() {
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded bg-gray-100 border border-gray-200" /> Rejected
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-green-600 text-white text-[8px] font-bold leading-none">A</span>
+          Supervisor approved
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-indigo-600 text-white text-[8px] font-bold leading-none">V</span>
+          Employee verified (monthly)
         </span>
       </div>
     </div>
