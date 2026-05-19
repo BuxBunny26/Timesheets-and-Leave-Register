@@ -202,7 +202,7 @@ function classify(fullTextLower: string, fileNameLower: string): { key: string; 
       }
     }
   }
-  return { key: 'other', label: 'Supporting Document' }
+  return { key: 'other', label: 'Misc Document' }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

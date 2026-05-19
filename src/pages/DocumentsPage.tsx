@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { IconFolder, IconDocument, IconDownload, IconTrash, IconXMark, IconSparkles } from '../components/Icons'
+import { IconFolder, IconDocument, IconDownload, IconTrash, IconXMark, IconSparkles, IconPencil } from '../components/Icons'
 import type { Attachment, Profile, DocumentCategory } from '../types'
 import { DOCUMENT_CATEGORY_LABELS, DOCUMENT_CATEGORY_COLOURS } from '../types'
 
@@ -33,11 +33,21 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState({ search: '', type: '' as '' | 'timesheet' | 'leave_request', month: '', category: '' as '' | DocumentCategory })
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
 
   useEffect(() => {
     loadDocuments()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Auto-refresh every 5 s while any document is still being classified
+  useEffect(() => {
+    const hasPending = rows.some(r => r.ai_classified_at === null)
+    if (!hasPending) return
+    const timer = setTimeout(() => loadDocuments(), 5000)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows])
 
   async function loadDocuments() {
     setLoading(true)
@@ -100,6 +110,18 @@ export default function DocumentsPage() {
       .from('attachments')
       .createSignedUrl(att.storage_path, 120)
     if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
+  async function handleUpdateCategory(attId: string, newCategory: DocumentCategory) {
+    await supabase.from('attachments').update({
+      category: newCategory,
+      ai_classified_at: new Date().toISOString(),
+    }).eq('id', attId)
+    setRows(prev => prev.map(r => r.id === attId
+      ? { ...r, category: newCategory, ai_classified_at: r.ai_classified_at ?? new Date().toISOString() }
+      : r
+    ))
+    setEditingCategoryId(null)
   }
 
   async function handleDelete(att: AttachmentRow) {
@@ -237,17 +259,35 @@ export default function DocumentsPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{att.employee_name ?? '—'}</td>
                   <td className="px-4 py-3 hidden md:table-cell">
-                    {att.category && att.category !== 'other' ? (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${DOCUMENT_CATEGORY_COLOURS[att.category]}`}>
-                        <IconSparkles className="w-3 h-3" />
-                        {DOCUMENT_CATEGORY_LABELS[att.category]}
-                      </span>
+                    {editingCategoryId === att.id ? (
+                      <select
+                        defaultValue={att.category ?? 'other'}
+                        onChange={e => handleUpdateCategory(att.id, e.target.value as DocumentCategory)}
+                        onBlur={() => setEditingCategoryId(null)}
+                        autoFocus
+                        className="border border-gray-200 rounded px-1.5 py-0.5 text-xs bg-white"
+                      >
+                        {(Object.entries(DOCUMENT_CATEGORY_LABELS) as [DocumentCategory, string][]).map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
                     ) : att.ai_classified_at === null ? (
-                      <span className="text-xs text-gray-400 italic">Classifying…</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-400 italic">Classifying…</span>
+                        <button type="button" onClick={() => setEditingCategoryId(att.id)} title="Set category" className="p-0.5 rounded hover:bg-gray-100">
+                          <IconPencil className="w-3 h-3 text-gray-400" />
+                        </button>
+                      </div>
                     ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                        Other
-                      </span>
+                      <div className="flex items-center gap-1 group">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${DOCUMENT_CATEGORY_COLOURS[att.category ?? 'other']}`}>
+                          <IconSparkles className="w-3 h-3" />
+                          {DOCUMENT_CATEGORY_LABELS[att.category ?? 'other']}
+                        </span>
+                        <button type="button" onClick={() => setEditingCategoryId(att.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-100 transition-opacity" title="Edit category">
+                          <IconPencil className="w-3 h-3 text-gray-400" />
+                        </button>
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">

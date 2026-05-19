@@ -169,7 +169,7 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
   contract: 'Contract',
   accident_report: 'Accident Report',
   affidavit: 'Affidavit',
-  other: 'Other',
+  other: 'Misc Documents',
 }
 
 export const DOCUMENT_CATEGORY_COLOURS: Record<DocumentCategory, string> = {
