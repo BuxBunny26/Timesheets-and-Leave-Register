@@ -5,6 +5,13 @@ import { formatDateDisplay } from '../lib/dateUtils'
 import { IconCheckCircle } from '../components/Icons'
 import type { OTApprovalStatus, LeaveType, LeaveStatus } from '../types'
 
+function formatTimestampDisplay(ts: string | null | undefined): string {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 type Tab = 'ot' | 'leave'
 
 interface EmployeeSnippet {
@@ -282,7 +289,7 @@ export default function ApprovalsPage() {
                         </p>
                       )}
                       <p className="text-xs text-gray-400 mt-1">
-                        Submitted: {formatDateDisplay(approval.submitted_at)}
+                        Submitted: {formatTimestampDisplay(approval.submitted_at)}
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -381,7 +388,7 @@ export default function ApprovalsPage() {
                         <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
                       )}
                       <p className="text-xs text-gray-400 mt-1">
-                        Submitted: {formatDateDisplay(req.submitted_at)}
+                        Submitted: {formatTimestampDisplay(req.submitted_at)}
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
