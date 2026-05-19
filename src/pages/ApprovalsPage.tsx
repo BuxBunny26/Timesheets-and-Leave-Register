@@ -28,7 +28,21 @@ interface OTApprovalRow {
   submitted_at: string
   actioned_at: string | null
   employee?: EmployeeSnippet
-  timesheet_day?: { date: string; overtime_hours: number | null }
+  timesheet_day?: {
+    date: string
+    overtime_hours: number | null
+    overtime_reason: string | null
+    timesheet_week?: { id: string; week_start: string; week_end: string } | null
+  }
+}
+
+interface OTGroup {
+  key: string
+  employeeName: string
+  weekStart: string
+  weekEnd: string
+  totalHours: number
+  rows: OTApprovalRow[]
 }
 
 interface LeaveRequestRow {
@@ -58,6 +72,10 @@ export default function ApprovalsPage() {
   const [otActionId, setOtActionId] = useState<string | null>(null)
   const [otDenyComment, setOtDenyComment] = useState('')
   const [otDenyId, setOtDenyId] = useState<string | null>(null)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [groupActionKey, setGroupActionKey] = useState<string | null>(null)
+  const [groupDenyKey, setGroupDenyKey] = useState<string | null>(null)
+  const [groupDenyComment, setGroupDenyComment] = useState('')
 
   // Leave state
   const [leaveApprovals, setLeaveApprovals] = useState<LeaveRequestRow[]>([])
@@ -85,7 +103,7 @@ export default function ApprovalsPage() {
         profile?.role === 'system_admin'
       let query = supabase
         .from('ot_approvals')
-        .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours)')
+        .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours, overtime_reason, timesheet_week:timesheet_weeks!timesheet_week_id(id, week_start, week_end))')
         .eq('status', 'pending')
         .order('submitted_at', { ascending: true })
       if (!isManager) {
@@ -167,6 +185,54 @@ export default function ApprovalsPage() {
     }
   }
 
+  async function approveOtBulk(ids: string[], key: string) {
+    if (ids.length === 0) return
+    setGroupActionKey(key)
+    try {
+      const { error } = await supabase
+        .from('ot_approvals')
+        .update({ status: 'approved', actioned_at: new Date().toISOString() })
+        .in('id', ids)
+      if (error) throw error
+      setOtApprovals(prev => prev.filter(a => !ids.includes(a.id)))
+    } catch (err) {
+      console.error('Failed to approve OT week:', err)
+    } finally {
+      setGroupActionKey(null)
+    }
+  }
+
+  async function denyOtBulk(ids: string[], key: string) {
+    if (ids.length === 0) return
+    setGroupActionKey(key)
+    try {
+      const { error } = await supabase
+        .from('ot_approvals')
+        .update({
+          status: 'denied',
+          approver_comment: groupDenyComment.trim() || null,
+          actioned_at: new Date().toISOString(),
+        })
+        .in('id', ids)
+      if (error) throw error
+      setOtApprovals(prev => prev.filter(a => !ids.includes(a.id)))
+      setGroupDenyKey(null)
+      setGroupDenyComment('')
+    } catch (err) {
+      console.error('Failed to deny OT week:', err)
+    } finally {
+      setGroupActionKey(null)
+    }
+  }
+
+  function toggleGroup(key: string) {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
   async function approveLeave(requestId: string) {
     setLeaveActionId(requestId)
     try {
@@ -207,6 +273,36 @@ export default function ApprovalsPage() {
 
   const otCount = otApprovals.length
   const leaveCount = leaveApprovals.length
+
+  // Group pending OT approvals by employee + week
+  const otGroups: OTGroup[] = (() => {
+    const map = new Map<string, OTGroup>()
+    for (const row of otApprovals) {
+      const week = row.timesheet_day?.timesheet_week
+      const weekId = week?.id ?? `noweek-${row.id}`
+      const key = `${row.employee_id}|${weekId}`
+      const employeeName = `${row.employee?.first_name ?? ''} ${row.employee?.surname ?? ''}`.trim() || 'Employee'
+      const existing = map.get(key)
+      if (existing) {
+        existing.rows.push(row)
+        existing.totalHours += row.timesheet_day?.overtime_hours ?? 0
+      } else {
+        map.set(key, {
+          key,
+          employeeName,
+          weekStart: week?.week_start ?? row.timesheet_day?.date ?? '',
+          weekEnd: week?.week_end ?? row.timesheet_day?.date ?? '',
+          totalHours: row.timesheet_day?.overtime_hours ?? 0,
+          rows: [row],
+        })
+      }
+    }
+    // Sort each group's rows by date asc; sort groups by week_start asc then name
+    const groups = Array.from(map.values())
+    groups.forEach(g => g.rows.sort((a, b) => (a.timesheet_day?.date ?? '').localeCompare(b.timesheet_day?.date ?? '')))
+    groups.sort((a, b) => a.weekStart.localeCompare(b.weekStart) || a.employeeName.localeCompare(b.employeeName))
+    return groups
+  })()
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -268,77 +364,152 @@ export default function ApprovalsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {otApprovals.map(approval => (
-                <div
-                  key={approval.id}
-                  className="bg-white rounded-lg border border-gray-200 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {approval.employee?.first_name} {approval.employee?.surname}
-                      </p>
-                      {approval.timesheet_day?.date && (
+              {otGroups.map(group => {
+                const isExpanded = expandedGroups.has(group.key)
+                const ids = group.rows.map(r => r.id)
+                const isBusy = groupActionKey === group.key
+                return (
+                  <div key={group.key} className="bg-white rounded-lg border border-gray-200">
+                    {/* Group header */}
+                    <div className="p-4 flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{group.employeeName}</p>
                         <p className="text-sm text-gray-600 mt-0.5">
-                          Date: {formatDateDisplay(approval.timesheet_day.date)}
+                          Week: {formatDateDisplay(group.weekStart)} – {formatDateDisplay(group.weekEnd)}
                         </p>
-                      )}
-                      {approval.timesheet_day?.overtime_hours != null && (
                         <p className="text-sm text-gray-600">
-                          Hours: <strong>{approval.timesheet_day.overtime_hours}</strong>
+                          {group.rows.length} day{group.rows.length !== 1 ? 's' : ''} · Total OT: <strong>{group.totalHours}</strong> hr{group.totalHours !== 1 ? 's' : ''}
                         </p>
-                      )}
-                      <p className="text-xs text-gray-400 mt-1">
-                        Submitted: {formatTimestampDisplay(approval.submitted_at)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={() => approveOt(approval.id)}
-                        disabled={otActionId === approval.id}
-                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                      >
-                        {otActionId === approval.id ? '…' : 'Approve'}
-                      </button>
-                      <button
-                        onClick={() => setOtDenyId(approval.id)}
-                        disabled={otActionId === approval.id}
-                        className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                      >
-                        Deny
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Deny form */}
-                  {otDenyId === approval.id && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <textarea
-                        value={otDenyComment}
-                        onChange={e => setOtDenyComment(e.target.value)}
-                        rows={2}
-                        placeholder="Reason for denial (optional)"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
-                      />
-                      <div className="flex gap-2 justify-end">
                         <button
-                          onClick={() => { setOtDenyId(null); setOtDenyComment('') }}
-                          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                          onClick={() => toggleGroup(group.key)}
+                          className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"
                         >
-                          Cancel
+                          {isExpanded ? 'Hide days' : 'Show days'}
+                        </button>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => approveOtBulk(ids, group.key)}
+                          disabled={isBusy}
+                          className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isBusy ? '…' : 'Approve week'}
                         </button>
                         <button
-                          onClick={() => denyOt(approval.id)}
-                          disabled={otActionId === approval.id}
-                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                          onClick={() => setGroupDenyKey(group.key)}
+                          disabled={isBusy}
+                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
-                          Confirm Deny
+                          Deny week
                         </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Week deny form */}
+                    {groupDenyKey === group.key && (
+                      <div className="px-4 pb-4 -mt-2 border-t border-gray-100 pt-3">
+                        <textarea
+                          value={groupDenyComment}
+                          onChange={e => setGroupDenyComment(e.target.value)}
+                          rows={2}
+                          placeholder="Reason for denying the whole week (optional)"
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => { setGroupDenyKey(null); setGroupDenyComment('') }}
+                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => denyOtBulk(ids, group.key)}
+                            disabled={isBusy}
+                            className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                          >
+                            Confirm Deny Week
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Per-day breakdown */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 divide-y divide-gray-100">
+                        {group.rows.map(approval => (
+                          <div key={approval.id} className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                {approval.timesheet_day?.date && (
+                                  <p className="text-sm text-gray-900">
+                                    {formatDateDisplay(approval.timesheet_day.date)}
+                                    {approval.timesheet_day.overtime_hours != null && (
+                                      <span className="ml-2 text-gray-600">
+                                        · <strong>{approval.timesheet_day.overtime_hours}</strong> hr{approval.timesheet_day.overtime_hours !== 1 ? 's' : ''}
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
+                                {approval.timesheet_day?.overtime_reason ? (
+                                  <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
+                                    <span className="text-gray-400">Reason: </span>{approval.timesheet_day.overtime_reason}
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-gray-400 italic mt-1">No reason provided</p>
+                                )}
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <button
+                                  onClick={() => approveOt(approval.id)}
+                                  disabled={otActionId === approval.id || isBusy}
+                                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                                >
+                                  {otActionId === approval.id ? '…' : 'Approve'}
+                                </button>
+                                <button
+                                  onClick={() => setOtDenyId(approval.id)}
+                                  disabled={otActionId === approval.id || isBusy}
+                                  className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Per-day deny form */}
+                            {otDenyId === approval.id && (
+                              <div className="mt-3 pt-3 border-t border-gray-100">
+                                <textarea
+                                  value={otDenyComment}
+                                  onChange={e => setOtDenyComment(e.target.value)}
+                                  rows={2}
+                                  placeholder="Reason for denial (optional)"
+                                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    onClick={() => { setOtDenyId(null); setOtDenyComment('') }}
+                                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => denyOt(approval.id)}
+                                    disabled={otActionId === approval.id}
+                                    className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    Confirm Deny
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
