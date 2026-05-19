@@ -1,10 +1,13 @@
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconFolder } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
+import { supabase } from '../lib/supabase'
 import type { Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
+const MANAGER_ROLES: Role[] = ['manager', 'admin_manager', 'system_admin']
 
 interface NavItem {
   to: string
@@ -29,10 +32,91 @@ const navItems: NavItem[] = [
 export default function Layout() {
   const { profile, signOut } = useAuth()
   const { unreadCount } = useNotifications()
+  const [approvalsCount, setApprovalsCount] = useState(0)
+  const [verifyCount, setVerifyCount] = useState(0)
+
+  const isManager = !!profile?.role && MANAGER_ROLES.includes(profile.role)
+  const isSupervisor = !!profile?.role && SUPERVISOR_ROLES.includes(profile.role)
+
+  useEffect(() => {
+    if (!profile) return
+    let cancelled = false
+
+    async function loadApprovals() {
+      if (!profile || !isSupervisor) {
+        setApprovalsCount(0)
+        return
+      }
+      let otQ = supabase.from('ot_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      let leaveQ = supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      if (!isManager) {
+        otQ = otQ.eq('approver_id', profile.id)
+        leaveQ = leaveQ.eq('supervisor_id', profile.id)
+      }
+      const [{ count: ot }, { count: lv }] = await Promise.all([otQ, leaveQ])
+      if (!cancelled) setApprovalsCount((ot ?? 0) + (lv ?? 0))
+    }
+
+    async function loadVerifyMonth() {
+      if (!profile) return
+      // Previous calendar month
+      const now = new Date()
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const yr = prev.getFullYear()
+      const mo = prev.getMonth() + 1
+      const period = `${yr}-${String(mo).padStart(2, '0')}`
+      const start = `${period}-01`
+      const lastDay = new Date(yr, mo, 0).getDate()
+      const end = `${period}-${String(lastDay).padStart(2, '0')}`
+
+      const [{ data: verif }, { data: weekRows }] = await Promise.all([
+        supabase
+          .from('timesheet_verifications')
+          .select('status')
+          .eq('employee_id', profile.id)
+          .eq('period_month', period)
+          .maybeSingle(),
+        supabase
+          .from('timesheet_weeks')
+          .select('week_start, week_end, status')
+          .eq('employee_id', profile.id)
+          .lte('week_start', end)
+          .gte('week_end', start),
+      ])
+
+      if (cancelled) return
+      if (verif?.status === 'verified') { setVerifyCount(0); return }
+
+      // Expected ISO weeks (Mon-anchored) overlapping the month
+      const startD = new Date(start)
+      const endD = new Date(end)
+      const firstMon = new Date(startD)
+      const dayShift = (firstMon.getDay() + 6) % 7
+      firstMon.setDate(firstMon.getDate() - dayShift)
+      let expected = 0
+      for (let d = new Date(firstMon); d <= endD; d.setDate(d.getDate() + 7)) expected++
+
+      const weeks = weekRows ?? []
+      const allSubmitted = weeks.length >= expected && weeks.every(w => w.status === 'submitted' || w.status === 'approved')
+      setVerifyCount(weeks.length > 0 && allSubmitted ? 1 : 0)
+    }
+
+    loadApprovals()
+    loadVerifyMonth()
+    const interval = setInterval(() => { loadApprovals(); loadVerifyMonth() }, 60000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [profile, isManager, isSupervisor])
 
   const visibleItems = navItems.filter(
     item => item.roles === null || (profile?.role && item.roles.includes(profile.role))
   )
+
+  function badgeFor(to: string): number {
+    if (to === '/approvals') return approvalsCount
+    if (to === '/my-verification') return verifyCount
+    if (to === '/notifications') return unreadCount
+    return 0
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -51,7 +135,9 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {visibleItems.map(item => (
+          {visibleItems.map(item => {
+            const badge = badgeFor(item.to)
+            return (
             <NavLink
               key={item.to}
               to={item.to}
@@ -72,9 +158,15 @@ export default function Layout() {
                   )}
                 </div>
               ) : item.icon}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {badge > 0 && item.to !== '/notifications' && (
+                <span className="min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
             </NavLink>
-          ))}
+            )
+          })}
         </nav>
 
         <div className="px-4 py-4 border-t border-blue-700">
@@ -105,7 +197,9 @@ export default function Layout() {
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
-        {visibleItems.map(item => (
+        {visibleItems.map(item => {
+          const badge = badgeFor(item.to)
+          return (
           <NavLink
             key={item.to}
             to={item.to}
@@ -116,7 +210,7 @@ export default function Layout() {
               }`
             }
           >
-            <span className="w-5 h-5">
+            <span className="w-5 h-5 relative">
               {item.to === '/notifications' ? (
                 <div className="relative">
                   <IconBell className="w-5 h-5" />
@@ -127,10 +221,16 @@ export default function Layout() {
                   )}
                 </div>
               ) : item.icon}
+              {badge > 0 && item.to !== '/notifications' && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
             </span>
             <span>{item.label}</span>
           </NavLink>
-        ))}
+          )
+        })}
       </nav>
     </div>
   )
