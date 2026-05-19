@@ -72,12 +72,19 @@ export default function ApprovalsPage() {
     setLoadingOt(true)
     setOtError(null)
     try {
-      const { data, error } = await supabase
+      const isManager =
+        profile?.role === 'manager' ||
+        profile?.role === 'admin_manager' ||
+        profile?.role === 'system_admin'
+      let query = supabase
         .from('ot_approvals')
         .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours)')
-        .eq('approver_id', profile!.id)
         .eq('status', 'pending')
         .order('submitted_at', { ascending: true })
+      if (!isManager) {
+        query = query.eq('approver_id', profile!.id)
+      }
+      const { data, error } = await query
       if (error) throw error
       setOtApprovals((data as OTApprovalRow[]) ?? [])
     } catch (err) {
@@ -92,12 +99,19 @@ export default function ApprovalsPage() {
     setLoadingLeave(true)
     setLeaveError(null)
     try {
-      const { data, error } = await supabase
+      const isManager =
+        profile?.role === 'manager' ||
+        profile?.role === 'admin_manager' ||
+        profile?.role === 'system_admin'
+      let query = supabase
         .from('leave_requests')
         .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
-        .eq('supervisor_id', profile!.id)
         .eq('status', 'pending')
         .order('submitted_at', { ascending: true })
+      if (!isManager) {
+        query = query.eq('supervisor_id', profile!.id)
+      }
+      const { data, error } = await query
       if (error) throw error
       setLeaveApprovals((data as LeaveRequestRow[]) ?? [])
     } catch (err) {
