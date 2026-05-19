@@ -32,7 +32,6 @@ const LEAVE_COLORS: Record<LeaveType, { dot: string; pill: string }> = {
 }
 
 function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1) }
-function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0) }
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 function addMonths(d: Date, n: number) { return new Date(d.getFullYear(), d.getMonth() + n, 1) }
 function sameDay(a: Date, b: Date) {
