@@ -47,8 +47,8 @@ export default function Layout() {
         setApprovalsCount(0)
         return
       }
-      let otQ = supabase.from('ot_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending')
-      let leaveQ = supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      let otQ = supabase.from('ot_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('employee_id', profile.id)
+      let leaveQ = supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('employee_id', profile.id)
       if (!isManager) {
         otQ = otQ.eq('approver_id', profile.id)
         leaveQ = leaveQ.eq('supervisor_id', profile.id)

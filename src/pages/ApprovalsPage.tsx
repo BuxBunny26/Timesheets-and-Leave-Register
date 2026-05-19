@@ -105,6 +105,7 @@ export default function ApprovalsPage() {
         .from('ot_approvals')
         .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours, overtime_reason, timesheet_week:timesheet_weeks!timesheet_week_id(id, week_start, week_end))')
         .eq('status', 'pending')
+        .neq('employee_id', profile!.id)
         .order('submitted_at', { ascending: true })
       if (!isManager) {
         query = query.eq('approver_id', profile!.id)
@@ -132,6 +133,7 @@ export default function ApprovalsPage() {
         .from('leave_requests')
         .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
         .eq('status', 'pending')
+        .neq('employee_id', profile!.id)
         .order('submitted_at', { ascending: true })
       if (!isManager) {
         query = query.eq('supervisor_id', profile!.id)
