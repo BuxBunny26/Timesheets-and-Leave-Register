@@ -46,10 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchProfile(userId: string) {
     const { data } = await supabase
       .from('profiles')
-      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*), supervisor:profiles!profiles_supervisor_id_fkey(first_name, surname)')
+      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*)')
       .eq('id', userId)
       .single()
-    setProfile(data)
+
+    let supervisor: Profile['supervisor'] = null
+    if (data?.supervisor_id) {
+      const { data: sup } = await supabase
+        .from('profiles')
+        .select('first_name, surname')
+        .eq('id', data.supervisor_id)
+        .maybeSingle()
+      if (sup) supervisor = sup
+    }
+
+    setProfile(data ? { ...data, supervisor } : null)
     setLoading(false)
   }
 
@@ -57,10 +68,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!session?.user) return
     const { data } = await supabase
       .from('profiles')
-      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*), supervisor:profiles!profiles_supervisor_id_fkey(first_name, surname)')
+      .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*)')
       .eq('id', session.user.id)
       .single()
-    if (data) setProfile(data)
+    if (!data) return
+
+    let supervisor: Profile['supervisor'] = null
+    if (data.supervisor_id) {
+      const { data: sup } = await supabase
+        .from('profiles')
+        .select('first_name, surname')
+        .eq('id', data.supervisor_id)
+        .maybeSingle()
+      if (sup) supervisor = sup
+    }
+    setProfile({ ...data, supervisor })
   }, [session])
 
   async function signIn(email: string, password: string) {
