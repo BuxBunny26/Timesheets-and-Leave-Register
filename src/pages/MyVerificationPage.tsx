@@ -102,8 +102,17 @@ export default function MyVerificationPage() {
     let expected = 0
     for (let d = new Date(firstMon); d <= endD; d.setDate(d.getDate() + 7)) expected++
     setExpectedWeeks(expected)
-    // Only count weeks whose Monday (week_start) is within this period
-    const weeksInPeriod = (weekRows ?? []).filter((w: WeekStatus) => w.week_start >= start && w.week_start <= end)
+    // Compute each week's true Monday (legacy data may have week_start anchored to
+    // Sunday due to an old timezone bug). A week belongs to this period if its
+    // Monday falls within [start, end].
+    const weeksInPeriod = (weekRows ?? []).filter((w: WeekStatus) => {
+      const ws = new Date(w.week_start + 'T00:00:00')
+      const dow = ws.getDay() // 0 = Sun, 1 = Mon
+      const monday = new Date(ws)
+      if (dow !== 1) monday.setDate(ws.getDate() + ((1 - dow + 7) % 7))
+      const mondayISO = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+      return mondayISO >= start && mondayISO <= end
+    })
     setWeeks(weeksInPeriod as WeekStatus[])
 
     const myOt = (otDays ?? [])

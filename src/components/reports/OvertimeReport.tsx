@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
 import TeamScopeToggle from './TeamScopeToggle'
@@ -17,6 +18,8 @@ interface OTRow {
 }
 
 export default function OvertimeReport() {
+  const { profile } = useAuth()
+  const isPlainEmployee = profile?.role === 'employee'
   const { scope, isAdmin, myTeamOnly, setMyTeamOnly } = useTeamScope()
   const [employees, setEmployees] = useState<Profile[]>([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
@@ -76,14 +79,16 @@ export default function OvertimeReport() {
       loading={loading} reportId="ot-report"
     >
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Employee (optional)</label>
-          <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
-            <option value="">All employees</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name}</option>)}
-          </select>
-        </div>
+        {!isPlainEmployee && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Employee (optional)</label>
+            <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              <option value="">All employees</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name}</option>)}
+            </select>
+          </div>
+        )}
         <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
 
