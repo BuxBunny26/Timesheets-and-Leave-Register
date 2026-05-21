@@ -13,7 +13,7 @@ function formatTimestampDisplay(ts: string | null | undefined): string {
   return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-type Tab = 'ot' | 'leave'
+type Tab = 'ot' | 'leave' | 'final_ot' | 'final_leave'
 
 interface EmployeeSnippet {
   first_name: string
@@ -28,6 +28,7 @@ interface OTApprovalRow {
   approver_comment: string | null
   submitted_at: string
   actioned_at: string | null
+  final_status?: 'pending' | 'approved' | 'denied'
   employee?: EmployeeSnippet
   timesheet_day?: {
     date: string
@@ -59,19 +60,26 @@ interface LeaveRequestRow {
   supervisor_comment: string | null
   submitted_at: string
   actioned_at: string | null
+  final_status?: 'pending' | 'approved' | 'denied'
   employee?: EmployeeSnippet
 }
 
 export default function ApprovalsPage() {
   const { profile } = useAuth()
+  const isManager =
+    profile?.role === 'manager' ||
+    profile?.role === 'admin_manager' ||
+    profile?.role === 'system_admin'
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialTab: Tab = searchParams.get('tab') === 'leave' ? 'leave' : 'ot'
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
+  const parseTab = (raw: string | null): Tab => {
+    if (raw === 'leave' || raw === 'final_ot' || raw === 'final_leave') return raw
+    return 'ot'
+  }
+  const [activeTab, setActiveTab] = useState<Tab>(parseTab(searchParams.get('tab')))
 
   useEffect(() => {
-    const t = searchParams.get('tab')
-    if (t === 'leave' && activeTab !== 'leave') setActiveTab('leave')
-    else if (t === 'ot' && activeTab !== 'ot') setActiveTab('ot')
+    const t = parseTab(searchParams.get('tab'))
+    if (t !== activeTab) setActiveTab(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
@@ -102,32 +110,39 @@ export default function ApprovalsPage() {
   const [leaveDenyComment, setLeaveDenyComment] = useState('')
   const [leaveDenyId, setLeaveDenyId] = useState<string | null>(null)
 
+  // Final-approval state (manager-only second-stage queues)
+  const [finalOt, setFinalOt] = useState<OTApprovalRow[]>([])
+  const [finalLeave, setFinalLeave] = useState<LeaveRequestRow[]>([])
+  const [loadingFinalOt, setLoadingFinalOt] = useState(false)
+  const [loadingFinalLeave, setLoadingFinalLeave] = useState(false)
+  const [finalActionId, setFinalActionId] = useState<string | null>(null)
+
   useEffect(() => {
     if (profile?.id) {
       fetchOtApprovals()
       fetchLeaveApprovals()
+      if (isManager) {
+        fetchFinalOt()
+        fetchFinalLeave()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id])
+  }, [profile?.id, isManager])
 
   async function fetchOtApprovals() {
     setLoadingOt(true)
     setOtError(null)
     try {
-      const isManager =
-        profile?.role === 'manager' ||
-        profile?.role === 'admin_manager' ||
-        profile?.role === 'system_admin'
-      let query = supabase
+      // Everyone (supervisors AND managers) only sees pending items they are
+      // the assigned approver for. This avoids the duplication where a
+      // manager would see items still on a supervisor's desk.
+      const { data, error } = await supabase
         .from('ot_approvals')
         .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours, overtime_reason, timesheet_week:timesheet_weeks!timesheet_week_id(id, week_start, week_end))')
         .eq('status', 'pending')
+        .eq('approver_id', profile!.id)
         .neq('employee_id', profile!.id)
         .order('submitted_at', { ascending: true })
-      if (!isManager) {
-        query = query.eq('approver_id', profile!.id)
-      }
-      const { data, error } = await query
       if (error) throw error
       setOtApprovals((data as OTApprovalRow[]) ?? [])
     } catch (err) {
@@ -142,20 +157,13 @@ export default function ApprovalsPage() {
     setLoadingLeave(true)
     setLeaveError(null)
     try {
-      const isManager =
-        profile?.role === 'manager' ||
-        profile?.role === 'admin_manager' ||
-        profile?.role === 'system_admin'
-      let query = supabase
+      const { data, error } = await supabase
         .from('leave_requests')
         .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
         .eq('status', 'pending')
+        .eq('supervisor_id', profile!.id)
         .neq('employee_id', profile!.id)
         .order('submitted_at', { ascending: true })
-      if (!isManager) {
-        query = query.eq('supervisor_id', profile!.id)
-      }
-      const { data, error } = await query
       if (error) throw error
       setLeaveApprovals((data as LeaveRequestRow[]) ?? [])
     } catch (err) {
@@ -163,6 +171,86 @@ export default function ApprovalsPage() {
       console.error(err)
     } finally {
       setLoadingLeave(false)
+    }
+  }
+
+  async function fetchFinalOt() {
+    setLoadingFinalOt(true)
+    try {
+      const { data, error } = await supabase
+        .from('ot_approvals')
+        .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours, overtime_reason, timesheet_week:timesheet_weeks!timesheet_week_id(id, week_start, week_end))')
+        .eq('status', 'approved')
+        .eq('final_status', 'pending')
+        .neq('employee_id', profile!.id)
+        .order('actioned_at', { ascending: true })
+      if (error) throw error
+      setFinalOt((data as OTApprovalRow[]) ?? [])
+    } catch (err) {
+      console.error('Failed to load final OT queue:', err)
+    } finally {
+      setLoadingFinalOt(false)
+    }
+  }
+
+  async function fetchFinalLeave() {
+    setLoadingFinalLeave(true)
+    try {
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
+        .eq('status', 'approved')
+        .eq('final_status', 'pending')
+        .neq('employee_id', profile!.id)
+        .order('actioned_at', { ascending: true })
+      if (error) throw error
+      setFinalLeave((data as LeaveRequestRow[]) ?? [])
+    } catch (err) {
+      console.error('Failed to load final leave queue:', err)
+    } finally {
+      setLoadingFinalLeave(false)
+    }
+  }
+
+  async function finaliseOt(id: string, decision: 'approved' | 'denied', comment?: string) {
+    setFinalActionId(id)
+    try {
+      const { error } = await supabase
+        .from('ot_approvals')
+        .update({
+          final_status: decision,
+          final_approver_id: profile!.id,
+          final_actioned_at: new Date().toISOString(),
+          final_comment: comment?.trim() || null,
+        })
+        .eq('id', id)
+      if (error) throw error
+      setFinalOt(prev => prev.filter(r => r.id !== id))
+    } catch (err) {
+      console.error('Failed to finalise OT:', err)
+    } finally {
+      setFinalActionId(null)
+    }
+  }
+
+  async function finaliseLeave(id: string, decision: 'approved' | 'denied', comment?: string) {
+    setFinalActionId(id)
+    try {
+      const { error } = await supabase
+        .from('leave_requests')
+        .update({
+          final_status: decision,
+          final_approver_id: profile!.id,
+          final_actioned_at: new Date().toISOString(),
+          final_comment: comment?.trim() || null,
+        })
+        .eq('id', id)
+      if (error) throw error
+      setFinalLeave(prev => prev.filter(r => r.id !== id))
+    } catch (err) {
+      console.error('Failed to finalise leave:', err)
+    } finally {
+      setFinalActionId(null)
     }
   }
 
@@ -292,6 +380,8 @@ export default function ApprovalsPage() {
 
   const otCount = otApprovals.length
   const leaveCount = leaveApprovals.length
+  const finalOtCount = finalOt.length
+  const finalLeaveCount = finalLeave.length
 
   // Group pending OT approvals by employee + week
   const otGroups: OTGroup[] = (() => {
@@ -331,7 +421,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
         <button
           onClick={() => selectTab('ot')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -362,6 +452,40 @@ export default function ApprovalsPage() {
             </span>
           )}
         </button>
+        {isManager && (
+          <>
+            <button
+              onClick={() => selectTab('final_ot')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'final_ot'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Final OT Approval
+              {finalOtCount > 0 && (
+                <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {finalOtCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => selectTab('final_leave')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'final_leave'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Final Leave Approval
+              {finalLeaveCount > 0 && (
+                <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {finalLeaveCount}
+                </span>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* OT Approvals Tab */}
@@ -626,6 +750,137 @@ export default function ApprovalsPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Final OT Approval Tab (manager only) */}
+      {activeTab === 'final_ot' && isManager && (
+        <div>
+          {loadingFinalOt ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : finalOt.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+              <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
+              <p className="mt-3 text-gray-600 font-medium">No OT awaiting final approval</p>
+              <p className="mt-1 text-sm text-gray-400">Items supervisors approve appear here for your sign-off.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {finalOt.map(row => {
+                const employeeName = `${row.employee?.first_name ?? ''} ${row.employee?.surname ?? ''}`.trim() || 'Employee'
+                const day = row.timesheet_day
+                const week = day?.timesheet_week
+                return (
+                  <div key={row.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{employeeName}</p>
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          {day?.date ? formatDateDisplay(day.date) : '—'}
+                          {day?.overtime_hours != null && (
+                            <span className="ml-2">· <strong>{day.overtime_hours}</strong> hr{day.overtime_hours !== 1 ? 's' : ''}</span>
+                          )}
+                        </p>
+                        {week && (
+                          <p className="text-xs text-gray-500 mt-0.5">Week {formatDateDisplay(week.week_start)} – {formatDateDisplay(week.week_end)}</p>
+                        )}
+                        {day?.overtime_reason && (
+                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
+                            <span className="text-gray-400">Reason: </span>{day.overtime_reason}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Supervisor approved: {formatTimestampDisplay(row.actioned_at)}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => finaliseOt(row.id, 'approved')}
+                          disabled={finalActionId === row.id}
+                          className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                        >
+                          {finalActionId === row.id ? '…' : 'Final approve'}
+                        </button>
+                        <button
+                          onClick={() => finaliseOt(row.id, 'denied')}
+                          disabled={finalActionId === row.id}
+                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Final Leave Approval Tab (manager only) */}
+      {activeTab === 'final_leave' && isManager && (
+        <div>
+          {loadingFinalLeave ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : finalLeave.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+              <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
+              <p className="mt-3 text-gray-600 font-medium">No leave awaiting final approval</p>
+              <p className="mt-1 text-sm text-gray-400">Items supervisors approve appear here for your sign-off.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {finalLeave.map(req => (
+                <div key={req.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-gray-900">
+                          {req.employee?.first_name} {req.employee?.surname}
+                        </p>
+                        <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 capitalize">
+                          {req.leave_type.replace('_', ' ')} Leave
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
+                        <span className="ml-2 text-gray-400">
+                          ({req.total_days} day{req.total_days !== 1 ? 's' : ''})
+                        </span>
+                      </p>
+                      {req.reason && (
+                        <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        Supervisor approved: {formatTimestampDisplay(req.actioned_at)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => finaliseLeave(req.id, 'approved')}
+                        disabled={finalActionId === req.id}
+                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      >
+                        {finalActionId === req.id ? '…' : 'Final approve'}
+                      </button>
+                      <button
+                        onClick={() => finaliseLeave(req.id, 'denied')}
+                        disabled={finalActionId === req.id}
+                        className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
