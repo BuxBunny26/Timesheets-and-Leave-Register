@@ -136,8 +136,16 @@ export default function Layout() {
     loadApprovals()
     loadVerifyMonth()
     const interval = setInterval(() => { loadApprovals(); loadVerifyMonth() }, 60000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [profile, isManager, isSupervisor])
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') { loadApprovals(); loadVerifyMonth() }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [profile, isManager, isSupervisor, location.pathname])
 
   const visibleItems = navItems.filter(
     item => item.roles === null || (profile?.role && item.roles.includes(profile.role))
