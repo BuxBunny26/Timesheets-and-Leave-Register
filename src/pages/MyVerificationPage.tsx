@@ -104,16 +104,30 @@ export default function MyVerificationPage() {
     setExpectedWeeks(expected)
     // Compute each week's true Monday (legacy data may have week_start anchored to
     // Sunday due to an old timezone bug). A week belongs to this period if its
-    // Monday falls within [start, end].
-    const weeksInPeriod = (weekRows ?? []).filter((w: WeekStatus) => {
-      const ws = new Date(w.week_start + 'T00:00:00')
-      const dow = ws.getDay() // 0 = Sun, 1 = Mon
-      const monday = new Date(ws)
-      if (dow !== 1) monday.setDate(ws.getDate() + ((1 - dow + 7) % 7))
-      const mondayISO = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
-      return mondayISO >= start && mondayISO <= end
-    })
-    setWeeks(weeksInPeriod as WeekStatus[])
+    // Monday falls within [start, end]. We also dedupe by that Monday so a legacy
+    // ghost row (Sunday-anchored draft) can't block a real Monday-anchored
+    // submitted/approved row for the same week.
+    function trueMondayISO(ws: string) {
+      const d = new Date(ws + 'T00:00:00')
+      const dow = d.getDay() // 0 = Sun, 1 = Mon
+      if (dow !== 1) d.setDate(d.getDate() + ((1 - dow + 7) % 7))
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    const STATUS_RANK: Record<WeekStatus['status'], number> = {
+      approved: 3, submitted: 2, rejected: 1, draft: 0,
+    }
+    const byMonday = new Map<string, WeekStatus>()
+    for (const w of (weekRows ?? []) as WeekStatus[]) {
+      const monday = trueMondayISO(w.week_start)
+      if (monday < start || monday > end) continue
+      const existing = byMonday.get(monday)
+      if (!existing || STATUS_RANK[w.status] > STATUS_RANK[existing.status]) {
+        // Normalise week_start to the true Monday so the UI/badge shows the right date.
+        byMonday.set(monday, { ...w, week_start: monday })
+      }
+    }
+    const weeksInPeriod = Array.from(byMonday.values()).sort((a, b) => a.week_start.localeCompare(b.week_start))
+    setWeeks(weeksInPeriod)
 
     const myOt = (otDays ?? [])
       .filter((d: unknown) => (d as { timesheet_week: { employee_id: string } }).timesheet_week?.employee_id === profile.id)
