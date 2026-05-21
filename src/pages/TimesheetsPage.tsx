@@ -114,6 +114,13 @@ export default function TimesheetsPage() {
   const [otHourDrafts, setOtHourDrafts] = useState<Record<number, string>>({})
   const [otHourErrors, setOtHourErrors] = useState<Record<number, string>>({})
 
+  // Approved leave covering days in the current week — dateISO -> { id, leave_type }
+  const [leaveByDate, setLeaveByDate] = useState<Record<string, { id: string; leave_type: string }>>({})
+  // Track which (weekId, dateISO) mismatches we've already sent notifications for this session
+  const notifiedMismatchesRef = useRef<Set<string>>(new Set())
+  // Set of dateISO strings auto-filled from leave that still need persisting via autosave
+  const pendingLeaveAutofillRef = useRef<Set<string>>(new Set())
+
   // Init holidays based on country code
   useEffect(() => {
     const cc = profile?.country_code ?? 'ZA'
@@ -135,6 +142,8 @@ export default function TimesheetsPage() {
     loadWeek()
     setOtHourDrafts({})
     setOtHourErrors({})
+    notifiedMismatchesRef.current = new Set()
+    pendingLeaveAutofillRef.current = new Set()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, profile?.id])
 
@@ -178,10 +187,39 @@ export default function TimesheetsPage() {
     try {
       const baseDays = buildDaysFromDates(weekStart)
       const weekStartStr = formatDateISO(weekStart)
+      const weekEndStr = formatDateISO(weekEnd)
+      const dateArr = getDaysOfWeek(weekStart)
 
       // Try localStorage draft first for instant render
       const draftKey = `timesheet_draft_${profile!.id}_${weekStartStr}`
       const localDraft = localStorage.getItem(draftKey)
+
+      // Fetch approved leave overlapping this week so we can pre-fill days
+      const { data: leaves } = await supabase
+        .from('leave_requests')
+        .select('id, leave_type, start_date, end_date')
+        .eq('employee_id', profile!.id)
+        .eq('status', 'approved')
+        .lte('start_date', weekEndStr)
+        .gte('end_date', weekStartStr)
+
+      const leaveMap: Record<string, { id: string; leave_type: string }> = {}
+      if (leaves && leaves.length > 0) {
+        for (const d of dateArr) {
+          const ds = formatDateISO(d)
+          const match = leaves.find(l => l.start_date <= ds && l.end_date >= ds)
+          if (match) leaveMap[ds] = { id: match.id, leave_type: match.leave_type }
+        }
+      }
+      setLeaveByDate(leaveMap)
+
+      // Pre-fill base days for any covered by approved leave (only if not already 'leave')
+      for (let i = 0; i < baseDays.length; i++) {
+        const ds = formatDateISO(dateArr[i])
+        if (leaveMap[ds] && baseDays[i].primary_status !== 'leave') {
+          baseDays[i] = { ...baseDays[i], primary_status: 'leave' }
+        }
+      }
 
       const { data: week, error } = await supabase
         .from('timesheet_weeks')
@@ -194,37 +232,67 @@ export default function TimesheetsPage() {
         throw error
       }
 
+      // Track which dates need autosave persistence after leave auto-fill
+      pendingLeaveAutofillRef.current = new Set()
+      let needsPersist = false
+      let finalDaysForPersist: DayState[] | null = null
+
       if (week) {
         const typedWeek = week as TimesheetWeek & { days: TimesheetDay[] }
         setWeekId(typedWeek.id)
         setWeekStatus(typedWeek.status)
         setResubmissionCount(typedWeek.resubmission_count ?? 0)
         setReviewerComment(typedWeek.reviewer_comment ?? null)
-        const merged = mergeDaysWithDb(baseDays, typedWeek.days ?? [])
+        const dbDays = typedWeek.days ?? []
+        const merged = mergeDaysWithDb(baseDays, dbDays)
+        // Auto-fill needs persisting if a covered day has no DB row yet
+        for (let i = 0; i < dateArr.length; i++) {
+          const ds = formatDateISO(dateArr[i])
+          if (leaveMap[ds] && !dbDays.find(x => x.date === ds)) {
+            pendingLeaveAutofillRef.current.add(ds)
+            needsPersist = true
+          }
+        }
         setDays(merged)
+        finalDaysForPersist = merged
+        if (typedWeek.status === 'approved') needsPersist = false
       } else {
         // No DB record yet — use localStorage draft or blank
         setWeekId(null)
         setWeekStatus('draft')
         setResubmissionCount(0)
         setReviewerComment(null)
+        let finalDays: DayState[] = baseDays
         if (localDraft) {
           try {
             const parsed = JSON.parse(localDraft) as DayState[]
             // Restore public holiday flags from fresh computation
-            const restored = parsed.map((d, i) => ({
+            finalDays = parsed.map((d, i) => ({
               ...d,
               is_public_holiday: baseDays[i].is_public_holiday,
               holiday_name: baseDays[i].holiday_name,
               is_locked: d.is_locked,
             }))
-            setDays(restored)
           } catch {
-            setDays(baseDays)
+            finalDays = baseDays
           }
-        } else {
-          setDays(baseDays)
         }
+        // Every leave-covered day with no saved row yet needs persisting
+        for (let i = 0; i < dateArr.length; i++) {
+          const ds = formatDateISO(dateArr[i])
+          if (leaveMap[ds]) {
+            pendingLeaveAutofillRef.current.add(ds)
+            needsPersist = true
+          }
+        }
+        setDays(finalDays)
+        finalDaysForPersist = finalDays
+      }
+
+      // If anything was auto-filled and the week isn't locked, persist it once
+      if (needsPersist && finalDaysForPersist) {
+        // Fire-and-forget; mismatch detection in autoSave is harmless here
+        autoSave(finalDaysForPersist)
       }
     } catch (err) {
       setSaveError('Failed to load timesheet.')
@@ -296,6 +364,53 @@ export default function TimesheetsPage() {
           .upsert(dayUpserts, { onConflict: 'timesheet_week_id,date' })
 
         if (daysErr) throw daysErr
+
+        // Clear the auto-fill pending set once persisted
+        pendingLeaveAutofillRef.current = new Set()
+
+        // Detect leave vs timesheet mismatches and notify (once per day per session)
+        try {
+          const mismatches: Array<{ date: string; status: string; leave_type: string }> = []
+          for (let i = 0; i < updatedDays.length; i++) {
+            const ds = formatDateISO(dateArr[i])
+            const leave = leaveByDate[ds]
+            if (!leave) continue
+            const status = updatedDays[i].primary_status
+            if (status && status !== 'leave') {
+              const key = `${currentWeekId}_${ds}`
+              if (!notifiedMismatchesRef.current.has(key)) {
+                mismatches.push({ date: ds, status, leave_type: leave.leave_type })
+                notifiedMismatchesRef.current.add(key)
+              }
+            }
+          }
+          if (mismatches.length > 0 && profile) {
+            const name = `${profile.first_name ?? ''} ${profile.surname ?? ''}`.trim() || 'An employee'
+            const rows = mismatches.flatMap(m => {
+              const dateLabel = new Date(m.date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+              const employeeMsg = `You marked ${dateLabel} as "${m.status.replace(/_/g, ' ')}" but you have approved ${m.leave_type} leave on this day. Please review.`
+              const supervisorMsg = `${name} marked ${dateLabel} as "${m.status.replace(/_/g, ' ')}" on their timesheet, but has approved ${m.leave_type} leave on this day.`
+              const baseRow = {
+                type: 'leave_timesheet_mismatch',
+                title: 'Leave vs timesheet mismatch',
+                related_entity_type: 'timesheet_week',
+                related_entity_id: currentWeekId,
+              }
+              const out = [
+                { ...baseRow, recipient_id: profile.id, message: employeeMsg },
+              ]
+              if (profile.supervisor_id) {
+                out.push({ ...baseRow, recipient_id: profile.supervisor_id, message: supervisorMsg })
+              }
+              return out
+            })
+            if (rows.length > 0) {
+              await supabase.from('notifications').insert(rows)
+            }
+          }
+        } catch (notifyErr) {
+          console.error('mismatch notify failed', notifyErr)
+        }
       } catch (err) {
         setSaveError('Auto-save failed. Draft saved locally.')
         console.error(err)
@@ -303,7 +418,7 @@ export default function TimesheetsPage() {
         setSaving(false)
       }
     },
-    [profile, weekStart, weekEnd, weekId]
+    [profile, weekStart, weekEnd, weekId, leaveByDate]
   )
 
   function handleDayChange(idx: number, partial: Partial<DayState>) {
@@ -924,6 +1039,24 @@ export default function TimesheetsPage() {
         </div>
       )}
 
+      {/* Leave vs timesheet mismatch */}
+      {(() => {
+        const mismatchDates = days
+          .map((d, i) => ({ d, ds: dateArr[i] ? formatDateISO(dateArr[i]) : '' }))
+          .filter(({ d, ds }) => ds && leaveByDate[ds] && d.primary_status !== '' && d.primary_status !== 'leave')
+        if (mismatchDates.length === 0) return null
+        return (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <p className="text-sm font-medium text-amber-800">
+              Leave vs timesheet mismatch on {mismatchDates.length} day{mismatchDates.length > 1 ? 's' : ''}
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              You have approved leave on {mismatchDates.map(({ ds }) => new Date(ds + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })).join(', ')} but the day{mismatchDates.length > 1 ? 's are' : ' is'} not marked as leave. Your supervisor has been notified. Update the day{mismatchDates.length > 1 ? 's' : ''} to "leave" if you took leave, or leave as-is if you actually worked.
+            </p>
+          </div>
+        )
+      })()}
+
       {/* Loading */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -937,13 +1070,16 @@ export default function TimesheetsPage() {
               const date = dateArr[idx]
               const locked = day.is_locked || isLocked
               const isWeekend = idx >= 5
+              const dateStr = formatDateISO(date)
+              const approvedLeave = leaveByDate[dateStr]
+              const leaveMismatch = !!approvedLeave && day.primary_status !== '' && day.primary_status !== 'leave'
 
               return (
                 <div
                   key={weekStartStr + idx}
                   className={`bg-white rounded-lg border p-3 ${
                     isWeekend ? 'border-gray-100 bg-gray-50' : 'border-gray-200'
-                  } ${locked && !day.is_public_holiday ? 'opacity-75' : ''}`}
+                  } ${leaveMismatch ? 'border-amber-300 ring-1 ring-amber-200' : ''} ${locked && !day.is_public_holiday ? 'opacity-75' : ''}`}
                 >
                   {/* Day heading */}
                   <p className="text-xs font-semibold text-gray-700 mb-1">
@@ -954,6 +1090,18 @@ export default function TimesheetsPage() {
                   {day.is_public_holiday && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 mb-2">
                       {day.holiday_name || 'Public Holiday'}
+                    </span>
+                  )}
+
+                  {/* Approved leave badge */}
+                  {approvedLeave && !leaveMismatch && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 mb-2">
+                      Approved {approvedLeave.leave_type} leave
+                    </span>
+                  )}
+                  {approvedLeave && leaveMismatch && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 mb-2">
+                      Mismatch: approved {approvedLeave.leave_type} leave
                     </span>
                   )}
 
