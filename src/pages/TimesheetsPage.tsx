@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import TeamOverview from '../components/TeamOverview'
-import { IconPaperclip, IconDocument, IconTrash, IconDownload, IconXMark, IconSparkles, IconPencil, IconChevronDown } from '../components/Icons'
+import { IconPaperclip, IconDocument, IconTrash, IconDownload, IconXMark, IconSparkles, IconPencil, IconChevronDown, IconCheckCircle } from '../components/Icons'
 import {
   getWeekBounds,
   formatDateISO,
@@ -94,6 +94,7 @@ export default function TimesheetsPage() {
   const [saving, setSaving] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [uploadingFile, setUploadingFile] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -343,6 +344,9 @@ export default function TimesheetsPage() {
       if (error) throw error
       setWeekStatus('submitted')
       setResubmissionCount(newCount)
+      setSubmitSuccess(wasSubmittedBefore ? 'Timesheet resubmitted successfully.' : 'Timesheet submitted successfully.')
+      setTimeout(() => setSubmitSuccess(null), 5000)
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setSaveError('Failed to submit timesheet.')
       console.error(err)
@@ -717,10 +721,10 @@ export default function TimesheetsPage() {
                 return (
                   <div key={week.id}>
                     <div
-                      className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="flex flex-col gap-2 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between"
                       onClick={() => toggleExpandWeek(week.id)}
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-800">{formatWeekRange(ws, we)}</p>
                         {week.submitted_at && (
                           <p className="text-xs text-gray-400 mt-0.5">
@@ -731,7 +735,7 @@ export default function TimesheetsPage() {
                           <p className="text-xs text-red-500 mt-0.5">Rejected: {week.reviewer_comment}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2 sm:justify-end">
                         <StatusBadge
                           status={
                             week.status === 'submitted' && (week.resubmission_count ?? 0) > 0
@@ -739,14 +743,16 @@ export default function TimesheetsPage() {
                               : week.status
                           }
                         />
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); navigateToWeek(week.week_start) }}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
-                        >
-                          {week.status === 'approved' ? 'View' : 'Edit'}
-                        </button>
-                        <IconChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); navigateToWeek(week.week_start) }}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                          >
+                            {week.status === 'approved' ? 'View' : 'Edit'}
+                          </button>
+                          <IconChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
                       </div>
                     </div>
 
@@ -762,18 +768,21 @@ export default function TimesheetsPage() {
                             {expandedData && expandedData.days.length > 0 && (
                               <div className="mb-4">
                                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Week Summary</p>
-                                <div className="grid grid-cols-7 gap-1.5">
+                                <div
+                                  className="grid gap-1.5"
+                                  style={{ gridTemplateColumns: `repeat(${Math.min(expandedData.days.length, 7)}, minmax(0, 1fr))` }}
+                                >
                                   {expandedData.days.map(d => (
-                                    <div key={d.id} className="bg-white rounded border border-gray-200 px-1.5 py-2 text-center">
+                                    <div key={d.id} className="bg-white rounded border border-gray-200 px-1 py-2 text-center">
                                       <p className="text-[10px] font-semibold text-gray-600 mb-0.5">{d.day_of_week}</p>
-                                      <p className={`text-[9px] font-medium ${getDayStatusColour(d.primary_status)}`}>
+                                      <p className={`text-[9px] font-medium leading-tight break-words ${getDayStatusColour(d.primary_status)}`}>
                                         {d.primary_status.replace(/_/g, ' ')}
                                       </p>
                                       {d.overtime_flag && d.overtime_hours && (
-                                        <p className="text-[9px] text-amber-600 mt-0.5">+{d.overtime_hours}h OT</p>
+                                        <p className="text-[9px] text-amber-600 mt-0.5 leading-tight">+{d.overtime_hours}h OT</p>
                                       )}
                                       {d.standby_flag && (
-                                        <p className="text-[9px] text-indigo-600 mt-0.5">Standby</p>
+                                        <p className="text-[9px] text-indigo-600 mt-0.5 leading-tight">Standby</p>
                                       )}
                                     </div>
                                   ))}
@@ -891,6 +900,20 @@ export default function TimesheetsPage() {
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-sm font-medium text-red-800">Timesheet rejected</p>
           <p className="text-sm text-red-700 mt-1">{reviewerComment}</p>
+        </div>
+      )}
+
+      {/* Success */}
+      {submitSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
+          <IconCheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">{submitSuccess}</p>
+            <p className="text-xs text-green-700 mt-0.5">Your supervisor has been notified.</p>
+          </div>
+          <button type="button" onClick={() => setSubmitSuccess(null)} className="p-0.5 rounded hover:bg-green-100 text-green-700 shrink-0">
+            <IconXMark className="w-4 h-4" />
+          </button>
         </div>
       )}
 
