@@ -41,27 +41,50 @@ export default function OvertimeReport() {
       .select(`date, overtime_hours,
         timesheet_week:timesheet_weeks!timesheet_week_id(employee_id,
           employee:profiles!employee_id(first_name, surname, employee_code)),
-        ot_approvals(status)`)
+        ot_approvals(status, final_status, actioned_at)`)
       .eq('overtime_flag', true)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date')
+
+    // Combine status + final_status into a single display state. If there are
+    // multiple ot_approvals rows for a day (legacy duplicates), pick the most
+    // "advanced" one so the report reflects the true latest action.
+    const rank = (s: string) => s === 'approved' ? 4 : s === 'awaiting_final' ? 3 : s === 'denied' ? 2 : 1
+    const toDisplay = (a: { status: string; final_status?: string | null }): string => {
+      if (a.status === 'approved' && a.final_status === 'approved') return 'approved'
+      if (a.status === 'approved') return 'awaiting_final'
+      if (a.status === 'denied') return 'denied'
+      return 'pending'
+    }
 
     const result: OTRow[] = []
     for (const d of (data ?? [])) {
       const day = d as unknown as {
         date: string; overtime_hours: number | null;
         timesheet_week: { employee_id: string; employee: { first_name: string; surname: string; employee_code: string | null } };
-        ot_approvals: Array<{ status: string }>
+        ot_approvals: Array<{ status: string; final_status?: string | null; actioned_at?: string | null }>
       }
       if (selectedEmployee && day.timesheet_week?.employee_id !== selectedEmployee) continue
       if (scope && !scope.includes(day.timesheet_week?.employee_id)) continue
+      const approvals = day.ot_approvals ?? []
+      let displayStatus = 'pending'
+      if (approvals.length > 0) {
+        const ranked = approvals
+          .map(a => ({ disp: toDisplay(a), actioned_at: a.actioned_at }))
+          .sort((x, y) => {
+            const r = rank(y.disp) - rank(x.disp)
+            if (r !== 0) return r
+            return (y.actioned_at ?? '').localeCompare(x.actioned_at ?? '')
+          })
+        displayStatus = ranked[0].disp
+      }
       result.push({
         employee_name: `${day.timesheet_week.employee.first_name} ${day.timesheet_week.employee.surname}`,
         employee_code: day.timesheet_week.employee.employee_code ?? '',
         date: day.date,
         hours: day.overtime_hours ?? 0,
-        approval_status: day.ot_approvals?.[0]?.status ?? 'pending',
+        approval_status: displayStatus,
       })
     }
     setRows(result)

@@ -42,7 +42,7 @@ export default function LeaveReport() {
     setLoading(true)
     let query = supabase
       .from('leave_requests')
-      .select(`leave_type, start_date, end_date, total_days, status, reason,
+      .select(`leave_type, start_date, end_date, total_days, status, final_status, reason,
         employee:profiles!employee_id(first_name, surname, employee_code)`)
       .gte('start_date', startDate)
       .lte('end_date', endDate)
@@ -56,7 +56,13 @@ export default function LeaveReport() {
 
     const result: LeaveRow[] = (data ?? [])
       .map((d: unknown) => {
-        const r = d as { leave_type: string; start_date: string; end_date: string; total_days: number; status: LeaveStatus; reason: string | null; employee: { first_name: string; surname: string; employee_code: string | null } }
+        const r = d as { leave_type: string; start_date: string; end_date: string; total_days: number; status: LeaveStatus; final_status?: string | null; reason: string | null; employee: { first_name: string; surname: string; employee_code: string | null } }
+        // Roll stage-1 + stage-2 into a single display status so the report
+        // doesn't show "approved" for items still awaiting manager sign-off.
+        let displayStatus: string = r.status
+        if (r.status === 'approved' && r.final_status && r.final_status !== 'approved') {
+          displayStatus = 'awaiting_final'
+        }
         return {
           employee_name: `${r.employee.first_name} ${r.employee.surname}`,
           employee_code: r.employee.employee_code ?? '',
@@ -64,7 +70,7 @@ export default function LeaveReport() {
           start_date: r.start_date,
           end_date: r.end_date,
           total_days: r.total_days,
-          status: r.status,
+          status: displayStatus as LeaveStatus,
           reason: r.reason,
         }
       })
