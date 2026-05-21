@@ -434,15 +434,22 @@ export default function TimesheetsPage() {
   }
 
   async function handleSubmit() {
-    if (!weekId || !profile?.id) return
+    if (!profile?.id) return
     setShowConfirm(false)
     setSaving(true)
     try {
+      // Make sure the week (and any pending day rows) exist in DB before submitting
+      let currentWeekId = weekId
+      if (!currentWeekId) {
+        await autoSave(days)
+        currentWeekId = await ensureWeekSaved()
+      }
+      if (!currentWeekId) throw new Error('Could not create timesheet week')
       // Look up current row to know if this is a resubmission
       const { data: existing } = await supabase
         .from('timesheet_weeks')
         .select('submitted_at, resubmission_count')
-        .eq('id', weekId)
+        .eq('id', currentWeekId)
         .single()
       const wasSubmittedBefore = existing?.submitted_at != null
       const newCount = wasSubmittedBefore
@@ -455,7 +462,7 @@ export default function TimesheetsPage() {
           submitted_at: new Date().toISOString(),
           resubmission_count: newCount,
         })
-        .eq('id', weekId)
+        .eq('id', currentWeekId)
       if (error) throw error
       setWeekStatus('submitted')
       setResubmissionCount(newCount)
@@ -1377,7 +1384,7 @@ export default function TimesheetsPage() {
             {weekStatus === 'draft' && (
               <button
                 onClick={() => setShowConfirm(true)}
-                disabled={saving || !weekId || hasOtWithoutReason || hasOtHourError}
+                disabled={saving || hasOtWithoutReason || hasOtHourError}
                 className="px-5 py-2 bg-[#1B5EA6] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Submit timesheet
