@@ -11,7 +11,11 @@ export function getWeekBounds(date: Date = new Date()): { start: Date; end: Date
 }
 
 export function formatDateISO(date: Date): string {
-  return date.toISOString().split('T')[0]
+  // Use local date parts (not UTC) so dates don't shift in non-UTC timezones.
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 export function formatDateDisplay(dateStr: string): string {
