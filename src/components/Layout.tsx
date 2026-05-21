@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Outlet, NavLink, Link, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconFolder, IconEllipsis, IconXMark } from './Icons'
+import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
 import type { Role } from '../types'
@@ -35,6 +35,37 @@ export default function Layout() {
   const [approvalsCount, setApprovalsCount] = useState(0)
   const [verifyCount, setVerifyCount] = useState(0)
   const [moreOpen, setMoreOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const navType = useNavigationType()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollPositions = useRef<Map<string, number>>(new Map())
+
+  // Persist scroll position of the scrollable content area per history entry,
+  // and restore it on POP (back/forward). On PUSH/REPLACE, scroll to top.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      scrollPositions.current.set(location.key, el.scrollTop)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [location.key])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (navType === 'POP') {
+      const saved = scrollPositions.current.get(location.key) ?? 0
+      // Defer until after the new route's content paints
+      requestAnimationFrame(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = saved
+      })
+    } else {
+      el.scrollTop = 0
+    }
+  }, [location.key, navType])
 
   const isManager = !!profile?.role && MANAGER_ROLES.includes(profile.role)
   const isSupervisor = !!profile?.role && SUPERVISOR_ROLES.includes(profile.role)
@@ -184,14 +215,35 @@ export default function Layout() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
-        <header className="md:hidden bg-[#1B5EA6] text-white px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-sm">WearCheck</p>
+        <header className="md:hidden bg-[#1B5EA6] text-white px-3 py-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            {location.pathname !== '/' && (
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="p-1.5 -ml-1 rounded hover:bg-white/10 text-white"
+                aria-label="Back"
+              >
+                <IconChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <Link
+              to="/"
+              className="flex items-center gap-2 p-1 rounded hover:bg-white/10"
+              aria-label="Home"
+            >
+              <span className="w-7 h-7 bg-white rounded-md flex items-center justify-center">
+                <svg className="w-4 h-4 text-[#1B5EA6]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </span>
+              <p className="font-semibold text-sm">WearCheck</p>
+            </Link>
           </div>
-          <button onClick={signOut} className="text-xs text-blue-200">Sign out</button>
+          <button onClick={signOut} className="text-xs text-blue-200 px-2 py-1 rounded hover:bg-white/10">Sign out</button>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div ref={scrollRef} className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
         </div>
       </main>
