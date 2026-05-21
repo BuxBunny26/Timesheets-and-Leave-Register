@@ -95,12 +95,21 @@ export default function MyVerificationPage() {
     // Expected weeks: those whose Monday (week_start) falls within this month
     const startD = new Date(start + 'T00:00:00')
     const endD = new Date(end + 'T00:00:00')
+    // Don't require future weeks (the month isn't over yet). Cap the end of
+    // the expected range at today's Monday — weeks that haven't started yet
+    // shouldn't block verification of the current month.
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayMonday = new Date(today)
+    const todayDow = (today.getDay() + 6) % 7 // 0 = Monday
+    todayMonday.setDate(today.getDate() - todayDow)
+    const expectedEnd = endD < todayMonday ? endD : todayMonday
     // Walk Mondays from the first Monday on/after the period start
     const firstMon = new Date(startD)
     const dayShift = (firstMon.getDay() + 6) % 7 // 0 = Monday
     if (dayShift !== 0) firstMon.setDate(firstMon.getDate() + (7 - dayShift))
     let expected = 0
-    for (let d = new Date(firstMon); d <= endD; d.setDate(d.getDate() + 7)) expected++
+    for (let d = new Date(firstMon); d <= expectedEnd; d.setDate(d.getDate() + 7)) expected++
     setExpectedWeeks(expected)
     // Compute each week's true Monday (legacy data may have week_start anchored to
     // Sunday due to an old timezone bug). A week belongs to this period if its
