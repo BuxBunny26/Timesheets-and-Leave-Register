@@ -255,7 +255,9 @@ export default function TimesheetsPage() {
         }
         setDays(merged)
         finalDaysForPersist = merged
-        if (typedWeek.status === 'approved') needsPersist = false
+        // Don't auto-persist (and thus auto-flip back to draft) for weeks that are
+        // already submitted/approved/rejected. The user can resubmit manually.
+        if (typedWeek.status !== 'draft') needsPersist = false
       } else {
         // No DB record yet — use localStorage draft or blank
         setWeekId(null)
