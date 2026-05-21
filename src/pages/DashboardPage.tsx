@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
@@ -9,9 +10,23 @@ import type { TimesheetStatus, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+function StatCard({ label, value, sub, onClick }: { label: string; value: string | number; sub?: string; onClick?: () => void }) {
+  const base = 'bg-white rounded-lg shadow-sm border border-gray-100 p-5 text-left'
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${base} w-full transition hover:shadow-md hover:border-[#1B5EA6]/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/40`}
+      >
+        <p className="text-sm text-gray-500">{label}</p>
+        <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+        {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      </button>
+    )
+  }
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
+    <div className={base}>
       <p className="text-sm text-gray-500">{label}</p>
       <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
@@ -33,6 +48,7 @@ function getWeekRange() {
 
 export default function DashboardPage() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
 
   const [weekStatus, setWeekStatus] = useState<TimesheetStatus | null>(null)
   const [unreadCount, setUnreadCount] = useState<number | null>(null)
@@ -161,11 +177,13 @@ export default function DashboardPage() {
           label="Timesheet status"
           value={loading ? '…' : (weekStatus ? weekStatus.charAt(0).toUpperCase() + weekStatus.slice(1) : 'No entry')}
           sub="This week"
+          onClick={() => navigate('/timesheets')}
         />
         <StatCard
           label="Notifications"
           value={loading ? '…' : (unreadCount ?? '—')}
           sub="Unread"
+          onClick={() => navigate('/notifications')}
         />
         {isSupervisor && (
           <>
@@ -173,11 +191,13 @@ export default function DashboardPage() {
               label="OT requests"
               value={loading ? '…' : (pendingOtCount ?? '—')}
               sub="Pending approval"
+              onClick={() => navigate('/approvals')}
             />
             <StatCard
               label="Leave requests"
               value={loading ? '…' : (pendingLeaveCount ?? '—')}
               sub="Pending approval"
+              onClick={() => navigate('/approvals')}
             />
           </>
         )}
