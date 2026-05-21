@@ -92,16 +92,19 @@ export default function MyVerificationPage() {
         .order('week_start'),
     ])
 
-    // Expected ISO weeks (Monday-anchored) that overlap the month
-    const startD = new Date(start)
-    const endD = new Date(end)
+    // Expected weeks: those whose Monday (week_start) falls within this month
+    const startD = new Date(start + 'T00:00:00')
+    const endD = new Date(end + 'T00:00:00')
+    // Walk Mondays from the first Monday on/after the period start
     const firstMon = new Date(startD)
     const dayShift = (firstMon.getDay() + 6) % 7 // 0 = Monday
-    firstMon.setDate(firstMon.getDate() - dayShift)
+    if (dayShift !== 0) firstMon.setDate(firstMon.getDate() + (7 - dayShift))
     let expected = 0
     for (let d = new Date(firstMon); d <= endD; d.setDate(d.getDate() + 7)) expected++
     setExpectedWeeks(expected)
-    setWeeks((weekRows ?? []) as WeekStatus[])
+    // Only count weeks whose Monday (week_start) is within this period
+    const weeksInPeriod = (weekRows ?? []).filter((w: WeekStatus) => w.week_start >= start && w.week_start <= end)
+    setWeeks(weeksInPeriod as WeekStatus[])
 
     const myOt = (otDays ?? [])
       .filter((d: unknown) => (d as { timesheet_week: { employee_id: string } }).timesheet_week?.employee_id === profile.id)
@@ -112,7 +115,24 @@ export default function MyVerificationPage() {
       .sort((a, b) => a.date.localeCompare(b.date))
 
     const otTotal = myOt.reduce((s, r) => s + r.hours, 0)
-    const leaveTotal = (leaves ?? []).reduce((s: number, l: { total_days: number }) => s + (l.total_days ?? 0), 0)
+    // Count working-day overlap of each leave with this period (so leaves spanning
+    // multiple months only contribute the working days that fall in this month).
+    function workingDaysBetween(aISO: string, bISO: string): number {
+      const a = new Date(aISO + 'T00:00:00')
+      const b = new Date(bISO + 'T00:00:00')
+      if (b < a) return 0
+      let n = 0
+      for (const d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+        const dow = d.getDay()
+        if (dow !== 0 && dow !== 6) n++
+      }
+      return n
+    }
+    const leaveTotal = (leaves ?? []).reduce((s: number, l: { start_date: string; end_date: string }) => {
+      const a = l.start_date > start ? l.start_date : start
+      const b = l.end_date < end ? l.end_date : end
+      return s + workingDaysBetween(a, b)
+    }, 0)
 
     setSummary({
       ot_hours: otTotal,
