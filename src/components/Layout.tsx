@@ -79,14 +79,57 @@ export default function Layout() {
         setApprovalsCount(0)
         return
       }
-      let otQ = supabase.from('ot_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('employee_id', profile.id)
-      let leaveQ = supabase.from('leave_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending').neq('employee_id', profile.id)
-      if (!isManager) {
-        otQ = otQ.eq('approver_id', profile.id)
-        leaveQ = leaveQ.eq('supervisor_id', profile.id)
+      // Primary queue: items assigned directly to this user (supervisor or manager)
+      const otQ = supabase.from('ot_approvals')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .eq('approver_id', profile.id)
+        .neq('employee_id', profile.id)
+      const leaveQ = supabase.from('leave_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .eq('supervisor_id', profile.id)
+        .neq('employee_id', profile.id)
+
+      // Managers also have a Final Approval queue scoped to their reporting tree.
+      let finalIds: string[] = []
+      if (isManager) {
+        const { data: level1 } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('supervisor_id', profile.id)
+        const level1Ids = (level1 ?? []).map(r => r.id as string)
+        let level2Ids: string[] = []
+        if (level1Ids.length > 0) {
+          const { data: level2 } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('supervisor_id', level1Ids)
+          level2Ids = (level2 ?? []).map(r => r.id as string)
+        }
+        finalIds = [...level1Ids, ...level2Ids]
       }
-      const [{ count: ot }, { count: lv }] = await Promise.all([otQ, leaveQ])
-      if (!cancelled) setApprovalsCount((ot ?? 0) + (lv ?? 0))
+
+      const finalOtQ = isManager && finalIds.length > 0
+        ? supabase.from('ot_approvals')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'approved')
+            .eq('final_status', 'pending')
+            .in('employee_id', finalIds)
+            .neq('employee_id', profile.id)
+        : Promise.resolve({ count: 0 } as { count: number | null })
+      const finalLeaveQ = isManager && finalIds.length > 0
+        ? supabase.from('leave_requests')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'approved')
+            .eq('final_status', 'pending')
+            .in('employee_id', finalIds)
+            .neq('employee_id', profile.id)
+        : Promise.resolve({ count: 0 } as { count: number | null })
+
+      const [{ count: ot }, { count: lv }, { count: fot }, { count: flv }] =
+        await Promise.all([otQ, leaveQ, finalOtQ, finalLeaveQ])
+      if (!cancelled) setApprovalsCount((ot ?? 0) + (lv ?? 0) + (fot ?? 0) + (flv ?? 0))
     }
 
     async function loadVerifyMonth() {
