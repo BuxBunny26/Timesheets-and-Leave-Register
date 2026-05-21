@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatDateDisplay } from '../lib/dateUtils'
@@ -63,7 +64,23 @@ interface LeaveRequestRow {
 
 export default function ApprovalsPage() {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState<Tab>('ot')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab: Tab = searchParams.get('tab') === 'leave' ? 'leave' : 'ot'
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
+
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'leave' && activeTab !== 'leave') setActiveTab('leave')
+    else if (t === 'ot' && activeTab !== 'ot') setActiveTab('ot')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  const selectTab = (tab: Tab) => {
+    setActiveTab(tab)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', tab)
+    setSearchParams(next, { replace: true })
+  }
 
   // OT state
   const [otApprovals, setOtApprovals] = useState<OTApprovalRow[]>([])
@@ -316,7 +333,7 @@ export default function ApprovalsPage() {
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
         <button
-          onClick={() => setActiveTab('ot')}
+          onClick={() => selectTab('ot')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'ot'
               ? 'bg-white text-gray-900 shadow-sm'
@@ -331,7 +348,7 @@ export default function ApprovalsPage() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('leave')}
+          onClick={() => selectTab('leave')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'leave'
               ? 'bg-white text-gray-900 shadow-sm'

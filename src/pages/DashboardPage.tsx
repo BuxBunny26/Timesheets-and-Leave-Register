@@ -191,13 +191,13 @@ export default function DashboardPage() {
               label="OT requests"
               value={loading ? '…' : (pendingOtCount ?? '—')}
               sub="Pending approval"
-              onClick={() => navigate('/approvals')}
+              onClick={() => navigate('/approvals?tab=ot')}
             />
             <StatCard
               label="Leave requests"
               value={loading ? '…' : (pendingLeaveCount ?? '—')}
               sub="Pending approval"
-              onClick={() => navigate('/approvals')}
+              onClick={() => navigate('/approvals?tab=leave')}
             />
           </>
         )}
