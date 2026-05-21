@@ -116,18 +116,48 @@ export default function ApprovalsPage() {
   const [loadingFinalOt, setLoadingFinalOt] = useState(false)
   const [loadingFinalLeave, setLoadingFinalLeave] = useState(false)
   const [finalActionId, setFinalActionId] = useState<string | null>(null)
+  // Reporting tree for managers: direct reports + reports-of-reports.
+  // Used to scope the Final Approval queues so a manager only sees items for
+  // employees who roll up to them (not other managers' people).
+  const [managerScope, setManagerScope] = useState<string[] | null>(null)
+
+  // Build manager scope once we know who the profile is
+  useEffect(() => {
+    if (!profile?.id || !isManager) {
+      setManagerScope(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { data: level1 } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('supervisor_id', profile.id)
+      const level1Ids = (level1 ?? []).map(r => r.id as string)
+      let level2Ids: string[] = []
+      if (level1Ids.length > 0) {
+        const { data: level2 } = await supabase
+          .from('profiles')
+          .select('id')
+          .in('supervisor_id', level1Ids)
+        level2Ids = (level2 ?? []).map(r => r.id as string)
+      }
+      if (!cancelled) setManagerScope([...level1Ids, ...level2Ids])
+    })()
+    return () => { cancelled = true }
+  }, [profile?.id, isManager])
 
   useEffect(() => {
     if (profile?.id) {
       fetchOtApprovals()
       fetchLeaveApprovals()
-      if (isManager) {
+      if (isManager && managerScope !== null) {
         fetchFinalOt()
         fetchFinalLeave()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id, isManager])
+  }, [profile?.id, isManager, managerScope])
 
   async function fetchOtApprovals() {
     setLoadingOt(true)
@@ -177,11 +207,17 @@ export default function ApprovalsPage() {
   async function fetchFinalOt() {
     setLoadingFinalOt(true)
     try {
+      // Empty scope -> nothing to show (manager has no reports yet)
+      if (!managerScope || managerScope.length === 0) {
+        setFinalOt([])
+        return
+      }
       const { data, error } = await supabase
         .from('ot_approvals')
         .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours, overtime_reason, timesheet_week:timesheet_weeks!timesheet_week_id(id, week_start, week_end))')
         .eq('status', 'approved')
         .eq('final_status', 'pending')
+        .in('employee_id', managerScope)
         .neq('employee_id', profile!.id)
         .order('actioned_at', { ascending: true })
       if (error) throw error
@@ -196,11 +232,16 @@ export default function ApprovalsPage() {
   async function fetchFinalLeave() {
     setLoadingFinalLeave(true)
     try {
+      if (!managerScope || managerScope.length === 0) {
+        setFinalLeave([])
+        return
+      }
       const { data, error } = await supabase
         .from('leave_requests')
         .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
         .eq('status', 'approved')
         .eq('final_status', 'pending')
+        .in('employee_id', managerScope)
         .neq('employee_id', profile!.id)
         .order('actioned_at', { ascending: true })
       if (error) throw error
@@ -257,9 +298,18 @@ export default function ApprovalsPage() {
   async function approveOt(approvalId: string) {
     setOtActionId(approvalId)
     try {
+      const now = new Date().toISOString()
+      // When a manager is the stage-1 approver (direct report), auto-finalise
+      // so the item doesn't bounce into their own Final queue.
+      const update: Record<string, unknown> = { status: 'approved', actioned_at: now }
+      if (isManager) {
+        update.final_status = 'approved'
+        update.final_approver_id = profile!.id
+        update.final_actioned_at = now
+      }
       const { error } = await supabase
         .from('ot_approvals')
-        .update({ status: 'approved', actioned_at: new Date().toISOString() })
+        .update(update)
         .eq('id', approvalId)
       if (error) throw error
       setOtApprovals(prev => prev.filter(a => a.id !== approvalId))
@@ -296,9 +346,16 @@ export default function ApprovalsPage() {
     if (ids.length === 0) return
     setGroupActionKey(key)
     try {
+      const now = new Date().toISOString()
+      const update: Record<string, unknown> = { status: 'approved', actioned_at: now }
+      if (isManager) {
+        update.final_status = 'approved'
+        update.final_approver_id = profile!.id
+        update.final_actioned_at = now
+      }
       const { error } = await supabase
         .from('ot_approvals')
-        .update({ status: 'approved', actioned_at: new Date().toISOString() })
+        .update(update)
         .in('id', ids)
       if (error) throw error
       setOtApprovals(prev => prev.filter(a => !ids.includes(a.id)))
@@ -343,9 +400,16 @@ export default function ApprovalsPage() {
   async function approveLeave(requestId: string) {
     setLeaveActionId(requestId)
     try {
+      const now = new Date().toISOString()
+      const update: Record<string, unknown> = { status: 'approved', actioned_at: now }
+      if (isManager) {
+        update.final_status = 'approved'
+        update.final_approver_id = profile!.id
+        update.final_actioned_at = now
+      }
       const { error } = await supabase
         .from('leave_requests')
-        .update({ status: 'approved', actioned_at: new Date().toISOString() })
+        .update(update)
         .eq('id', requestId)
       if (error) throw error
       setLeaveApprovals(prev => prev.filter(r => r.id !== requestId))
