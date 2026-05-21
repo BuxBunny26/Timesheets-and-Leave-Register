@@ -36,7 +36,12 @@ BEGIN
     ) INTO has_real;
 
     IF has_real THEN
-      -- Ghost is a duplicate; cascade-delete it.
+      -- Ghost is a duplicate. ot_approvals -> timesheet_days FK does not
+      -- cascade, so remove approval rows tied to the ghost's days first.
+      DELETE FROM ot_approvals
+       WHERE timesheet_day_id IN (
+         SELECT id FROM timesheet_days WHERE timesheet_week_id = ghost.id
+       );
       DELETE FROM timesheet_weeks WHERE id = ghost.id;
     ELSE
       -- Promote the ghost to the true Monday.
