@@ -250,38 +250,48 @@ export default function LeaveCalendar() {
                     <span className="text-[10px] text-gray-400">{entries.length}</span>
                   )}
                 </div>
-                {/* Mobile: initials-only avatar chips */}
-                <div className="sm:hidden flex flex-wrap gap-0.5">
-                  {entries.slice(0, 3).map((r) => (
-                    <span
-                      key={r.id + iso + '-m'}
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-semibold text-white ${LEAVE_COLORS[r.leave_type].dot}`}
-                      title={fullName(r)}
-                    >
-                      {initialsOf(r.first_name, r.surname)}
+                {entries.length >= 3 ? (
+                  // Crowded day: collapse to a single "Multi" badge to keep the cell readable.
+                  <div className="flex items-center gap-1 text-[10px] rounded px-1 py-0.5 border bg-indigo-50 text-indigo-700 border-indigo-200">
+                    <span className="inline-flex -space-x-1">
+                      {entries.slice(0, 3).map((r) => (
+                        <span
+                          key={r.id + iso + '-md'}
+                          className={`w-2 h-2 rounded-full ring-1 ring-white ${LEAVE_COLORS[r.leave_type].dot}`}
+                        />
+                      ))}
                     </span>
-                  ))}
-                  {entries.length > 3 && (
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-semibold text-gray-600 bg-gray-200">
-                      +{entries.length - 3}
-                    </span>
-                  )}
-                </div>
-                {/* Desktop: name pills */}
-                <div className="hidden sm:block space-y-0.5">
-                  {entries.slice(0, 2).map((r) => (
-                    <div
-                      key={r.id + iso}
-                      className={`flex items-center gap-1 text-[10px] truncate rounded px-1 py-0.5 border ${LEAVE_COLORS[r.leave_type].pill}`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-none ${LEAVE_COLORS[r.leave_type].dot}`} />
-                      <span className="truncate">{r.first_name ?? ''} {(r.surname ?? '').charAt(0)}</span>
+                    <span className="font-semibold">Multi</span>
+                    <span className="text-indigo-500">({entries.length})</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile: initials-only avatar chips */}
+                    <div className="sm:hidden flex flex-wrap gap-0.5">
+                      {entries.map((r) => (
+                        <span
+                          key={r.id + iso + '-m'}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-semibold text-white ${LEAVE_COLORS[r.leave_type].dot}`}
+                          title={fullName(r)}
+                        >
+                          {initialsOf(r.first_name, r.surname)}
+                        </span>
+                      ))}
                     </div>
-                  ))}
-                  {entries.length > 2 && (
-                    <div className="text-[10px] text-gray-500">+ {entries.length - 2} more</div>
-                  )}
-                </div>
+                    {/* Desktop: name pills */}
+                    <div className="hidden sm:block space-y-0.5">
+                      {entries.map((r) => (
+                        <div
+                          key={r.id + iso}
+                          className={`flex items-center gap-1 text-[10px] truncate rounded px-1 py-0.5 border ${LEAVE_COLORS[r.leave_type].pill}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full flex-none ${LEAVE_COLORS[r.leave_type].dot}`} />
+                          <span className="truncate">{r.first_name ?? ''} {(r.surname ?? '').charAt(0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </button>
             )
           })}
