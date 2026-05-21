@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconFolder } from './Icons'
+import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconFolder, IconEllipsis, IconXMark } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
 import type { Role } from '../types'
@@ -34,6 +34,7 @@ export default function Layout() {
   const { unreadCount } = useNotifications()
   const [approvalsCount, setApprovalsCount] = useState(0)
   const [verifyCount, setVerifyCount] = useState(0)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   const isManager = !!profile?.role && MANAGER_ROLES.includes(profile.role)
   const isSupervisor = !!profile?.role && SUPERVISOR_ROLES.includes(profile.role)
@@ -196,42 +197,115 @@ export default function Layout() {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
-        {visibleItems.map(item => {
-          const badge = badgeFor(item.to)
-          return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.exact}
-            className={({ isActive }) =>
-              `flex-1 flex flex-col items-center py-2 text-xs transition-colors ${
-                isActive ? 'text-[#1B5EA6] font-medium' : 'text-gray-500'
-              }`
-            }
-          >
-            <span className="w-5 h-5 relative">
-              {item.to === '/notifications' ? (
-                <div className="relative">
-                  <IconBell className="w-5 h-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                      {unreadCount > 9 ? '9+' : unreadCount}
+      {(() => {
+        const primaryPaths = new Set<string>(['/', '/timesheets', '/leave'])
+        if (isSupervisor) primaryPaths.add('/approvals')
+        const primaryItems = visibleItems.filter(i => primaryPaths.has(i.to))
+        const moreItems = visibleItems.filter(i => !primaryPaths.has(i.to))
+        const moreBadge = moreItems.reduce((sum, i) => sum + badgeFor(i.to), 0)
+
+        return (
+          <>
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
+              {primaryItems.map(item => {
+                const badge = badgeFor(item.to)
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.exact}
+                    className={({ isActive }) =>
+                      `flex-1 flex flex-col items-center py-2 text-[11px] transition-colors ${
+                        isActive ? 'text-[#1B5EA6] font-medium' : 'text-gray-500'
+                      }`
+                    }
+                  >
+                    <span className="w-5 h-5 relative">
+                      {item.icon}
+                      {badge > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                          {badge > 9 ? '9+' : badge}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </div>
-              ) : item.icon}
-              {badge > 0 && item.to !== '/notifications' && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {badge > 9 ? '9+' : badge}
-                </span>
+                    <span className="mt-0.5">{item.label}</span>
+                  </NavLink>
+                )
+              })}
+              {moreItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen(true)}
+                  className="flex-1 flex flex-col items-center py-2 text-[11px] text-gray-500"
+                >
+                  <span className="w-5 h-5 relative">
+                    <IconEllipsis className="w-5 h-5" />
+                    {moreBadge > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {moreBadge > 9 ? '9+' : moreBadge}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5">More</span>
+                </button>
               )}
-            </span>
-            <span>{item.label}</span>
-          </NavLink>
-          )
-        })}
-      </nav>
+            </nav>
+
+            {/* More sheet */}
+            {moreOpen && (
+              <div
+                className="md:hidden fixed inset-0 z-40 bg-black/40 flex items-end"
+                onClick={() => setMoreOpen(false)}
+              >
+                <div
+                  className="w-full bg-white rounded-t-xl shadow-lg pb-[env(safe-area-inset-bottom)]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <span className="text-sm font-semibold text-gray-700">More</span>
+                    <button
+                      type="button"
+                      onClick={() => setMoreOpen(false)}
+                      className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                      aria-label="Close"
+                    >
+                      <IconXMark className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 p-3">
+                    {moreItems.map(item => {
+                      const badge = badgeFor(item.to)
+                      return (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.exact}
+                          onClick={() => setMoreOpen(false)}
+                          className={({ isActive }) =>
+                            `flex flex-col items-center gap-1 py-3 px-2 rounded-lg text-[11px] text-center transition-colors ${
+                              isActive ? 'bg-blue-50 text-[#1B5EA6] font-medium' : 'text-gray-600 hover:bg-gray-50'
+                            }`
+                          }
+                        >
+                          <span className="w-6 h-6 relative">
+                            {item.icon}
+                            {badge > 0 && (
+                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                {badge > 9 ? '9+' : badge}
+                              </span>
+                            )}
+                          </span>
+                          <span className="leading-tight">{item.label}</span>
+                        </NavLink>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }

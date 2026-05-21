@@ -250,7 +250,25 @@ export default function LeaveCalendar() {
                     <span className="text-[10px] text-gray-400">{entries.length}</span>
                   )}
                 </div>
-                <div className="space-y-0.5">
+                {/* Mobile: initials-only avatar chips */}
+                <div className="sm:hidden flex flex-wrap gap-0.5">
+                  {entries.slice(0, 3).map((r) => (
+                    <span
+                      key={r.id + iso + '-m'}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-semibold text-white ${LEAVE_COLORS[r.leave_type].dot}`}
+                      title={fullName(r)}
+                    >
+                      {initialsOf(r.first_name, r.surname)}
+                    </span>
+                  ))}
+                  {entries.length > 3 && (
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-semibold text-gray-600 bg-gray-200">
+                      +{entries.length - 3}
+                    </span>
+                  )}
+                </div>
+                {/* Desktop: name pills */}
+                <div className="hidden sm:block space-y-0.5">
                   {entries.slice(0, 2).map((r) => (
                     <div
                       key={r.id + iso}
