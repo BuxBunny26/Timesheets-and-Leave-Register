@@ -47,7 +47,7 @@ function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false):
     notes: '',
     is_public_holiday: isHoliday,
     holiday_name: holidayName,
-    is_locked: isHoliday,
+    is_locked: false,
   }
 }
 
@@ -109,6 +109,10 @@ export default function TimesheetsPage() {
   const [expandedData, setExpandedData] = useState<ExpandedData | null>(null)
   const [editingAttachmentCategoryId, setEditingAttachmentCategoryId] = useState<string | null>(null)
 
+  // OT hours per-row text-editing state (allows typing freely, including incomplete decimals)
+  const [otHourDrafts, setOtHourDrafts] = useState<Record<number, string>>({})
+  const [otHourErrors, setOtHourErrors] = useState<Record<number, string>>({})
+
   // Init holidays based on country code
   useEffect(() => {
     const cc = profile?.country_code ?? 'ZA'
@@ -128,6 +132,8 @@ export default function TimesheetsPage() {
   useEffect(() => {
     if (!profile?.id) return
     loadWeek()
+    setOtHourDrafts({})
+    setOtHourErrors({})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, profile?.id])
 
@@ -160,7 +166,7 @@ export default function TimesheetsPage() {
         notes: db.notes ?? '',
         is_public_holiday: base.is_public_holiday,
         holiday_name: base.holiday_name,
-        is_locked: db.is_locked || base.is_public_holiday,
+        is_locked: db.is_locked,
       }
     })
   }
@@ -209,7 +215,7 @@ export default function TimesheetsPage() {
               ...d,
               is_public_holiday: baseDays[i].is_public_holiday,
               holiday_name: baseDays[i].holiday_name,
-              is_locked: baseDays[i].is_public_holiday || d.is_locked,
+              is_locked: d.is_locked,
             }))
             setDays(restored)
           } catch {
@@ -573,6 +579,7 @@ export default function TimesheetsPage() {
 
   const isLocked = weekStatus === 'approved'
   const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
+  const hasOtHourError = Object.values(otHourErrors).some(e => !!e)
   const weekStartStr = formatDateISO(weekStart)
   const dateArr = getDaysOfWeek(weekStart)
 
@@ -927,16 +934,16 @@ export default function TimesheetsPage() {
                     </span>
                   )}
 
-                  {/* Primary status — no 'present' on weekends */}
+                  {/* Primary status — no 'present' on weekends. Public holidays lock just the status. */}
                   <select
                     value={day.primary_status}
-                    disabled={locked}
+                    disabled={locked || day.is_public_holiday}
                     onChange={e => {
                       const newStatus = e.target.value as DayStatus | ''
                       handleDayChange(idx, { primary_status: newStatus })
                     }}
                     className={`w-full text-xs border border-gray-200 rounded px-2 py-1.5 mb-2 bg-white ${
-                      locked ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700'
+                      locked || day.is_public_holiday ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700'
                     }`}
                   >
                     {isWeekend && <option value="">— select —</option>}
@@ -961,18 +968,42 @@ export default function TimesheetsPage() {
                   {day.overtime_flag && (
                     <div className="mb-2 space-y-1">
                       <input
-                        type="number"
-                        min={0.5}
-                        step={0.5}
-                        value={day.overtime_hours}
+                        type="text"
+                        inputMode="decimal"
+                        value={otHourDrafts[idx] ?? String(day.overtime_hours)}
                         disabled={locked}
-                        onChange={e =>
-                          handleDayChange(idx, { overtime_hours: parseFloat(e.target.value) || 0.5 })
-                        }
+                        onChange={e => {
+                          const raw = e.target.value
+                          setOtHourDrafts(prev => ({ ...prev, [idx]: raw }))
+                          if (raw.includes(',')) {
+                            setOtHourErrors(prev => ({ ...prev, [idx]: 'Use a point (.) for decimals — e.g. 5.5' }))
+                            return
+                          }
+                          if (raw === '' || raw === '.') {
+                            setOtHourErrors(prev => ({ ...prev, [idx]: '' }))
+                            return
+                          }
+                          if (!/^\d+(\.\d+)?$/.test(raw)) {
+                            setOtHourErrors(prev => ({ ...prev, [idx]: 'Enter a valid number (e.g. 5 or 5.5)' }))
+                            return
+                          }
+                          setOtHourErrors(prev => ({ ...prev, [idx]: '' }))
+                          handleDayChange(idx, { overtime_hours: parseFloat(raw) })
+                        }}
+                        onBlur={() => {
+                          setOtHourDrafts(prev => {
+                            const next = { ...prev }
+                            delete next[idx]
+                            return next
+                          })
+                        }}
                         className="w-full text-xs border border-gray-200 rounded px-2 py-1"
-                        placeholder="Hours"
+                        placeholder="Hours (e.g. 5 or 5.5)"
                       />
-                      {day.overtime_flag && (day.overtime_hours ?? 0) <= 0 && (
+                      {otHourErrors[idx] && (
+                        <p className="text-xs text-red-500">{otHourErrors[idx]}</p>
+                      )}
+                      {!otHourErrors[idx] && day.overtime_flag && (day.overtime_hours ?? 0) <= 0 && (
                         <p className="text-xs text-red-500">Must be &gt; 0</p>
                       )}
                       <textarea
@@ -1169,10 +1200,13 @@ export default function TimesheetsPage() {
             {weekStatus === 'draft' && hasOtWithoutReason && (
               <p className="text-xs text-red-600">Please add a reason for all overtime days before submitting.</p>
             )}
+            {weekStatus === 'draft' && hasOtHourError && (
+              <p className="text-xs text-red-600">Please fix the overtime hours errors before submitting.</p>
+            )}
             {weekStatus === 'draft' && (
               <button
                 onClick={() => setShowConfirm(true)}
-                disabled={saving || !weekId || hasOtWithoutReason}
+                disabled={saving || !weekId || hasOtWithoutReason || hasOtHourError}
                 className="px-5 py-2 bg-[#1B5EA6] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Submit timesheet
