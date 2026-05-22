@@ -9,6 +9,7 @@ interface EmployeeWeekCell {
   status: TimesheetStatus | null
   monthKey: string         // YYYY-MM for verification lookup
   verified: boolean        // employee verified this cell's month
+  otApproved: boolean      // supervisor approved at least one OT day in this week
 }
 
 interface EmployeeRow {
@@ -142,6 +143,28 @@ export default function TeamOverview() {
         verifMap.set(`${row.employee_id}__${row.period_month}`, row.status as string)
       }
 
+      // Fetch supervisor-approved OT for the visible weeks. The set holds
+      // `${employee_id}__${week_start}` keys for any week with at least one
+      // approved OT entry, so we can render an "A" badge even when the week
+      // itself is still 'submitted'.
+      const { data: otApprovedData, error: otApprovedError } = await supabase
+        .from('ot_approvals')
+        .select('employee_id, timesheet_day:timesheet_days!timesheet_day_id(timesheet_week:timesheet_weeks!timesheet_week_id(week_start))')
+        .in('employee_id', employeeIds)
+        .eq('status', 'approved')
+      if (otApprovedError) throw otApprovedError
+
+      const otApprovedSet = new Set<string>()
+      for (const row of (otApprovedData ?? []) as unknown as Array<{
+        employee_id: string
+        timesheet_day: { timesheet_week: { week_start: string } | null } | null
+      }>) {
+        const ws = row.timesheet_day?.timesheet_week?.week_start
+        if (ws && weekStarts.includes(ws)) {
+          otApprovedSet.add(`${row.employee_id}__${ws}`)
+        }
+      }
+
       const currentMonthKey = monthKeyOf(weekStarts[weekStarts.length - 1])
 
       const employeeRows: EmployeeRow[] = typedEmployees.map(emp => {
@@ -152,6 +175,7 @@ export default function TeamOverview() {
             status: weekMap.get(`${emp.id}__${ws}`) ?? null,
             monthKey: mk,
             verified: !!verifMap.get(`${emp.id}__${mk}`),
+            otApproved: otApprovedSet.has(`${emp.id}__${ws}`),
           }
         })
         const pendingCount = weeks.filter(w => w.status === 'submitted').length
@@ -376,9 +400,9 @@ export default function TeamOverview() {
                         {cellLabel(cell.status)}
                       </span>
                       <div className="flex items-center gap-0.5 h-3">
-                        {cell.status === 'approved' && (
+                        {(cell.status === 'approved' || cell.otApproved) && (
                           <span
-                            title="Supervisor approved"
+                            title={cell.status === 'approved' ? 'Supervisor approved' : 'Supervisor approved overtime'}
                             className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-green-600 text-white text-[8px] font-bold leading-none"
                           >A</span>
                         )}
