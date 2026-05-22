@@ -1231,10 +1231,10 @@ export default function TimesheetsPage() {
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className="w-full mb-2 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                        title="Attach sick note (optional)"
+                        title="Attach sick note"
                       >
                         <IconPaperclip className="w-3 h-3" />
-                        Attach sick note (optional)
+                        Attach sick note
                       </button>
                     )
                   )}
