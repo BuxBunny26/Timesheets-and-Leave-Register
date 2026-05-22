@@ -187,6 +187,9 @@ export default function TimesheetsPage() {
   async function loadWeek() {
     setLoading(true)
     setSaveError(null)
+    // Clear week-scoped state so stale data from the previous week never leaks
+    // into the new view (e.g. a sick note attached to last week's row).
+    setAttachments([])
     try {
       const baseDays = buildDaysFromDates(weekStart)
       const weekStartStr = formatDateISO(weekStart)
@@ -243,6 +246,7 @@ export default function TimesheetsPage() {
       if (week) {
         const typedWeek = week as TimesheetWeek & { days: TimesheetDay[] }
         setWeekId(typedWeek.id)
+        loadAttachments(typedWeek.id)
         setWeekStatus(typedWeek.status)
         setResubmissionCount(typedWeek.resubmission_count ?? 0)
         setReviewerComment(typedWeek.reviewer_comment ?? null)
