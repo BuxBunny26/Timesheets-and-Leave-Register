@@ -718,6 +718,7 @@ export default function TimesheetsPage() {
       const monthEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0)
       const monthStartISO = formatDateISO(monthStart)
       const monthEndISO = formatDateISO(monthEnd)
+      const wkStartISO = formatDateISO(weekStart)
       const weekEndDate = new Date(weekStart)
       weekEndDate.setDate(weekEndDate.getDate() + 6)
       const weekEndISO = formatDateISO(weekEndDate)
@@ -735,7 +736,7 @@ export default function TimesheetsPage() {
       let count = 0
       for (const row of data as Array<{ date: string }>) {
         // Skip rows inside the visible week — those are handled by in-memory state
-        if (row.date >= weekStartStr && row.date <= weekEndISO) continue
+        if (row.date >= wkStartISO && row.date <= weekEndISO) continue
         const d = new Date(row.date + 'T00:00:00')
         const dow = d.getDay() // 0 Sun .. 6 Sat
         if (dow === 1 || dow === 5) count += 1
@@ -744,7 +745,7 @@ export default function TimesheetsPage() {
     })()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id, weekStartStr])
+  }, [profile?.id, weekStart])
 
   const isLocked = weekStatus === 'approved'
   const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
