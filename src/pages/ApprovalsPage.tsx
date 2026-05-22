@@ -13,7 +13,10 @@ function formatTimestampDisplay(ts: string | null | undefined): string {
   return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-type Tab = 'ot' | 'leave' | 'final_ot' | 'final_leave' | 'denied_ot' | 'denied_leave'
+type Tab = 'ot' | 'leave' | 'final_ot' | 'final_leave' | 'denied_ot' | 'denied_leave' | 'my_ot' | 'my_leave'
+type Section = 'action' | 'mine'
+
+const MINE_TABS: Tab[] = ['my_ot', 'my_leave']
 
 interface EmployeeSnippet {
   first_name: string
@@ -70,12 +73,20 @@ export default function ApprovalsPage() {
     profile?.role === 'manager' ||
     profile?.role === 'admin_manager' ||
     profile?.role === 'system_admin'
+  const isSupervisorOrAbove =
+    profile?.role === 'supervisor' ||
+    profile?.role === 'manager' ||
+    profile?.role === 'admin_manager' ||
+    profile?.role === 'system_admin'
   const [searchParams, setSearchParams] = useSearchParams()
   const parseTab = (raw: string | null): Tab => {
-    if (raw === 'leave' || raw === 'final_ot' || raw === 'final_leave' || raw === 'denied_ot' || raw === 'denied_leave') return raw
-    return 'ot'
+    if (raw === 'leave' || raw === 'final_ot' || raw === 'final_leave' || raw === 'denied_ot' || raw === 'denied_leave' || raw === 'my_ot' || raw === 'my_leave') return raw
+    if (raw === 'ot') return 'ot'
+    // Default — employees land on their own requests; supervisors on the action queue.
+    return isSupervisorOrAbove ? 'ot' : 'my_ot'
   }
   const [activeTab, setActiveTab] = useState<Tab>(parseTab(searchParams.get('tab')))
+  const activeSection: Section = MINE_TABS.includes(activeTab) ? 'mine' : 'action'
 
   useEffect(() => {
     const t = parseTab(searchParams.get('tab'))
@@ -121,6 +132,11 @@ export default function ApprovalsPage() {
   const [deniedLeave, setDeniedLeave] = useState<LeaveRequestRow[]>([])
   const [loadingDeniedOt, setLoadingDeniedOt] = useState(false)
   const [loadingDeniedLeave, setLoadingDeniedLeave] = useState(false)
+  // My own OT / leave requests (visible to every role)
+  const [myOt, setMyOt] = useState<OTApprovalRow[]>([])
+  const [myLeave, setMyLeave] = useState<LeaveRequestRow[]>([])
+  const [loadingMyOt, setLoadingMyOt] = useState(true)
+  const [loadingMyLeave, setLoadingMyLeave] = useState(true)
   // Reporting tree for managers: direct reports + reports-of-reports.
   // Used to scope the Final Approval queues so a manager only sees items for
   // employees who roll up to them (not other managers' people).
@@ -154,8 +170,12 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     if (profile?.id) {
-      fetchOtApprovals()
-      fetchLeaveApprovals()
+      fetchMyOt()
+      fetchMyLeave()
+      if (isSupervisorOrAbove) {
+        fetchOtApprovals()
+        fetchLeaveApprovals()
+      }
       if (isManager && managerScope !== null) {
         fetchFinalOt()
         fetchFinalLeave()
@@ -164,7 +184,7 @@ export default function ApprovalsPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id, isManager, managerScope])
+  }, [profile?.id, isManager, isSupervisorOrAbove, managerScope])
 
   async function fetchOtApprovals() {
     setLoadingOt(true)
@@ -187,6 +207,42 @@ export default function ApprovalsPage() {
       console.error(err)
     } finally {
       setLoadingOt(false)
+    }
+  }
+
+  async function fetchMyOt() {
+    if (!profile?.id) return
+    setLoadingMyOt(true)
+    try {
+      const { data, error } = await supabase
+        .from('ot_approvals')
+        .select('*, employee:profiles!ot_approvals_employee_id_fkey(first_name, surname), timesheet_day:timesheet_days(date, overtime_hours, overtime_reason, timesheet_week:timesheet_weeks!timesheet_week_id(id, week_start, week_end))')
+        .eq('employee_id', profile.id)
+        .order('submitted_at', { ascending: false })
+      if (error) throw error
+      setMyOt((data as OTApprovalRow[]) ?? [])
+    } catch (err) {
+      console.error('fetchMyOt failed', err)
+    } finally {
+      setLoadingMyOt(false)
+    }
+  }
+
+  async function fetchMyLeave() {
+    if (!profile?.id) return
+    setLoadingMyLeave(true)
+    try {
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
+        .eq('employee_id', profile.id)
+        .order('submitted_at', { ascending: false })
+      if (error) throw error
+      setMyLeave((data as LeaveRequestRow[]) ?? [])
+    } catch (err) {
+      console.error('fetchMyLeave failed', err)
+    } finally {
+      setLoadingMyLeave(false)
     }
   }
 
@@ -543,6 +599,10 @@ export default function ApprovalsPage() {
   const finalLeaveCount = finalLeave.length
   const deniedOtCount = deniedOt.length
   const deniedLeaveCount = deniedLeave.length
+  const totalActionCount = otCount + leaveCount + finalOtCount + finalLeaveCount + deniedOtCount + deniedLeaveCount
+  const myOtPendingCount = myOt.filter(r => r.status === 'pending').length
+  const myLeavePendingCount = myLeave.filter(r => r.status === 'pending').length
+  const totalMineCount = myOtPendingCount + myLeavePendingCount
 
   // Group pending OT approvals by employee + week
   const otGroups: OTGroup[] = (() => {
@@ -581,7 +641,44 @@ export default function ApprovalsPage() {
         <p className="text-gray-500 text-sm mt-0.5">Review and action pending requests</p>
       </div>
 
+      {/* Section toggle — visible to supervisors and above; employees only see "My requests" */}
+      {isSupervisorOrAbove && (
+        <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
+          <button
+            onClick={() => selectTab('ot')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeSection === 'action'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            To action
+            {totalActionCount > 0 && (
+              <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                {totalActionCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => selectTab('my_ot')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeSection === 'mine'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            My requests
+            {totalMineCount > 0 && (
+              <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                {totalMineCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
+      {activeSection === 'action' && isSupervisorOrAbove && (
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
         <button
           onClick={() => selectTab('ot')}
@@ -678,6 +775,42 @@ export default function ApprovalsPage() {
           </>
         )}
       </div>
+      )}
+
+      {activeSection === 'mine' && (
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
+        <button
+          onClick={() => selectTab('my_ot')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'my_ot'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          My OT
+          {myOtPendingCount > 0 && (
+            <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              {myOtPendingCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => selectTab('my_leave')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'my_leave'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-800'
+          }`}
+        >
+          My Leave
+          {myLeavePendingCount > 0 && (
+            <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5">
+              {myLeavePendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+      )}
 
       {/* OT Approvals Tab */}
       {activeTab === 'ot' && (
@@ -1201,6 +1334,149 @@ export default function ApprovalsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* My OT Tab */}
+      {activeTab === 'my_ot' && (
+        <div>
+          {loadingMyOt ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : myOt.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+              <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
+              <p className="mt-3 text-gray-600 font-medium">No overtime requests yet</p>
+              <p className="mt-1 text-sm text-gray-400">When you submit overtime on a timesheet it will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myOt.map(row => {
+                const statusColor =
+                  row.status === 'approved' ? 'bg-green-100 text-green-700'
+                  : row.status === 'denied' ? 'bg-red-100 text-red-700'
+                  : 'bg-amber-100 text-amber-700'
+                const finalColor =
+                  row.final_status === 'approved' ? 'bg-green-100 text-green-700'
+                  : row.final_status === 'denied' ? 'bg-red-100 text-red-700'
+                  : 'bg-gray-100 text-gray-600'
+                return (
+                  <div key={row.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-gray-900">
+                            {row.timesheet_day?.date ? formatDateDisplay(row.timesheet_day.date) : '—'}
+                          </p>
+                          <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">
+                            {row.timesheet_day?.overtime_hours ?? 0}h OT
+                          </span>
+                          <span className={`text-xs rounded-full px-2 py-0.5 capitalize ${statusColor}`}>
+                            Supervisor: {row.status}
+                          </span>
+                          {row.final_status && row.final_status !== 'pending' && (
+                            <span className={`text-xs rounded-full px-2 py-0.5 capitalize ${finalColor}`}>
+                              Manager: {row.final_status}
+                            </span>
+                          )}
+                        </div>
+                        {row.timesheet_day?.overtime_reason && (
+                          <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
+                            <span className="text-gray-400">Reason: </span>{row.timesheet_day.overtime_reason}
+                          </p>
+                        )}
+                        {row.approver_comment && (
+                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
+                            <span className="text-gray-400">Approver note: </span>{row.approver_comment}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Submitted: {formatTimestampDisplay(row.submitted_at)}
+                          {row.actioned_at && (
+                            <span className="ml-2">· Actioned: {formatTimestampDisplay(row.actioned_at)}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* My Leave Tab */}
+      {activeTab === 'my_leave' && (
+        <div>
+          {loadingMyLeave ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : myLeave.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+              <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
+              <p className="mt-3 text-gray-600 font-medium">No leave requests yet</p>
+              <p className="mt-1 text-sm text-gray-400">When you apply for leave it will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myLeave.map(req => {
+                const statusColor =
+                  req.status === 'approved' ? 'bg-green-100 text-green-700'
+                  : req.status === 'denied' ? 'bg-red-100 text-red-700'
+                  : 'bg-amber-100 text-amber-700'
+                const finalColor =
+                  req.final_status === 'approved' ? 'bg-green-100 text-green-700'
+                  : req.final_status === 'denied' ? 'bg-red-100 text-red-700'
+                  : 'bg-gray-100 text-gray-600'
+                return (
+                  <div key={req.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-gray-900">
+                            {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
+                          </p>
+                          <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 capitalize">
+                            {req.leave_type.replace('_', ' ')} Leave
+                          </span>
+                          <span className="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+                            {req.total_days} day{req.total_days !== 1 ? 's' : ''}
+                          </span>
+                          <span className={`text-xs rounded-full px-2 py-0.5 capitalize ${statusColor}`}>
+                            Supervisor: {req.status}
+                          </span>
+                          {req.final_status && req.final_status !== 'pending' && (
+                            <span className={`text-xs rounded-full px-2 py-0.5 capitalize ${finalColor}`}>
+                              Manager: {req.final_status}
+                            </span>
+                          )}
+                        </div>
+                        {req.reason && (
+                          <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
+                            <span className="text-gray-400">Reason: </span>{req.reason}
+                          </p>
+                        )}
+                        {req.supervisor_comment && (
+                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
+                            <span className="text-gray-400">Supervisor note: </span>{req.supervisor_comment}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
+                          Submitted: {formatTimestampDisplay(req.submitted_at)}
+                          {req.actioned_at && (
+                            <span className="ml-2">· Actioned: {formatTimestampDisplay(req.actioned_at)}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
