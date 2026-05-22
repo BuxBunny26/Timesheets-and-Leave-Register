@@ -110,6 +110,7 @@ export default function TimesheetReport() {
   }
 
   const emp = employees.find(e => e.id === selectedEmployee)
+  const canSeeOthers = profile?.role !== 'employee'
 
   return (
     <ReportShell
@@ -121,14 +122,16 @@ export default function TimesheetReport() {
       reportId="timesheet-report"
     >
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
-          <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
-            <option value="">Select employee...</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name} {e.employee_code ? `(${e.employee_code})` : ''}</option>)}
-          </select>
-        </div>
+        {canSeeOthers && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
+            <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              <option value="">Select employee...</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name} {e.employee_code ? `(${e.employee_code})` : ''}</option>)}
+            </select>
+          </div>
+        )}
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
