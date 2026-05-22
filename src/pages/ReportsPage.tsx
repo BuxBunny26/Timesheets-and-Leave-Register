@@ -10,7 +10,7 @@ import DepartmentReport from '../components/reports/DepartmentReport'
 import VerificationReport from '../components/reports/VerificationReport'
 
 const REPORT_TYPES = [
-  { id: 'timesheet', label: 'Individual Timesheet', minRole: 'employee' as const },
+  { id: 'timesheet', label: 'Overall Timesheet', minRole: 'employee' as const },
   { id: 'team', label: 'Team Summary', minRole: 'supervisor' as const },
   { id: 'department', label: 'Department Summary', minRole: 'manager' as const },
   { id: 'payment', label: 'Payment Centre Export', minRole: 'admin' as const },

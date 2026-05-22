@@ -114,7 +114,7 @@ export default function TimesheetReport() {
 
   return (
     <ReportShell
-      title="Individual Timesheet Report"
+      title="Overall Timesheet Report"
       subtitle={emp ? `${emp.first_name} ${emp.surname}` : undefined}
       onExcel={rows.length ? handleExcel : undefined}
       onPrint={rows.length ? () => printReport('timesheet-report') : undefined}
