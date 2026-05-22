@@ -20,6 +20,7 @@ type ViewMode = 'my' | 'team' | 'history'
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday']
 const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday']
+const MEDICAL_CATEGORIES: DocumentCategory[] = ['sick_note', 'doctors_certificate', 'medical_report']
 
 interface DayState {
   primary_status: DayStatus | ''
@@ -116,6 +117,8 @@ export default function TimesheetsPage() {
 
   // Approved leave covering days in the current week — dateISO -> { id, leave_type }
   const [leaveByDate, setLeaveByDate] = useState<Record<string, { id: string; leave_type: string }>>({})
+  // Mon/Fri sick days for current employee in current calendar month, EXCLUDING dates in the currently-viewed week
+  const [monthMonFriSickOutsideWeek, setMonthMonFriSickOutsideWeek] = useState<number>(0)
   // Track which (weekId, dateISO) mismatches we've already sent notifications for this session
   const notifiedMismatchesRef = useRef<Set<string>>(new Set())
   // Set of dateISO strings auto-filled from leave that still need persisting via autosave
@@ -705,12 +708,77 @@ export default function TimesheetsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, historyStatusFilter, historyDateFrom, historyDateTo, profile?.id])
 
+  // Load cross-week Mon/Fri sick count for the current calendar month (excluding visible week)
+  useEffect(() => {
+    if (!profile?.id) { setMonthMonFriSickOutsideWeek(0); return }
+    let cancelled = false
+    ;(async () => {
+      // Calendar month of the week-start date
+      const monthStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1)
+      const monthEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0)
+      const monthStartISO = formatDateISO(monthStart)
+      const monthEndISO = formatDateISO(monthEnd)
+      const weekEndDate = new Date(weekStart)
+      weekEndDate.setDate(weekEndDate.getDate() + 6)
+      const weekEndISO = formatDateISO(weekEndDate)
+      const { data, error } = await supabase
+        .from('timesheet_days')
+        .select('date, primary_status, timesheet_week:timesheet_weeks!inner(employee_id)')
+        .eq('timesheet_week.employee_id', profile.id)
+        .eq('primary_status', 'sick')
+        .gte('date', monthStartISO)
+        .lte('date', monthEndISO)
+      if (cancelled || error || !data) {
+        if (!cancelled) setMonthMonFriSickOutsideWeek(0)
+        return
+      }
+      let count = 0
+      for (const row of data as Array<{ date: string }>) {
+        // Skip rows inside the visible week — those are handled by in-memory state
+        if (row.date >= weekStartStr && row.date <= weekEndISO) continue
+        const d = new Date(row.date + 'T00:00:00')
+        const dow = d.getDay() // 0 Sun .. 6 Sat
+        if (dow === 1 || dow === 5) count += 1
+      }
+      if (!cancelled) setMonthMonFriSickOutsideWeek(count)
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, weekStartStr])
+
   const isLocked = weekStatus === 'approved'
   const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
   const hasOtHourError = Object.values(otHourErrors).some(e => !!e)
   const hasOtZeroHours = days.some(d => d.overtime_flag && (d.overtime_hours ?? 0) <= 0)
   const weekStartStr = formatDateISO(weekStart)
   const dateArr = getDaysOfWeek(weekStart)
+
+  // --- Sick-note governance ---
+  // Categories that count as a valid medical note attachment
+  const hasMedicalAttachment = attachments.some(a => a.category && MEDICAL_CATEGORIES.includes(a.category))
+  // Indices of sick days within the current week
+  const sickIndicesThisWeek = days
+    .map((d, i) => (d.primary_status === 'sick' ? i : -1))
+    .filter(i => i >= 0)
+  const hasAnySickThisWeek = sickIndicesThisWeek.length > 0
+  // Longest consecutive run of sick days within the week
+  let maxConsecutiveSick = 0
+  {
+    let run = 0
+    for (const d of days) {
+      if (d.primary_status === 'sick') { run += 1; if (run > maxConsecutiveSick) maxConsecutiveSick = run }
+      else run = 0
+    }
+  }
+  const hasConsecutiveSick = maxConsecutiveSick >= 2
+  // Mon (idx 0) or Fri (idx 4) sick days in current week
+  const monFriSickThisWeek = sickIndicesThisWeek.filter(i => i === 0 || i === 4).length
+  // Combined with stored cross-week count to detect monthly Mon/Fri pattern
+  const monthMonFriSickTotal = monFriSickThisWeek + monthMonFriSickOutsideWeek
+  const hasMonFriPattern = monthMonFriSickTotal > 1
+  const sickNoteRequired = hasAnySickThisWeek && (hasConsecutiveSick || hasMonFriPattern)
+  const sickNoteMissingBlocking = sickNoteRequired && !hasMedicalAttachment
+  const sickNoteMissingFlag = hasAnySickThisWeek && !sickNoteRequired && !hasMedicalAttachment
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -1135,6 +1203,41 @@ export default function TimesheetsPage() {
                     ))}
                   </select>
 
+                  {/* Sick-note hint */}
+                  {day.primary_status === 'sick' && !locked && (
+                    hasMedicalAttachment ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full mb-2 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                        title="Medical note attached for this week"
+                      >
+                        <IconPaperclip className="w-3 h-3" />
+                        Sick note attached
+                      </button>
+                    ) : sickNoteRequired ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full mb-2 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                        title="Attach sick note (required)"
+                      >
+                        <IconPaperclip className="w-3 h-3" />
+                        Sick note required
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full mb-2 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                        title="Attach sick note (optional)"
+                      >
+                        <IconPaperclip className="w-3 h-3" />
+                        Attach sick note (optional)
+                      </button>
+                    )
+                  )}
+
                   {/* OT */}
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
                     <input
@@ -1387,10 +1490,20 @@ export default function TimesheetsPage() {
             {weekStatus === 'draft' && !hasOtHourError && hasOtZeroHours && (
               <p className="text-xs text-red-600">Please enter overtime hours for all OT days before submitting.</p>
             )}
+            {weekStatus === 'draft' && sickNoteMissingBlocking && (
+              <p className="text-xs text-red-600">
+                {hasConsecutiveSick
+                  ? 'Please attach a sick note — multiple consecutive sick days require a medical note.'
+                  : 'Please attach a sick note — repeated Monday/Friday sick days this month require a medical note.'}
+              </p>
+            )}
+            {weekStatus === 'draft' && sickNoteMissingFlag && (
+              <p className="text-xs text-amber-600">No sick note attached — your supervisor will be notified. You can still submit.</p>
+            )}
             {weekStatus === 'draft' && (
               <button
                 onClick={() => setShowConfirm(true)}
-                disabled={saving || hasOtWithoutReason || hasOtHourError || hasOtZeroHours}
+                disabled={saving || hasOtWithoutReason || hasOtHourError || hasOtZeroHours || sickNoteMissingBlocking}
                 className="px-5 py-2 bg-[#1B5EA6] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Submit timesheet
