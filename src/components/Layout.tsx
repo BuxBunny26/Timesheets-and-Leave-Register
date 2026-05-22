@@ -204,8 +204,8 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:flex-col md:w-64 bg-[#1B5EA6] text-white">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-blue-700">
+      <aside className="hidden md:flex md:flex-col md:w-64 md:h-screen md:sticky md:top-0 bg-[#1B5EA6] text-white">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-blue-700 flex-shrink-0">
           <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
             <svg className="w-5 h-5 text-[#1B5EA6]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -217,7 +217,7 @@ export default function Layout() {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
           {visibleItems.map(item => {
             const badge = badgeFor(item.to)
             return (
@@ -252,7 +252,7 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="px-4 py-4 border-t border-blue-700">
+        <div className="px-4 py-4 border-t border-blue-700 flex-shrink-0">
           <p className="text-xs text-blue-200 truncate">{profile?.first_name} {profile?.surname}</p>
           <p className="text-xs text-blue-300 capitalize">{profile?.role?.replace('_', ' ')}</p>
           <button
