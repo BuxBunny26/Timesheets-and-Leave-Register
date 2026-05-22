@@ -39,7 +39,7 @@ function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false):
   return {
     primary_status: isHoliday ? 'public_holiday' : isWeekend ? '' : 'present',
     overtime_flag: false,
-    overtime_hours: 0.5,
+    overtime_hours: 0,
     overtime_reason: '',
     standby_flag: false,
     lol_flag: false,
@@ -168,7 +168,7 @@ export default function TimesheetsPage() {
       return {
         primary_status: db.primary_status,
         overtime_flag: db.overtime_flag,
-        overtime_hours: db.overtime_hours ?? 0.5,
+        overtime_hours: db.overtime_hours ?? 0,
         overtime_reason: db.overtime_reason ?? '',
         standby_flag: db.standby_flag ?? false,
         lol_flag: db.lol_flag,
@@ -708,6 +708,7 @@ export default function TimesheetsPage() {
   const isLocked = weekStatus === 'approved'
   const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
   const hasOtHourError = Object.values(otHourErrors).some(e => !!e)
+  const hasOtZeroHours = days.some(d => d.overtime_flag && (d.overtime_hours ?? 0) <= 0)
   const weekStartStr = formatDateISO(weekStart)
   const dateArr = getDaysOfWeek(weekStart)
 
@@ -1150,7 +1151,7 @@ export default function TimesheetsPage() {
                       <input
                         type="text"
                         inputMode="decimal"
-                        value={otHourDrafts[idx] ?? String(day.overtime_hours)}
+                        value={otHourDrafts[idx] ?? (day.overtime_hours > 0 ? String(day.overtime_hours) : '')}
                         disabled={locked}
                         onChange={e => {
                           const raw = e.target.value
@@ -1383,10 +1384,13 @@ export default function TimesheetsPage() {
             {weekStatus === 'draft' && hasOtHourError && (
               <p className="text-xs text-red-600">Please fix the overtime hours errors before submitting.</p>
             )}
+            {weekStatus === 'draft' && !hasOtHourError && hasOtZeroHours && (
+              <p className="text-xs text-red-600">Please enter overtime hours for all OT days before submitting.</p>
+            )}
             {weekStatus === 'draft' && (
               <button
                 onClick={() => setShowConfirm(true)}
-                disabled={saving || hasOtWithoutReason || hasOtHourError}
+                disabled={saving || hasOtWithoutReason || hasOtHourError || hasOtZeroHours}
                 className="px-5 py-2 bg-[#1B5EA6] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Submit timesheet
