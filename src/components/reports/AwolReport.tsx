@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import ReportShell from './ReportShell'
 import DateRangeFilter from './DateRangeFilter'
@@ -20,6 +20,16 @@ export default function AwolReport() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [rows, setRows] = useState<AwolRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  function toggleEmployee(key: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   async function runReport() {
     setLoading(true)
@@ -50,6 +60,7 @@ export default function AwolReport() {
         site: day.timesheet_week.employee.site?.name ?? '',
       }
     }))
+    setExpanded(new Set())
     setLoading(false)
   }
 
@@ -66,27 +77,75 @@ export default function AwolReport() {
         <p className="text-sm text-gray-400 text-center py-8">No AWOL records in this period.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                {['Employee', 'Code', 'Date', 'Day', 'Site'].map(h => (
-                  <th key={h} className="px-3 py-2 text-xs font-medium text-gray-500 text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-800 font-medium">{r.employee_name}</td>
-                  <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.date}</td>
-                  <td className="px-3 py-2 text-gray-600">{r.day}</td>
-                  <td className="px-3 py-2 text-gray-600">{r.site}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-xs text-gray-400 mt-3">{rows.length} AWOL record{rows.length !== 1 ? 's' : ''} found.</p>
+          {(() => {
+            type Group = { key: string; name: string; code: string; site: string; rows: AwolRow[] }
+            const groupMap = new Map<string, Group>()
+            for (const r of rows) {
+              const key = `${r.employee_name}|${r.employee_code}`
+              const g = groupMap.get(key)
+              if (g) g.rows.push(r)
+              else groupMap.set(key, { key, name: r.employee_name, code: r.employee_code, site: r.site, rows: [r] })
+            }
+            const groups = Array.from(groupMap.values())
+            groups.forEach(g => g.rows.sort((a, b) => a.date.localeCompare(b.date)))
+            groups.sort((a, b) => a.name.localeCompare(b.name))
+            return (
+              <>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left w-8" />
+                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Employee</th>
+                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Code</th>
+                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Date</th>
+                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Day</th>
+                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Site</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {groups.map(g => {
+                      const isOpen = expanded.has(g.key)
+                      return (
+                        <Fragment key={g.key}>
+                          <tr
+                            onClick={() => toggleEmployee(g.key)}
+                            className="hover:bg-gray-50 cursor-pointer bg-gray-50/50 font-medium"
+                          >
+                            <td className="px-3 py-2 text-gray-500 select-none">
+                              <span className={`inline-block transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-900">{g.name}</td>
+                            <td className="px-3 py-2 text-gray-500">{g.code}</td>
+                            <td className="px-3 py-2 text-xs text-gray-500">
+                              {g.rows.length} AWOL {g.rows.length === 1 ? 'day' : 'days'}
+                            </td>
+                            <td className="px-3 py-2" />
+                            <td className="px-3 py-2 text-xs text-gray-400">
+                              {isOpen ? 'Click to collapse' : 'Click to expand'}
+                            </td>
+                          </tr>
+                          {g.rows.map((r, i) => (
+                            <tr
+                              key={`${g.key}-${i}`}
+                              className={`hover:bg-gray-50 ${isOpen ? '' : 'hidden print:table-row'}`}
+                            >
+                              <td className="px-3 py-2" />
+                              <td className="px-3 py-2 text-gray-600 pl-8">↳</td>
+                              <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
+                              <td className="px-3 py-2 text-gray-700">{r.date}</td>
+                              <td className="px-3 py-2 text-gray-600">{r.day}</td>
+                              <td className="px-3 py-2 text-gray-600">{r.site}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-xs text-gray-400 mt-3">{rows.length} AWOL record{rows.length !== 1 ? 's' : ''} found across {groups.length} employee{groups.length !== 1 ? 's' : ''}.</p>
+              </>
+            )
+          })()}
         </div>
       )}
     </ReportShell>

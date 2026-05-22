@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import ReportShell from './ReportShell'
@@ -31,6 +31,16 @@ export default function LeaveReport() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [rows, setRows] = useState<LeaveRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  function toggleEmployee(key: string) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
@@ -75,6 +85,7 @@ export default function LeaveReport() {
         }
       })
     setRows(result)
+    setExpanded(new Set())
     setLoading(false)
   }
 
@@ -117,35 +128,90 @@ export default function LeaveReport() {
         <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                {['Employee', 'Code', 'Type', 'From', 'To', 'Days', 'Status'].map(h => (
-                  <th key={h} className="px-3 py-2 text-xs font-medium text-gray-500 text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-800">{r.employee_name}</td>
-                  <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                  <td className="px-3 py-2 capitalize text-gray-700">{r.leave_type}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.start_date}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.end_date}</td>
-                  <td className="px-3 py-2 text-center text-gray-800 font-medium">{r.total_days}</td>
-                  <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-blue-50 font-semibold text-sm">
-                <td colSpan={5} className="px-3 py-2 text-gray-700">Total days</td>
-                <td className="px-3 py-2 text-center text-gray-800">{rows.reduce((s, r) => s + r.total_days, 0)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
+          {(() => {
+            type Group = { key: string; name: string; code: string; totalDays: number; rows: LeaveRow[] }
+            const groupMap = new Map<string, Group>()
+            for (const r of rows) {
+              const key = `${r.employee_name}|${r.employee_code}`
+              const g = groupMap.get(key)
+              if (g) {
+                g.rows.push(r)
+                g.totalDays += r.total_days
+              } else {
+                groupMap.set(key, { key, name: r.employee_name, code: r.employee_code, totalDays: r.total_days, rows: [r] })
+              }
+            }
+            const groups = Array.from(groupMap.values())
+            groups.forEach(g => g.rows.sort((a, b) => a.start_date.localeCompare(b.start_date)))
+            groups.sort((a, b) => a.name.localeCompare(b.name))
+            const grandTotal = rows.reduce((s, r) => s + r.total_days, 0)
+            return (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left w-8" />
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Employee</th>
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Code</th>
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Type</th>
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">From</th>
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">To</th>
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">Days</th>
+                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {groups.map(g => {
+                    const isOpen = expanded.has(g.key)
+                    return (
+                      <Fragment key={g.key}>
+                        <tr
+                          onClick={() => toggleEmployee(g.key)}
+                          className="hover:bg-gray-50 cursor-pointer bg-gray-50/50 font-medium"
+                        >
+                          <td className="px-3 py-2 text-gray-500 select-none">
+                            <span className={`inline-block transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-900">{g.name}</td>
+                          <td className="px-3 py-2 text-gray-500">{g.code}</td>
+                          <td className="px-3 py-2 text-xs text-gray-500">
+                            {g.rows.length} {g.rows.length === 1 ? 'request' : 'requests'}
+                          </td>
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2 text-center font-semibold text-gray-900">{g.totalDays}</td>
+                          <td className="px-3 py-2 text-xs text-gray-400">
+                            {isOpen ? 'Click to collapse' : 'Click to expand'}
+                          </td>
+                        </tr>
+                        {g.rows.map((r, i) => (
+                          <tr
+                            key={`${g.key}-${i}`}
+                            className={`hover:bg-gray-50 ${isOpen ? '' : 'hidden print:table-row'}`}
+                          >
+                            <td className="px-3 py-2" />
+                            <td className="px-3 py-2 text-gray-600 pl-8">↳</td>
+                            <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
+                            <td className="px-3 py-2 capitalize text-gray-700">{r.leave_type}</td>
+                            <td className="px-3 py-2 text-gray-700">{r.start_date}</td>
+                            <td className="px-3 py-2 text-gray-700">{r.end_date}</td>
+                            <td className="px-3 py-2 text-center text-gray-800">{r.total_days}</td>
+                            <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-blue-50 font-semibold text-sm">
+                    <td colSpan={6} className="px-3 py-2 text-gray-700">Total days</td>
+                    <td className="px-3 py-2 text-center text-gray-800">{grandTotal}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            )
+          })()}
         </div>
       )}
     </ReportShell>
