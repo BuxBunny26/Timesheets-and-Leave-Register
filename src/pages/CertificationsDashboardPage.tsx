@@ -429,7 +429,7 @@ export default function CertificationsDashboardPage() {
                         <td className="px-4 py-3 text-gray-600">
                           {r.expiry_date
                             ? new Date(r.expiry_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : <span className="text-gray-400">�</span>
+                            : <span className="text-gray-400">—</span>
                           }
                         </td>
                         <td className="px-4 py-3">
@@ -455,7 +455,7 @@ export default function CertificationsDashboardPage() {
                           </button>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-500 max-w-[180px] truncate">
-                          {r.notes ?? '�'}
+                          {r.notes ?? '—'}
                         </td>
                       </tr>
                     ))}
