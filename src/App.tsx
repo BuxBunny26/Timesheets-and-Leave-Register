@@ -9,6 +9,8 @@ import NotificationsPage from './pages/NotificationsPage'
 import ProfilePage from './pages/ProfilePage'
 import ReportsPage from './pages/ReportsPage'
 import DocumentsPage from './pages/DocumentsPage'
+import EmployeeDirectoryPage from './pages/EmployeeDirectoryPage'
+import EmployeeDetailPage from './pages/EmployeeDetailPage'
 import MyVerificationPage from './pages/MyVerificationPage'
 import Layout from './components/Layout'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -44,6 +46,8 @@ function AppRoutes() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="my-verification" element={<MyVerificationPage />} />
         <Route path="documents" element={<DocumentsPage />} />
+        <Route path="employees" element={<EmployeeDirectoryPage />} />
+        <Route path="employees/:id" element={<EmployeeDetailPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>

@@ -248,3 +248,96 @@ export interface AuditLog {
   // joined
   actor?: Pick<Profile, 'id' | 'first_name' | 'surname'>
 }
+
+// ============================================================
+// Employee Directory (HR fields, dependants, certifications)
+// ============================================================
+
+export interface EmployeeDetails {
+  employee_id: string
+
+  id_attached: boolean
+  has_passport: boolean
+  passport_number: string | null
+  passport_expiry: string | null
+  passport_attached: boolean
+
+  cell_phone_contract_owner: string | null
+  service_provider: string | null
+  whatsapp_number: string | null
+  personal_email: string | null
+
+  has_drivers_licence: boolean
+  drivers_licence_number: string | null
+  drivers_licence_expiry: string | null
+  drivers_licence_attached: boolean
+
+  has_medical_aid: boolean
+  medical_aid_provider: string | null
+  medical_aid_number: string | null
+  medical_practitioner_name: string | null
+  doctor_contact_number: string | null
+  allergies_diet: string | null
+
+  home_address: string | null
+  complex_street_name: string | null
+  suburb: string | null
+  city: string | null
+  province: string | null
+  country: string | null
+  postal_code: string | null
+  home_pin_location: string | null
+
+  next_of_kin_name: string | null
+  next_of_kin_relationship: string | null
+  next_of_kin_contact: string | null
+
+  matric: boolean
+  matric_year: number | null
+  trade_certificate: string | null
+  diplomas_degrees: string | null
+  other_qualification: string | null
+  start_date: string | null
+
+  comp_alignment: boolean
+  comp_balancing: boolean
+  comp_vibration: boolean
+  comp_sampling: boolean
+  comp_thermography: boolean
+  comp_motor_circuit_analysis: boolean
+  comp_vibration_monitoring: boolean
+
+  created_at: string
+  updated_at: string
+}
+
+export interface EmployeeDependant {
+  id: string
+  employee_id: string
+  name: string
+  date_of_birth: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface CertificationType {
+  id: string
+  code: string
+  name: string
+  category: string | null
+  display_order: number
+}
+
+export interface EmployeeCertification {
+  id: string
+  employee_id: string
+  certification_type_id: string
+  has_certification: boolean
+  expiry_date: string | null
+  attached: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  certification_type?: CertificationType
+}

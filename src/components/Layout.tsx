@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft } from './Icons'
+import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
 import type { Role } from '../types'
@@ -25,6 +25,7 @@ const navItems: NavItem[] = [
   { to: '/reports', label: 'Reports', icon: <IconChartBar />, exact: false, roles: null },
   { to: '/my-verification', label: 'Verify Month', icon: <IconCheckCircle />, roles: null },
   { to: '/documents', label: 'Documents', icon: <IconFolder />, exact: false, roles: null },
+  { to: '/employees', label: 'Employees', icon: <IconUsers />, exact: false, roles: ['supervisor', 'manager', 'admin_manager', 'system_admin'] },
   { to: '/notifications', label: 'Notifications', icon: <IconBell />, roles: null },
   { to: '/profile', label: 'Profile', icon: <IconUser />, roles: null },
 ]
