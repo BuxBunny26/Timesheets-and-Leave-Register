@@ -5,13 +5,14 @@ import { supabase } from '../lib/supabase'
 import {
   IconAcademicCap, IconCalendar, IconMapPin,
   IconPlus, IconUsers, IconXMark, IconBadgeCheck,
-  IconExclamationTriangle, IconChevronDown,
+  IconExclamationTriangle, IconChevronDown, IconChevronLeft, IconChevronRight,
 } from '../components/Icons'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type SessionStatus = 'scheduled' | 'completed' | 'cancelled'
 type EnrolStatus   = 'enrolled' | 'completed' | 'cancelled' | 'no_show'
+type MatrixStatus  = 'planned' | 'scheduled' | 'completed' | 'not_applicable'
 
 type Course = {
   id: string
@@ -36,20 +37,46 @@ type Session = {
   training_enrollments: { id: string; status: EnrolStatus; profiles: { first_name: string; surname: string; employee_code: string | null } | null }[]
 }
 
-type ExpiringCert = {
-  id: string
-  employee_id: string
-  expiry_date: string | null
-  days_left: number | null
-  profiles: { first_name: string; surname: string; employee_code: string | null } | null
-  certification_types: { id: string; name: string; technology: string | null; cert_level: string | null } | null
-}
-
 type Employee = {
   id: string
   first_name: string
   surname: string
   employee_code: string | null
+  role: string | null
+  department_id: string | null
+}
+
+type MatrixEntry = {
+  id: string
+  employee_id: string
+  course_id: string
+  financial_year: number
+  quarter: 1 | 2 | 3 | 4
+  status: MatrixStatus
+  completed_date: string | null
+}
+
+// ── Fiscal year helpers ────────────────────────────────────────────────────────
+// FY starts 1 Jul. FY2026 = Jul 2025 – Jun 2026.
+// Q1 = Jul–Sep, Q2 = Oct–Dec, Q3 = Jan–Mar, Q4 = Apr–Jun
+
+function getFY(date: Date): number {
+  return date.getMonth() >= 6 ? date.getFullYear() + 1 : date.getFullYear()
+}
+
+function getFYQ(date: Date): 1 | 2 | 3 | 4 {
+  const m = date.getMonth() + 1
+  if (m >= 7 && m <= 9) return 1
+  if (m >= 10) return 2
+  if (m <= 3) return 3
+  return 4
+}
+
+const QUARTER_MONTHS: Record<1 | 2 | 3 | 4, string> = {
+  1: 'Jul – Sep',
+  2: 'Oct – Dec',
+  3: 'Jan – Mar',
+  4: 'Apr – Jun',
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -67,19 +94,14 @@ const ENROL_COLOUR: Record<EnrolStatus, string> = {
   no_show:    'bg-red-50 text-red-600',
 }
 
-function daysLabel(days: number | null) {
-  if (days === null) return 'No expiry'
-  if (days < 0)  return `Expired ${Math.abs(days)}d ago`
-  if (days === 0) return 'Expires today'
-  return `${days}d left`
-}
+// Matrix status cycle: empty → planned → scheduled → completed → not_applicable → empty
+const MATRIX_CYCLE: (MatrixStatus | null)[] = [null, 'planned', 'scheduled', 'completed', 'not_applicable']
 
-function daysColour(days: number | null) {
-  if (days === null) return 'text-gray-400'
-  if (days < 0)   return 'text-red-600 font-medium'
-  if (days <= 30) return 'text-red-500 font-medium'
-  if (days <= 60) return 'text-amber-600 font-medium'
-  return 'text-green-600'
+const MATRIX_CELL: Record<MatrixStatus, { bg: string; text: string; label: string; symbol: string }> = {
+  planned:        { bg: 'bg-amber-50  border-amber-200',  text: 'text-amber-700',  label: 'Planned',       symbol: '▪' },
+  scheduled:      { bg: 'bg-blue-50   border-blue-200',   text: 'text-blue-700',   label: 'Scheduled',     symbol: '−' },
+  completed:      { bg: 'bg-green-50  border-green-200',  text: 'text-green-700',  label: 'Completed',     symbol: '✓' },
+  not_applicable: { bg: 'bg-gray-100  border-gray-200',   text: 'text-gray-400',   label: 'N/A',           symbol: '/' },
 }
 
 function fmt(iso: string) {
@@ -431,32 +453,263 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'sessions' | 'needs-training'
+type Tab = 'overview' | 'sessions' | 'matrix'
 
 const SUPERVISOR_ROLES = ['supervisor', 'manager', 'admin_manager', 'system_admin']
 const MANAGER_ROLES    = ['manager', 'admin_manager', 'system_admin']
+
+// ── Training Matrix Component ──────────────────────────────────────────────────
+
+interface TrainingMatrixProps {
+  courses: Course[]
+  employees: Employee[]
+  isManager: boolean
+}
+
+function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) {
+  const today = new Date()
+  const [fy, setFY]     = useState(getFY(today))
+  const [quarter, setQ] = useState<1 | 2 | 3 | 4>(getFYQ(today))
+  const [entries, setEntries] = useState<MatrixEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState<string | null>(null) // key being saved
+
+  const loadEntries = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('training_matrix_entries')
+      .select('id, employee_id, course_id, financial_year, quarter, status, completed_date')
+      .eq('financial_year', fy)
+      .eq('quarter', quarter)
+    setEntries((data as MatrixEntry[]) ?? [])
+    setLoading(false)
+  }, [fy, quarter])
+
+  useEffect(() => { loadEntries() }, [loadEntries])
+
+  // Build lookup: `${employee_id}:${course_id}` → entry
+  const entryMap = useMemo(() => {
+    const m = new Map<string, MatrixEntry>()
+    for (const e of entries) m.set(`${e.employee_id}:${e.course_id}`, e)
+    return m
+  }, [entries])
+
+  async function cycleStatus(emp: Employee, course: Course) {
+    if (!isManager) return
+    const key = `${emp.id}:${course.id}`
+    const existing = entryMap.get(key)
+    const currentIdx = existing ? MATRIX_CYCLE.indexOf(existing.status) : 0
+    const nextStatus = MATRIX_CYCLE[(currentIdx + 1) % MATRIX_CYCLE.length]
+    setSaving(key)
+
+    if (nextStatus === null) {
+      // Delete the entry
+      if (existing) {
+        await supabase.from('training_matrix_entries').delete().eq('id', existing.id)
+      }
+    } else {
+      if (existing) {
+        await supabase.from('training_matrix_entries')
+          .update({ status: nextStatus, completed_date: nextStatus === 'completed' ? new Date().toISOString().slice(0, 10) : null })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('training_matrix_entries').insert({
+          employee_id: emp.id,
+          course_id: course.id,
+          financial_year: fy,
+          quarter,
+          status: nextStatus,
+        })
+      }
+    }
+    setSaving(null)
+    loadEntries()
+  }
+
+  // Completion stats per course for this quarter
+  const courseStats = useMemo(() => {
+    const stats: Record<string, { completed: number; total: number }> = {}
+    for (const c of courses) {
+      const completed = entries.filter(e => e.course_id === c.id && e.status === 'completed').length
+      const nonNA     = entries.filter(e => e.course_id === c.id && e.status !== 'not_applicable').length
+      stats[c.id] = { completed, total: nonNA }
+    }
+    return stats
+  }, [courses, entries])
+
+  // Group courses by technology
+  const courseGroups = useMemo(() => {
+    const groups = new Map<string, Course[]>()
+    for (const c of courses) {
+      const key = c.technology ?? 'Other'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(c)
+    }
+    return groups
+  }, [courses])
+
+  const fyLabel = `FY${fy} (Jul ${fy - 1} – Jun ${fy})`
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* FY selector */}
+        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
+          <button onClick={() => setFY(y => y - 1)} className="p-0.5 hover:bg-gray-100 rounded text-gray-500">
+            <IconChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-medium text-gray-700 min-w-[180px] text-center">{fyLabel}</span>
+          <button onClick={() => setFY(y => y + 1)} className="p-0.5 hover:bg-gray-100 rounded text-gray-500">
+            <IconChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Quarter tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          {([1, 2, 3, 4] as const).map(q => (
+            <button
+              key={q}
+              onClick={() => setQ(q)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                quarter === q
+                  ? 'bg-white text-[#1B5EA6] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Q{q}
+              <span className="ml-1 font-normal text-[10px] hidden sm:inline">{QUARTER_MONTHS[q]}</span>
+            </button>
+          ))}
+        </div>
+
+        <span className="text-xs text-gray-400">{QUARTER_MONTHS[quarter]}</span>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+        <span className="font-medium text-gray-600">Key:</span>
+        {(Object.entries(MATRIX_CELL) as [MatrixStatus, typeof MATRIX_CELL[MatrixStatus]][]).map(([, cfg]) => (
+          <span key={cfg.label} className="flex items-center gap-1">
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded border text-[10px] font-bold ${cfg.bg} ${cfg.text}`}>{cfg.symbol}</span>
+            {cfg.label}
+          </span>
+        ))}
+        {isManager && <span className="text-gray-400 italic">Click any cell to cycle status</span>}
+      </div>
+
+      {/* Matrix table */}
+      {loading ? (
+        <div className="flex justify-center py-10">
+          <div className="w-5 h-5 border-2 border-[#1B5EA6] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+          <table className="text-xs min-w-max">
+            <thead>
+              {/* Technology group headers */}
+              <tr className="border-b border-gray-200">
+                <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-52 border-r border-gray-200">
+                  Employee
+                </th>
+                {Array.from(courseGroups.entries()).map(([tech, techCourses]) => (
+                  <th
+                    key={tech}
+                    colSpan={techCourses.length}
+                    className="px-3 py-2 text-center text-xs font-semibold text-gray-700 border-l border-gray-200 bg-gray-50 uppercase tracking-wide"
+                  >
+                    {tech}
+                  </th>
+                ))}
+              </tr>
+              {/* Course name headers */}
+              <tr className="border-b border-gray-200">
+                <th className="sticky left-0 z-10 bg-white px-4 py-2 border-r border-gray-200" />
+                {courses.map(c => {
+                  const stats = courseStats[c.id]
+                  const pct = stats && stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : null
+                  return (
+                    <th key={c.id} className="px-2 py-2 text-center border-l border-gray-100 min-w-[72px] max-w-[96px]">
+                      <div className="font-medium text-gray-700 leading-tight text-[11px] text-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', height: 80 }}>
+                        {c.name}
+                      </div>
+                      {pct !== null && (
+                        <div className={`text-[10px] mt-1 font-semibold ${pct === 100 ? 'text-green-600' : pct >= 50 ? 'text-amber-600' : 'text-gray-400'}`}>
+                          {pct}%
+                        </div>
+                      )}
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {employees.map((emp, i) => (
+                <tr key={emp.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                  <td className="sticky left-0 z-10 px-4 py-2 border-r border-gray-200 bg-inherit">
+                    <Link
+                      to={`/employees/${emp.id}`}
+                      className="font-medium text-gray-800 hover:text-[#1B5EA6] whitespace-nowrap"
+                    >
+                      {emp.first_name} {emp.surname}
+                    </Link>
+                    {emp.employee_code && (
+                      <p className="text-[10px] text-gray-400">{emp.employee_code}</p>
+                    )}
+                  </td>
+                  {courses.map(course => {
+                    const key = `${emp.id}:${course.id}`
+                    const entry = entryMap.get(key)
+                    const isSaving = saving === key
+                    const cfg = entry ? MATRIX_CELL[entry.status] : null
+                    return (
+                      <td key={course.id} className="px-1.5 py-1.5 text-center border-l border-gray-100">
+                        <button
+                          onClick={() => cycleStatus(emp, course)}
+                          disabled={!isManager || isSaving}
+                          title={cfg ? `${cfg.label}${entry?.completed_date ? ` · ${fmt(entry.completed_date)}` : ''}` : 'Not set'}
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded border text-[11px] font-bold transition-colors ${
+                            cfg
+                              ? `${cfg.bg} ${cfg.text}`
+                              : 'border-gray-100 text-gray-300 hover:border-gray-300'
+                          } ${isManager ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} ${isSaving ? 'opacity-50' : ''}`}
+                        >
+                          {isSaving ? '…' : cfg ? cfg.symbol : ''}
+                        </button>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function TrainingPage() {
   const { profile } = useAuth()
   const isSupervisor = SUPERVISOR_ROLES.includes(profile?.role ?? '')
   const isManager    = MANAGER_ROLES.includes(profile?.role ?? '')
 
-  const [tab, setTab]                   = useState<Tab>('overview')
-  const [courses, setCourses]           = useState<Course[]>([])
-  const [sessions, setSessions]         = useState<Session[]>([])
-  const [expiring, setExpiring]         = useState<ExpiringCert[]>([])
-  const [employees, setEmployees]       = useState<Employee[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [showForm, setShowForm]         = useState(false)
+  const [tab, setTab]                     = useState<Tab>('overview')
+  const [courses, setCourses]             = useState<Course[]>([])
+  const [sessions, setSessions]           = useState<Session[]>([])
+  const [employees, setEmployees]         = useState<Employee[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [showForm, setShowForm]           = useState(false)
   const [prefillCourse, setPrefillCourse] = useState<string | undefined>()
-  const [prefillEmps, setPrefillEmps]   = useState<string[] | undefined>()
+  const [prefillEmps, setPrefillEmps]     = useState<string[] | undefined>()
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     const [
       { data: coursesData },
       { data: sessionsData },
-      { data: expiringData },
       { data: empsData },
     ] = await Promise.all([
       supabase.from('training_courses').select('id, name, technology, provider, duration_days, certification_type_id').order('name'),
@@ -466,31 +719,12 @@ export default function TrainingPage() {
         training_courses(name, technology, provider),
         training_enrollments(id, status, profiles(first_name, surname, employee_code))
       `).order('scheduled_date', { ascending: false }),
-      supabase.from('employee_certifications').select(`
-        id, employee_id, expiry_date,
-        profiles(first_name, surname, employee_code),
-        certification_types(id, name, technology, cert_level)
-      `)
-        .eq('has_certification', true)
-        .not('expiry_date', 'is', null)
-        .lte('expiry_date', new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10))
-        .order('expiry_date'),
-      supabase.from('profiles').select('id, first_name, surname, employee_code')
+      supabase.from('profiles').select('id, first_name, surname, employee_code, role, department_id')
         .eq('status', 'active')
         .order('surname'),
     ])
     setCourses((coursesData as Course[]) ?? [])
     setSessions((sessionsData as unknown as Session[]) ?? [])
-
-    // Compute days_left for expiring certs
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const enriched = ((expiringData ?? []) as unknown as Omit<ExpiringCert, 'days_left'>[]).map(r => ({
-      ...r,
-      days_left: r.expiry_date
-        ? Math.round((new Date(r.expiry_date + 'T00:00:00').getTime() - today.getTime()) / 86_400_000)
-        : null,
-    }))
-    setExpiring(enriched)
     setEmployees((empsData as Employee[]) ?? [])
     setLoading(false)
   }, [])
@@ -509,28 +743,19 @@ export default function TrainingPage() {
   }
 
   // Derived data
-  const upcoming  = useMemo(() => sessions.filter(s => s.status === 'scheduled').slice().sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)), [sessions])
-  const past      = useMemo(() => sessions.filter(s => s.status !== 'scheduled').slice().sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date)), [sessions])
-
+  const upcoming = useMemo(() =>
+    sessions.filter(s => s.status === 'scheduled').slice().sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
+  [sessions])
+  const past = useMemo(() =>
+    sessions.filter(s => s.status !== 'scheduled').slice().sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date)),
+  [sessions])
   const completedThisYear = useMemo(() => {
     const yr = new Date().getFullYear().toString()
     return sessions.filter(s => s.status === 'completed' && s.scheduled_date.startsWith(yr))
   }, [sessions])
-
   const totalEnrolledThisYear = useMemo(() =>
     completedThisYear.reduce((sum, s) => sum + s.training_enrollments.filter(e => e.status === 'completed').length, 0),
   [completedThisYear])
-
-  // Group expiring by technology for the "Needs Training" tab
-  const needsByTech = useMemo(() => {
-    const map = new Map<string, ExpiringCert[]>()
-    for (const cert of expiring) {
-      const tech = cert.certification_types?.technology ?? 'Other'
-      if (!map.has(tech)) map.set(tech, [])
-      map.get(tech)!.push(cert)
-    }
-    return map
-  }, [expiring])
 
   if (!isSupervisor) {
     return (
@@ -546,7 +771,7 @@ export default function TrainingPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Training</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Schedule sessions, track enrolments, and monitor employees due for training.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Schedule sessions, track enrolments, and manage the quarterly training matrix.</p>
         </div>
         {isManager && (
           <button
@@ -561,9 +786,9 @@ export default function TrainingPage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
         {([
-          { key: 'overview',       label: 'Overview' },
-          { key: 'sessions',       label: `Sessions${sessions.length ? ` (${sessions.length})` : ''}` },
-          { key: 'needs-training', label: `Needs Training${expiring.length ? ` (${expiring.length})` : ''}` },
+          { key: 'overview', label: 'Overview' },
+          { key: 'sessions', label: `Sessions${sessions.length ? ` (${sessions.length})` : ''}` },
+          { key: 'matrix',   label: 'Training Matrix' },
         ] as { key: Tab; label: string }[]).map(t => (
           <button
             key={t.key}
@@ -588,8 +813,7 @@ export default function TrainingPage() {
           {/* ── Overview Tab ── */}
           {tab === 'overview' && (
             <div className="space-y-5">
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="bg-white border border-gray-200 rounded-xl p-4">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Upcoming Sessions</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{upcoming.length}</p>
@@ -603,20 +827,13 @@ export default function TrainingPage() {
                   <p className="text-3xl font-bold text-[#1B5EA6] mt-1">{totalEnrolledThisYear}</p>
                   <p className="text-xs text-gray-400 mt-0.5">completions</p>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Certs Due ≤90d</p>
-                  <p className={`text-3xl font-bold mt-1 ${expiring.length > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{expiring.length}</p>
-                </div>
               </div>
 
-              {/* Upcoming sessions preview */}
               <div>
                 <div className="flex items-center justify-between mb-2.5">
                   <h2 className="text-sm font-semibold text-gray-700">Upcoming Sessions</h2>
                   {upcoming.length > 3 && (
-                    <button onClick={() => setTab('sessions')} className="text-xs text-[#1B5EA6] hover:underline">
-                      View all
-                    </button>
+                    <button onClick={() => setTab('sessions')} className="text-xs text-[#1B5EA6] hover:underline">View all</button>
                   )}
                 </div>
                 {upcoming.length === 0 ? (
@@ -638,40 +855,33 @@ export default function TrainingPage() {
                 )}
               </div>
 
-              {/* Needs training preview */}
-              {expiring.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <h2 className="text-sm font-semibold text-gray-700">Employees Needing Training Soon</h2>
-                    <button onClick={() => setTab('needs-training')} className="text-xs text-[#1B5EA6] hover:underline">
-                      View all ({expiring.length})
-                    </button>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-50 overflow-hidden">
-                    {expiring.slice(0, 5).map(cert => (
-                      <div key={cert.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {cert.profiles?.first_name} {cert.profiles?.surname}
-                            {cert.profiles?.employee_code && <span className="text-gray-400 font-normal ml-1">{cert.profiles.employee_code}</span>}
-                          </p>
-                          <p className="text-xs text-gray-400">{cert.certification_types?.name}</p>
-                        </div>
-                        <span className={`text-xs flex-shrink-0 ${daysColour(cert.days_left)}`}>
-                          {daysLabel(cert.days_left)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <h2 className="text-sm font-semibold text-gray-700">Training Matrix</h2>
+                  <button onClick={() => setTab('matrix')} className="text-xs text-[#1B5EA6] hover:underline">Open matrix</button>
                 </div>
-              )}
+                <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                  <IconBadgeCheck className="w-8 h-8 text-[#1B5EA6] flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Quarterly Training Planner</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Plan and track training for all employees across Q1–Q4 of the financial year (Jul–Jun).
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setTab('matrix')}
+                    className="ml-auto flex-shrink-0 px-3 py-1.5 text-xs font-medium text-[#1B5EA6] border border-blue-200 rounded-lg hover:bg-blue-50"
+                  >
+                    View
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           {/* ── Sessions Tab ── */}
           {tab === 'sessions' && (
             <div className="space-y-5">
-              {/* Upcoming */}
               <div>
                 <h2 className="text-sm font-semibold text-gray-700 mb-2.5">Upcoming ({upcoming.length})</h2>
                 {upcoming.length === 0 ? (
@@ -689,8 +899,6 @@ export default function TrainingPage() {
                   </div>
                 )}
               </div>
-
-              {/* Past */}
               {past.length > 0 && (
                 <div>
                   <h2 className="text-sm font-semibold text-gray-700 mb-2.5">Past Sessions ({past.length})</h2>
@@ -704,89 +912,13 @@ export default function TrainingPage() {
             </div>
           )}
 
-          {/* ── Needs Training Tab ── */}
-          {tab === 'needs-training' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500">
-                Employees with certifications expiring within 90 days, grouped by technology. Schedule training to renew them.
-              </p>
-
-              {expiring.length === 0 ? (
-                <div className="bg-white border border-gray-200 rounded-xl py-10 text-center">
-                  <IconBadgeCheck className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-700">All certifications are up to date.</p>
-                  <p className="text-xs text-gray-400 mt-0.5">No certs expiring in the next 90 days.</p>
-                </div>
-              ) : (
-                Array.from(needsByTech.entries()).map(([tech, certs]) => {
-                  // Find matching courses for this technology
-                  const techCourses = courses.filter(c => c.technology === tech)
-                  return (
-                    <div key={tech} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                      {/* Group header */}
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-                        <div className="flex items-center gap-2">
-                          <IconAcademicCap className="w-4 h-4 text-[#1B5EA6]" />
-                          <span className="text-sm font-semibold text-gray-800">{tech}</span>
-                          <span className="text-xs text-gray-400">({certs.length})</span>
-                        </div>
-                        {isManager && techCourses.length > 0 && (
-                          <button
-                            onClick={() => openSchedule(
-                              techCourses[0].id,
-                              certs.map(c => c.employee_id)
-                            )}
-                            className="flex items-center gap-1 text-xs text-[#1B5EA6] hover:underline font-medium"
-                          >
-                            <IconPlus className="w-3.5 h-3.5" /> Schedule for all
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Cert rows */}
-                      <div className="divide-y divide-gray-50">
-                        {certs.map(cert => (
-                          <div key={cert.id} className="flex items-center gap-3 px-4 py-3">
-                            <div className="flex-1 min-w-0">
-                              <Link
-                                to={`/employees/${cert.employee_id}`}
-                                className="text-sm font-medium text-gray-900 hover:text-[#1B5EA6]"
-                              >
-                                {cert.profiles?.first_name} {cert.profiles?.surname}
-                              </Link>
-                              {cert.profiles?.employee_code && (
-                                <span className="text-xs text-gray-400 ml-1">{cert.profiles.employee_code}</span>
-                              )}
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {cert.certification_types?.name}
-                                {cert.certification_types?.cert_level ? ` \u00b7 ${cert.certification_types.cert_level}` : ''}
-                              </p>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className={`text-xs ${daysColour(cert.days_left)}`}>{daysLabel(cert.days_left)}</p>
-                              {cert.expiry_date && (
-                                <p className="text-[11px] text-gray-400">{fmt(cert.expiry_date)}</p>
-                              )}
-                            </div>
-                            {isManager && (
-                              <button
-                                onClick={() => openSchedule(
-                                  techCourses[0]?.id,
-                                  [cert.employee_id]
-                                )}
-                                className="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-xs text-[#1B5EA6] border border-blue-200 rounded-lg hover:bg-blue-50 font-medium"
-                              >
-                                <IconCalendar className="w-3 h-3" /> Schedule
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+          {/* ── Training Matrix Tab ── */}
+          {tab === 'matrix' && (
+            <TrainingMatrix
+              courses={courses}
+              employees={employees}
+              isManager={isManager}
+            />
           )}
         </>
       )}
