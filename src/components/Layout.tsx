@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft, IconChevronDown, IconCake, IconTrophy, IconBadgeCheck } from './Icons'
+import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft, IconChevronDown, IconCake, IconTrophy, IconBadgeCheck, IconAcademicCap } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
 import type { Role } from '../types'
@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
     { to: '/employees/anniversaries', label: 'Work Anniversaries', icon: <IconTrophy /> },
     { to: '/employees/certifications', label: 'Certifications', icon: <IconBadgeCheck /> },
   ] },
+  { to: '/training', label: 'Training', icon: <IconAcademicCap />, roles: ['supervisor', 'manager', 'admin_manager', 'system_admin'] },
   { to: '/notifications', label: 'Notifications', icon: <IconBell />, roles: null },
   { to: '/profile', label: 'Profile', icon: <IconUser />, roles: null },
 ]
