@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { formatDateISO } from '../lib/dateUtils'
-import { IconCalendar, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
+import { IconCalendar, IconCake, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
 import type { LeaveType, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -269,7 +269,9 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                   </span>
                   <span className="flex items-center gap-0.5">
                     {hasBirthdays && (
-                      <span title={bdayEntries.map(b => `${b.first_name} ${b.surname} (turns ${b.turning_age})`).join(', ')} className="text-[11px]">🎂</span>
+                      <span title={bdayEntries.map(b => `${b.first_name} ${b.surname} (turns ${b.turning_age})`).join(', ')}>
+                        <IconCake className="w-3.5 h-3.5 text-pink-400" />
+                      </span>
                     )}
                     {entries.length > 0 && (
                       <span className="text-[10px] text-gray-400">{entries.length}</span>

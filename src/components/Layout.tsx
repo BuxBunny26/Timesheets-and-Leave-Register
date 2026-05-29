@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft } from './Icons'
+import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft, IconChevronDown, IconCake, IconTrophy, IconBadgeCheck } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
 import type { Role } from '../types'
@@ -9,12 +9,20 @@ import type { Role } from '../types'
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
 const MANAGER_ROLES: Role[] = ['manager', 'admin_manager', 'system_admin']
 
+interface ChildNavItem {
+  to: string
+  label: string
+  icon: React.ReactNode
+  exact?: boolean
+}
+
 interface NavItem {
   to: string
   label: string
   icon: React.ReactNode
   exact?: boolean
   roles: Role[] | null
+  children?: ChildNavItem[]
 }
 
 const navItems: NavItem[] = [
@@ -25,7 +33,12 @@ const navItems: NavItem[] = [
   { to: '/reports', label: 'Reports', icon: <IconChartBar />, exact: false, roles: null },
   { to: '/my-verification', label: 'Verify Month', icon: <IconCheckCircle />, roles: null },
   { to: '/documents', label: 'Documents', icon: <IconFolder />, exact: false, roles: null },
-  { to: '/employees', label: 'Employees', icon: <IconUsers />, exact: false, roles: ['supervisor', 'manager', 'admin_manager', 'system_admin'] },
+  { to: '/employees', label: 'Employees', icon: <IconUsers />, exact: false, roles: ['supervisor', 'manager', 'admin_manager', 'system_admin'], children: [
+    { to: '/employees', label: 'Directory', icon: <IconUsers />, exact: true },
+    { to: '/employees/birthdays', label: 'Birthdays', icon: <IconCake /> },
+    { to: '/employees/anniversaries', label: 'Work Anniversaries', icon: <IconTrophy /> },
+    { to: '/employees/certifications', label: 'Certifications', icon: <IconBadgeCheck /> },
+  ] },
   { to: '/notifications', label: 'Notifications', icon: <IconBell />, roles: null },
   { to: '/profile', label: 'Profile', icon: <IconUser />, roles: null },
 ]
@@ -36,6 +49,9 @@ export default function Layout() {
   const [approvalsCount, setApprovalsCount] = useState(0)
   const [verifyCount, setVerifyCount] = useState(0)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [employeesExpanded, setEmployeesExpanded] = useState(() =>
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/employees')
+  )
   const navigate = useNavigate()
   const location = useLocation()
   const navType = useNavigationType()
@@ -70,6 +86,13 @@ export default function Layout() {
 
   const isManager = !!profile?.role && MANAGER_ROLES.includes(profile.role)
   const isSupervisor = !!profile?.role && SUPERVISOR_ROLES.includes(profile.role)
+
+  // Auto-expand Employees group when navigating into that section
+  useEffect(() => {
+    if (location.pathname.startsWith('/employees')) {
+      setEmployeesExpanded(true)
+    }
+  }, [location.pathname])
 
   useEffect(() => {
     if (!profile) return
@@ -220,6 +243,43 @@ export default function Layout() {
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
           {visibleItems.map(item => {
+            if (item.children) {
+              const isGroupActive = location.pathname.startsWith('/employees')
+              return (
+                <div key={item.to}>
+                  <button
+                    type="button"
+                    onClick={() => setEmployeesExpanded(prev => !prev)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm w-full transition-colors ${
+                      isGroupActive ? 'bg-white/20 text-white font-medium' : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {item.icon}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <IconChevronDown className={`w-4 h-4 transition-transform duration-150 ${employeesExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {employeesExpanded && (
+                    <div className="ml-3 mt-0.5 space-y-0.5 border-l border-blue-500/40 pl-3">
+                      {item.children.map(child => (
+                        <NavLink
+                          key={child.to}
+                          to={child.to}
+                          end={child.exact}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                              isActive ? 'bg-white/20 text-white font-medium' : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                            }`
+                          }
+                        >
+                          {child.icon}
+                          <span>{child.label}</span>
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
             const badge = badgeFor(item.to)
             return (
             <NavLink
@@ -305,7 +365,13 @@ export default function Layout() {
         const primaryPaths = new Set<string>(['/', '/timesheets', '/leave'])
         if (isSupervisor) primaryPaths.add('/approvals')
         const primaryItems = visibleItems.filter(i => primaryPaths.has(i.to))
-        const moreItems = visibleItems.filter(i => !primaryPaths.has(i.to))
+        // Flatten grouped items for the mobile more-sheet
+        const moreItems = visibleItems
+          .filter(i => !primaryPaths.has(i.to))
+          .flatMap(i => i.children
+            ? i.children.map(c => ({ ...c, roles: null as Role[] | null, children: undefined }))
+            : [i]
+          )
         const moreBadge = moreItems.reduce((sum, i) => sum + badgeFor(i.to), 0)
 
         return (
