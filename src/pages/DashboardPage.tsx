@@ -135,7 +135,7 @@ export default function DashboardPage() {
       if (isSupervisor) {
         supabase
           .from('birthdays_this_year')
-          .select('employee_id, first_name, surname, birthday_this_year, turning_age')
+          .select('employee_id, first_name, surname, birthday_this_year')
           .then(({ data }) => { if (data) setBirthdays(data as BirthdayMarker[]) })
       }
 

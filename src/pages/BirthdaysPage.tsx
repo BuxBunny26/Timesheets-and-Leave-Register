@@ -15,8 +15,6 @@ type BirthdayRow = {
   employee_code: string | null
   site_id: string | null
   birthday_this_year: string   // ISO date YYYY-MM-DD
-  date_of_birth: string        // ISO date YYYY-MM-DD
-  turning_age: number
 }
 
 function daysUntilBirthday(isoThisYear: string): number {
@@ -50,7 +48,7 @@ export default function BirthdaysPage() {
       setLoading(true)
       const { data, error } = await supabase
         .from('birthdays_this_year')
-        .select('employee_id, first_name, surname, employee_code, site_id, birthday_this_year, date_of_birth, turning_age')
+        .select('employee_id, first_name, surname, employee_code, site_id, birthday_this_year')
         .order('birthday_this_year')
       if (!cancelled && !error && data) setRows(data as BirthdayRow[])
       setLoading(false)
@@ -118,7 +116,6 @@ export default function BirthdaysPage() {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 rounded-full text-sm font-medium text-amber-900 hover:bg-amber-100"
                   >
                     {r.first_name} {r.surname}
-                    <span className="text-xs text-amber-600">turns {r.turning_age}</span>
                   </Link>
                 ))}
               </div>
@@ -180,7 +177,6 @@ export default function BirthdaysPage() {
               <ul className="divide-y divide-gray-50">
                 {monthRows.map(r => {
                   const bday = new Date(r.birthday_this_year + 'T00:00:00')
-                  const dob = new Date(r.date_of_birth + 'T00:00:00')
                   return (
                     <li key={r.employee_id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 gap-4">
                       <div className="flex items-center gap-3 min-w-0">
@@ -198,14 +194,12 @@ export default function BirthdaysPage() {
                           >
                             {r.surname}, {r.first_name}
                           </Link>
-                          <p className="text-xs text-gray-500">
-                            Born {dob.toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}
-                            {r.employee_code ? ` · ${r.employee_code}` : ''}
-                          </p>
+                          {r.employee_code && (
+                            <p className="text-xs text-gray-500">{r.employee_code}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-none">
-                        <span className="text-xs text-gray-500">Turns {r.turning_age}</span>
                         <BirthdayBadge isoThisYear={r.birthday_this_year} />
                       </div>
                     </li>

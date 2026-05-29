@@ -63,7 +63,6 @@ export type BirthdayMarker = {
   first_name: string
   surname: string
   birthday_this_year: string   // ISO YYYY-MM-DD
-  turning_age: number
 }
 
 export default function LeaveCalendar({ birthdays = [] }: { birthdays?: BirthdayMarker[] }) {
@@ -269,7 +268,7 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                   </span>
                   <span className="flex items-center gap-0.5">
                     {hasBirthdays && (
-                      <span title={bdayEntries.map(b => `${b.first_name} ${b.surname} (turns ${b.turning_age})`).join(', ')}>
+                      <span title={bdayEntries.map(b => `${b.first_name} ${b.surname}`).join(', ')}>
                         <IconCake className="w-3.5 h-3.5 text-pink-400" />
                       </span>
                     )}
