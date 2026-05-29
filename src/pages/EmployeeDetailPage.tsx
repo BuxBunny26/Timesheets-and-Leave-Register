@@ -147,10 +147,19 @@ export default function EmployeeDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [supervisorName, setSupervisorName] = useState<string | null>(null)
+  const [cellNumber, setCellNumber] = useState('')
+  const [profilePatch, setProfilePatch] = useState({ job_title: '', site_id: '', supervisor_id: '', status: 'active' as 'active' | 'inactive' })
+  const [sites, setSites] = useState<{ id: string; name: string }[]>([])
+  const [allProfiles, setAllProfiles] = useState<{ id: string; first_name: string; surname: string; employee_code: string | null }[]>([])
 
   const isSelf = viewer?.id === id
-  const isAdmin = viewer?.role === 'admin_manager' || viewer?.role === 'system_admin'
-  const canEdit = !!(isSelf || isAdmin)
+  const isManager = ['manager', 'admin_manager', 'system_admin'].includes(viewer?.role ?? '')
+  const isSupervisor = viewer?.role === 'supervisor'
+  const canViewPage = isSelf || isManager || isSupervisor
+  const canEditPersonal = isSelf || isManager  // address, cell, allergies, NOK, medical
+  const canEditAdmin = isManager               // docs, certs, education, competencies
+  const canEdit = canEditPersonal
 
   function showToast(type: 'success' | 'error', message: string) {
     setToast({ type, message })
@@ -164,7 +173,7 @@ export default function EmployeeDetailPage() {
       setLoading(true)
       const [{ data: prof }, { data: det }, { data: deps }, { data: types }, { data: ec }] = await Promise.all([
         supabase.from('profiles')
-          .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*), supervisor:profiles!profiles_supervisor_id_fkey(id, first_name, surname, email)')
+          .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*)')
           .eq('id', id).maybeSingle(),
         supabase.from('employee_details').select('*').eq('employee_id', id).maybeSingle(),
         supabase.from('employee_dependants').select('*').eq('employee_id', id).order('created_at'),
@@ -173,6 +182,18 @@ export default function EmployeeDetailPage() {
       ])
       if (cancelled) return
       setEmployee((prof as unknown as Profile) ?? null)
+      // Fetch supervisor name separately (avoids self-referential join RLS failures)
+      if (prof?.supervisor_id) {
+        const { data: supData } = await supabase.rpc('get_supervisor_names', { supervisor_ids: [prof.supervisor_id] })
+        if (!cancelled && supData?.[0]) setSupervisorName(`${supData[0].first_name} ${supData[0].surname}`)
+      }
+      setCellNumber(prof?.cell_number ?? '')
+      setProfilePatch({
+        job_title: prof?.job_title ?? '',
+        site_id: prof?.site_id ?? '',
+        supervisor_id: prof?.supervisor_id ?? '',
+        status: (prof?.status ?? 'active') as 'active' | 'inactive',
+      })
       if (det) {
         const { employee_id: _e, created_at: _c, updated_at: _u, ...rest } = det as EmployeeDetails
         setDetails(rest)
@@ -184,6 +205,17 @@ export default function EmployeeDetailPage() {
       const map: Record<string, EmployeeCertification> = {}
       for (const c of (ec as EmployeeCertification[]) ?? []) map[c.certification_type_id] = c
       setCerts(map)
+      // Load site + profile lists for manager dropdowns
+      if (isManager) {
+        const [{ data: siteData }, { data: profileData }] = await Promise.all([
+          supabase.from('sites').select('id, name').order('name'),
+          supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname'),
+        ])
+        if (!cancelled) {
+          setSites((siteData ?? []) as { id: string; name: string }[])
+          setAllProfiles((profileData ?? []) as { id: string; first_name: string; surname: string; employee_code: string | null }[])
+        }
+      }
       setLoading(false)
     }
     load()
@@ -202,32 +234,48 @@ export default function EmployeeDetailPage() {
     if (!id || !canEdit) return
     setSaving(true)
     try {
-      // 1. Upsert employee_details
+      // 1. Update profiles table fields
+      const profileUpdate: Record<string, unknown> = {}
+      if (canEditPersonal) profileUpdate.cell_number = cellNumber.trim() || null
+      if (canEditAdmin) {
+        profileUpdate.job_title = profilePatch.job_title.trim() || null
+        profileUpdate.site_id = profilePatch.site_id || null
+        profileUpdate.supervisor_id = profilePatch.supervisor_id || null
+        profileUpdate.status = profilePatch.status
+      }
+      if (Object.keys(profileUpdate).length > 0) {
+        const { error: pErr } = await supabase.from('profiles').update(profileUpdate).eq('id', id)
+        if (pErr) throw pErr
+      }
+
+      // 2. Upsert employee_details
       const { error: edErr } = await supabase
         .from('employee_details')
         .upsert({ employee_id: id, ...details }, { onConflict: 'employee_id' })
       if (edErr) throw edErr
 
-      // 2. Upsert certifications (only rows the user toggled or set fields on)
-      const certRows = certTypes
-        .map(t => certs[t.id])
-        .filter(Boolean) as EmployeeCertification[]
-      if (certRows.length > 0) {
-        const payload = certRows.map(c => ({
-          ...(c.id ? { id: c.id } : {}),
-          employee_id: id,
-          certification_type_id: c.certification_type_id,
-          has_certification: c.has_certification,
-          expiry_date: c.expiry_date,
-          attached: c.attached,
-          file_name: c.file_name,
-          file_url: c.file_url,
-          notes: c.notes,
-        }))
-        const { error: cErr } = await supabase
-          .from('employee_certifications')
-          .upsert(payload, { onConflict: 'employee_id,certification_type_id' })
-        if (cErr) throw cErr
+      // 3. Upsert certifications (managers only)
+      if (canEditAdmin) {
+        const certRows = certTypes
+          .map(t => certs[t.id])
+          .filter(Boolean) as EmployeeCertification[]
+        if (certRows.length > 0) {
+          const payload = certRows.map(c => ({
+            ...(c.id ? { id: c.id } : {}),
+            employee_id: id,
+            certification_type_id: c.certification_type_id,
+            has_certification: c.has_certification,
+            expiry_date: c.expiry_date,
+            attached: c.attached,
+            file_name: c.file_name,
+            file_url: c.file_url,
+            notes: c.notes,
+          }))
+          const { error: cErr } = await supabase
+            .from('employee_certifications')
+            .upsert(payload, { onConflict: 'employee_id,certification_type_id' })
+          if (cErr) throw cErr
+        }
       }
 
       showToast('success', 'Saved')
@@ -295,7 +343,7 @@ export default function EmployeeDetailPage() {
   }, [certs, certTypes, details])
 
   if (loading) return <div className="text-center py-10 text-gray-500">Loading…</div>
-  if (!employee) return <div className="text-center py-10 text-red-600">Employee not found or you don't have access.</div>
+  if (!employee) return <div className="text-center py-10 text-red-600">{canViewPage ? 'Employee not found.' : 'You do not have access to this profile.'}</div>
 
   return (
     <div className="space-y-4">
@@ -313,7 +361,7 @@ export default function EmployeeDetailPage() {
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{employee.surname}, {employee.first_name}</h1>
             <p className="text-sm text-gray-500">
-              {employee.job_title ?? '—'} · {employee.department?.name ?? '—'} · {employee.site?.name ?? '—'} · {employee.supervisor ? `Supervisor: ${employee.supervisor.first_name} ${employee.supervisor.surname}` : 'No supervisor'}
+              {employee.job_title ?? '—'} · {employee.department?.name ?? '—'} · {employee.site?.name ?? '—'} · {supervisorName ? `Supervisor: ${supervisorName}` : 'No supervisor set'}
             </p>
           </div>
         </div>
@@ -330,7 +378,7 @@ export default function EmployeeDetailPage() {
 
       {!canEdit && (
         <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-xs text-gray-600">
-          You have read-only access to this profile.
+          {isSupervisor ? 'You have read-only access to this profile.' : 'You can update your personal information below. Contact your manager to change work details.'}
         </div>
       )}
 
@@ -343,37 +391,72 @@ export default function EmployeeDetailPage() {
         </div>
       )}
 
+      {canEditAdmin && (
+        <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Staff Details</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <label className="block">
+              <span className="block text-xs font-medium text-gray-600 mb-1">Job Title</span>
+              <input type="text" value={profilePatch.job_title} onChange={e => setProfilePatch(p => ({ ...p, job_title: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-gray-600 mb-1">Status</span>
+              <select value={profilePatch.status} onChange={e => setProfilePatch(p => ({ ...p, status: e.target.value as 'active' | 'inactive' }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-xs font-medium text-gray-600 mb-1">Site</span>
+              <select value={profilePatch.site_id} onChange={e => setProfilePatch(p => ({ ...p, site_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+                <option value="">— No site —</option>
+                {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="block text-xs font-medium text-gray-600 mb-1">Supervisor</span>
+              <select value={profilePatch.supervisor_id} onChange={e => setProfilePatch(p => ({ ...p, supervisor_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+                <option value="">— No supervisor —</option>
+                {allProfiles.filter(p => p.id !== id).map(p => (
+                  <option key={p.id} value={p.id}>{p.surname}, {p.first_name}{p.employee_code ? ` (${p.employee_code})` : ''}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </section>
+      )}
+
       <Section title="Identity">
-        <Toggle label="ID attached" checked={details.id_attached} onChange={v => update({ id_attached: v })} disabled={!canEdit} />
-        <Toggle label="Has passport" checked={details.has_passport} onChange={v => update({ has_passport: v })} disabled={!canEdit} />
-        <Toggle label="Passport attached" checked={details.passport_attached} onChange={v => update({ passport_attached: v })} disabled={!canEdit} />
-        <Field label="Passport number" value={details.passport_number} onChange={v => update({ passport_number: nullable(v) })} disabled={!canEdit} />
+        <Toggle label="ID attached" checked={details.id_attached} onChange={v => update({ id_attached: v })} disabled={!canEditAdmin} />
+        <Toggle label="Has passport" checked={details.has_passport} onChange={v => update({ has_passport: v })} disabled={!canEditAdmin} />
+        <Toggle label="Passport attached" checked={details.passport_attached} onChange={v => update({ passport_attached: v })} disabled={!canEditAdmin} />
+        <Field label="Passport number" value={details.passport_number} onChange={v => update({ passport_number: nullable(v) })} disabled={!canEditAdmin} />
         <div>
-          <Field label="Passport expiry" type="date" value={details.passport_expiry} onChange={v => update({ passport_expiry: nullable(v) })} disabled={!canEdit} />
+          <Field label="Passport expiry" type="date" value={details.passport_expiry} onChange={v => update({ passport_expiry: nullable(v) })} disabled={!canEditAdmin} />
           <div className="mt-1"><ExpiryBadge iso={details.passport_expiry} /></div>
         </div>
-        <DocLink label="ID document link" url={details.id_file_url} fileName={details.id_file_name} onUrlChange={v => update({ id_file_url: v })} disabled={!canEdit} />
-        <DocLink label="Passport document link" url={details.passport_file_url} fileName={details.passport_file_name} onUrlChange={v => update({ passport_file_url: v })} disabled={!canEdit} />
+        <DocLink label="ID document link" url={details.id_file_url} fileName={details.id_file_name} onUrlChange={v => update({ id_file_url: v })} disabled={!canEditAdmin} />
+        <DocLink label="Passport document link" url={details.passport_file_url} fileName={details.passport_file_name} onUrlChange={v => update({ passport_file_url: v })} disabled={!canEditAdmin} />
       </Section>
 
       <Section title="Contact">
-        <Field label="Cell number" value={employee.cell_number} onChange={() => {}} disabled placeholder="Edit in Profile page" />
-        <Field label="Cell phone contract owner" value={details.cell_phone_contract_owner} onChange={v => update({ cell_phone_contract_owner: nullable(v) })} disabled={!canEdit} />
-        <Field label="Service provider" value={details.service_provider} onChange={v => update({ service_provider: nullable(v) })} disabled={!canEdit} />
-        <Field label="WhatsApp (if different)" value={details.whatsapp_number} onChange={v => update({ whatsapp_number: nullable(v) })} disabled={!canEdit} />
-        <Field label="Personal e-mail" type="email" value={details.personal_email} onChange={v => update({ personal_email: nullable(v) })} disabled={!canEdit} />
+        <Field label="Cell number" value={cellNumber} onChange={v => setCellNumber(v)} disabled={!canEditPersonal} />
+        <Field label="Cell phone contract owner" value={details.cell_phone_contract_owner} onChange={v => update({ cell_phone_contract_owner: nullable(v) })} disabled={!canEditAdmin} />
+        <Field label="Service provider" value={details.service_provider} onChange={v => update({ service_provider: nullable(v) })} disabled={!canEditAdmin} />
+        <Field label="WhatsApp (if different)" value={details.whatsapp_number} onChange={v => update({ whatsapp_number: nullable(v) })} disabled={!canEditPersonal} />
+        <Field label="Personal e-mail" type="email" value={details.personal_email} onChange={v => update({ personal_email: nullable(v) })} disabled={!canEditPersonal} />
         <Field label="Company e-mail" value={employee.email} onChange={() => {}} disabled />
       </Section>
 
       <Section title="Driver's Licence">
-        <Toggle label="Has driver's licence" checked={details.has_drivers_licence} onChange={v => update({ has_drivers_licence: v })} disabled={!canEdit} />
-        <Toggle label="Attached" checked={details.drivers_licence_attached} onChange={v => update({ drivers_licence_attached: v })} disabled={!canEdit} />
-        <Field label="Licence number" value={details.drivers_licence_number} onChange={v => update({ drivers_licence_number: nullable(v) })} disabled={!canEdit} />
+        <Toggle label="Has driver's licence" checked={details.has_drivers_licence} onChange={v => update({ has_drivers_licence: v })} disabled={!canEditAdmin} />
+        <Toggle label="Attached" checked={details.drivers_licence_attached} onChange={v => update({ drivers_licence_attached: v })} disabled={!canEditAdmin} />
+        <Field label="Licence number" value={details.drivers_licence_number} onChange={v => update({ drivers_licence_number: nullable(v) })} disabled={!canEditAdmin} />
         <div>
-          <Field label="Licence expiry" type="date" value={details.drivers_licence_expiry} onChange={v => update({ drivers_licence_expiry: nullable(v) })} disabled={!canEdit} />
+          <Field label="Licence expiry" type="date" value={details.drivers_licence_expiry} onChange={v => update({ drivers_licence_expiry: nullable(v) })} disabled={!canEditAdmin} />
           <div className="mt-1"><ExpiryBadge iso={details.drivers_licence_expiry} /></div>
         </div>
-        <DocLink label="Driver's licence document link" url={details.drivers_licence_file_url} fileName={details.drivers_licence_file_name} onUrlChange={v => update({ drivers_licence_file_url: v })} disabled={!canEdit} />
+        <DocLink label="Driver's licence document link" url={details.drivers_licence_file_url} fileName={details.drivers_licence_file_name} onUrlChange={v => update({ drivers_licence_file_url: v })} disabled={!canEditAdmin} />
       </Section>
 
       <Section title="Medical">
@@ -433,12 +516,12 @@ export default function EmployeeDetailPage() {
       </section>
 
       <Section title="Education & Start Date">
-        <Toggle label="Matric" checked={details.matric} onChange={v => update({ matric: v })} disabled={!canEdit} />
-        <Field label="Matric completed year" type="number" value={details.matric_year} onChange={v => update({ matric_year: nullableInt(v) })} disabled={!canEdit} />
-        <Field label="Start date" type="date" value={details.start_date} onChange={v => update({ start_date: nullable(v) })} disabled={!canEdit} />
-        <Field label="Trade certificate" value={details.trade_certificate} onChange={v => update({ trade_certificate: nullable(v) })} disabled={!canEdit} />
-        <Field label="Diplomas / degrees" value={details.diplomas_degrees} onChange={v => update({ diplomas_degrees: nullable(v) })} disabled={!canEdit} />
-        <Field label="Other qualification" value={details.other_qualification} onChange={v => update({ other_qualification: nullable(v) })} disabled={!canEdit} />
+        <Toggle label="Matric" checked={details.matric} onChange={v => update({ matric: v })} disabled={!canEditAdmin} />
+        <Field label="Matric completed year" type="number" value={details.matric_year} onChange={v => update({ matric_year: nullableInt(v) })} disabled={!canEditAdmin} />
+        <Field label="Start date" type="date" value={details.start_date} onChange={v => update({ start_date: nullable(v) })} disabled={!canEditAdmin} />
+        <Field label="Trade certificate" value={details.trade_certificate} onChange={v => update({ trade_certificate: nullable(v) })} disabled={!canEditAdmin} />
+        <Field label="Diplomas / degrees" value={details.diplomas_degrees} onChange={v => update({ diplomas_degrees: nullable(v) })} disabled={!canEditAdmin} />
+        <Field label="Other qualification" value={details.other_qualification} onChange={v => update({ other_qualification: nullable(v) })} disabled={!canEditAdmin} />
       </Section>
 
       <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
@@ -463,7 +546,7 @@ export default function EmployeeDetailPage() {
                     <td className="px-3 py-2">
                       <input
                         type="checkbox"
-                        disabled={!canEdit}
+                        disabled={!canEditAdmin}
                         checked={c?.has_certification ?? false}
                         onChange={e => setCert(t.id, { has_certification: e.target.checked })}
                       />
@@ -471,7 +554,7 @@ export default function EmployeeDetailPage() {
                     <td className="px-3 py-2">
                       <input
                         type="date"
-                        disabled={!canEdit || !(c?.has_certification ?? false)}
+                        disabled={!canEditAdmin || !(c?.has_certification ?? false)}
                         value={c?.expiry_date ?? ''}
                         onChange={e => setCert(t.id, { expiry_date: e.target.value || null })}
                         className="px-2 py-1 border border-gray-300 rounded-md text-sm disabled:bg-gray-50"
@@ -483,7 +566,7 @@ export default function EmployeeDetailPage() {
                         <div className="flex items-center gap-2">
                           <input
                             type="url"
-                            disabled={!canEdit}
+                            disabled={!canEditAdmin}
                             value={c?.file_url ?? ''}
                             onChange={e => setCert(t.id, { file_url: e.target.value.trim() === '' ? null : e.target.value.trim(), attached: e.target.value.trim() !== '' ? true : (c?.attached ?? false) })}
                             placeholder="OneDrive / SharePoint link"
@@ -520,7 +603,7 @@ export default function EmployeeDetailPage() {
             label={c.label}
             checked={Boolean(details[c.key])}
             onChange={v => update({ [c.key]: v } as Partial<DetailsForm>)}
-            disabled={!canEdit}
+            disabled={!canEditAdmin}
           />
         ))}
       </Section>
