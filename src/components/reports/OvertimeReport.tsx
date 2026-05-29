@@ -39,7 +39,7 @@ export default function OvertimeReport() {
   }
 
   useEffect(() => {
-    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
+    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('first_name')
     if (scope) q = q.in('id', scope)
     q.then(({ data }) => { if (data) setEmployees(data as Profile[]) })
   }, [scope])
@@ -119,7 +119,7 @@ export default function OvertimeReport() {
             <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
               <option value="">All employees</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name}</option>)}
+              {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.surname}</option>)}
             </select>
           </div>
         )}

@@ -192,7 +192,7 @@ export default function BirthdaysPage() {
                             to={`/employees/${r.employee_id}`}
                             className="text-sm font-medium text-gray-900 hover:text-[#1B5EA6] hover:underline truncate block"
                           >
-                            {r.surname}, {r.first_name}
+                            {r.first_name} {r.surname}
                           </Link>
                           {r.employee_code && (
                             <p className="text-xs text-gray-500">{r.employee_code}</p>

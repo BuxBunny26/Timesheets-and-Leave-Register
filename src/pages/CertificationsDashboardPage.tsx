@@ -261,7 +261,7 @@ export default function CertificationsDashboardPage() {
     return [...result].sort((a, b) => {
       let cmp = 0
       if (sortField === 'name') {
-        cmp = `${a.profiles?.surname} ${a.profiles?.first_name}`.localeCompare(`${b.profiles?.surname} ${b.profiles?.first_name}`)
+        cmp = `${a.profiles?.first_name} ${a.profiles?.surname}`.localeCompare(`${b.profiles?.first_name} ${b.profiles?.surname}`)
       } else if (sortField === 'cert') {
         cmp = (a.certification_types?.display_order ?? 0) - (b.certification_types?.display_order ?? 0)
       } else if (sortField === 'expiry') {

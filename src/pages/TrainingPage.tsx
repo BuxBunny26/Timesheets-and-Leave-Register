@@ -491,6 +491,11 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState<string | null>(null)
   const [catFilter, setCatFilter] = useState<'all' | 'highest'>('all')
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedEmps, setSelectedEmps] = useState<Set<string>>(new Set())
+  const [bulkStatus, setBulkStatus] = useState<MatrixStatus | 'clear'>('completed')
+  const [bulkCourseId, setBulkCourseId] = useState<string>('all')
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   const loadEntries = useCallback(async () => {
     setLoading(true)
@@ -541,6 +546,33 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
       }
     }
     setSaving(null)
+    loadEntries()
+  }
+
+  async function applyBulk() {
+    if (!bulkStatus || selectedEmps.size === 0) return
+    setBulkSaving(true)
+    const targetCourses = bulkCourseId === 'all' ? courses : courses.filter(c => c.id === bulkCourseId)
+    const ops: Promise<unknown>[] = []
+    for (const empId of selectedEmps) {
+      for (const course of targetCourses) {
+        const key = `${empId}:${course.id}`
+        const existing = entryMap.get(key)
+        if (bulkStatus === 'clear') {
+          if (existing) ops.push(supabase.from('training_matrix_entries').delete().eq('id', existing.id))
+        } else {
+          const completedDate = bulkStatus === 'completed' ? new Date().toISOString().slice(0, 10) : null
+          if (existing) {
+            ops.push(supabase.from('training_matrix_entries').update({ status: bulkStatus, completed_date: completedDate }).eq('id', existing.id))
+          } else {
+            ops.push(supabase.from('training_matrix_entries').insert({ employee_id: empId, course_id: course.id, financial_year: fy, quarter, status: bulkStatus, completed_date: completedDate }))
+          }
+        }
+      }
+    }
+    await Promise.all(ops)
+    setBulkSaving(false)
+    setSelectedEmps(new Set())
     loadEntries()
   }
 
@@ -641,6 +673,20 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
             Highest level only
           </button>
         </div>
+
+        {/* Bulk update toggle */}
+        {isManager && (
+          <button
+            onClick={() => { setBulkMode(m => !m); setSelectedEmps(new Set()) }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+              bulkMode
+                ? 'bg-[#1B5EA6] text-white border-[#1B5EA6]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            {bulkMode ? 'Exit Bulk Update' : 'Bulk Update'}
+          </button>
+        )}
       </div>
 
       {/* Legend */}
@@ -655,6 +701,45 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
         {isManager && <span className="text-gray-400 italic">Click any cell to cycle status</span>}
       </div>
 
+      {/* Bulk action bar */}
+      {isManager && bulkMode && selectedEmps.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+          <span className="text-sm font-semibold text-[#1B5EA6]">{selectedEmps.size} employee{selectedEmps.size !== 1 ? 's' : ''} selected</span>
+          <select
+            value={bulkCourseId}
+            onChange={e => setBulkCourseId(e.target.value)}
+            className="px-2 py-1.5 border border-blue-200 rounded-md text-sm bg-white"
+          >
+            <option value="all">All courses</option>
+            {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select
+            value={bulkStatus}
+            onChange={e => setBulkStatus(e.target.value as MatrixStatus | 'clear')}
+            className="px-2 py-1.5 border border-blue-200 rounded-md text-sm bg-white"
+          >
+            <option value="planned">Planned</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="completed">Completed</option>
+            <option value="not_applicable">N/A</option>
+            <option value="clear">Clear</option>
+          </select>
+          <button
+            onClick={applyBulk}
+            disabled={bulkSaving}
+            className="px-3 py-1.5 bg-[#1B5EA6] text-white text-sm font-medium rounded-md hover:bg-[#154d8a] disabled:opacity-50"
+          >
+            {bulkSaving ? 'Applying…' : 'Apply to selected'}
+          </button>
+          <button
+            onClick={() => setSelectedEmps(new Set())}
+            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-blue-100 rounded-md"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
       {/* Matrix table */}
       {loading ? (
         <div className="flex justify-center py-10">
@@ -667,7 +752,17 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
               {/* Technology group headers */}
               <tr className="border-b border-gray-200">
                 <th className="sticky left-0 top-0 z-30 bg-white px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-52 border-r border-gray-200">
-                  Employee
+                  <div className="flex items-center gap-2">
+                    {isManager && bulkMode && (
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-[#1B5EA6]"
+                        checked={selectedEmps.size === employees.length && employees.length > 0}
+                        onChange={e => setSelectedEmps(e.target.checked ? new Set(employees.map(emp => emp.id)) : new Set())}
+                      />
+                    )}
+                    Employee
+                  </div>
                 </th>
                 {Array.from(courseGroups.entries()).map(([tech, techCourses]) => (
                   <th
@@ -704,15 +799,31 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
               {employees.map((emp, i) => (
                 <tr key={emp.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                   <td className="sticky left-0 z-10 px-4 py-2 border-r border-gray-200 bg-inherit">
-                    <Link
-                      to={`/employees/${emp.id}`}
-                      className="font-medium text-gray-800 hover:text-[#1B5EA6] whitespace-nowrap"
-                    >
-                      {emp.first_name} {emp.surname}
-                    </Link>
-                    {emp.employee_code && (
-                      <p className="text-[10px] text-gray-400">{emp.employee_code}</p>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isManager && bulkMode && (
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-[#1B5EA6] flex-shrink-0"
+                          checked={selectedEmps.has(emp.id)}
+                          onChange={() => setSelectedEmps(prev => {
+                            const next = new Set(prev)
+                            next.has(emp.id) ? next.delete(emp.id) : next.add(emp.id)
+                            return next
+                          })}
+                        />
+                      )}
+                      <div>
+                        <Link
+                          to={`/employees/${emp.id}`}
+                          className="font-medium text-gray-800 hover:text-[#1B5EA6] whitespace-nowrap"
+                        >
+                          {emp.first_name} {emp.surname}
+                        </Link>
+                        {emp.employee_code && (
+                          <p className="text-[10px] text-gray-400">{emp.employee_code}</p>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   {courses.map(course => {
                     const key = `${emp.id}:${course.id}`
@@ -797,7 +908,7 @@ export default function TrainingPage() {
       `).order('scheduled_date', { ascending: false }),
       supabase.from('profiles').select('id, first_name, surname, employee_code, role, department_id')
         .eq('status', 'active')
-        .order('surname'),
+        .order('first_name'),
     ])
     setCourses((coursesData as Course[]) ?? [])
     setSessions((sessionsData as unknown as Session[]) ?? [])

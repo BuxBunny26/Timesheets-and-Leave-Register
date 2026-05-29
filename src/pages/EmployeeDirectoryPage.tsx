@@ -61,10 +61,10 @@ function buildOrgTree(employees: Row[]): OrgNode[] {
     }
   }
   const sortTree = (n: OrgNode) => {
-    n.children.sort((a, b) => a.surname.localeCompare(b.surname))
+    n.children.sort((a, b) => a.first_name.localeCompare(b.first_name))
     n.children.forEach(sortTree)
   }
-  roots.sort((a, b) => a.surname.localeCompare(b.surname))
+  roots.sort((a, b) => a.first_name.localeCompare(b.first_name))
   roots.forEach(sortTree)
   return roots
 }
@@ -78,7 +78,7 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
           ? 'bg-blue-50 border border-blue-200 hover:border-[#1B5EA6]'
           : 'bg-white border border-gray-200 hover:border-gray-300'
       }`}>
-        <p className="text-[11px] font-semibold text-gray-900 leading-tight">{node.surname}, {node.first_name}</p>
+        <p className="text-[11px] font-semibold text-gray-900 leading-tight">{node.first_name} {node.surname}</p>
         {node.job_title && (
           <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
         )}
@@ -199,7 +199,7 @@ export default function EmployeeDirectoryPage() {
           site:sites(name),
           department:departments(name)
         `)
-        .order('surname')
+        .order('first_name')
 
       if (error) {
         console.error('Directory load failed:', error)
@@ -408,7 +408,7 @@ export default function EmployeeDirectoryPage() {
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Surname, Name</th>
+                  <th className="px-3 py-2 text-left font-medium">Name</th>
                   <th className="px-3 py-2 text-left font-medium">Email</th>
                   <th className="px-3 py-2 text-left font-medium">Job Title</th>
                   <th className="px-3 py-2 text-left font-medium">Division</th>
@@ -430,7 +430,7 @@ export default function EmployeeDirectoryPage() {
                   >
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <Link to={`/employees/${r.id}`} className="text-[#1B5EA6] hover:underline font-medium">
-                        {r.surname}, {r.first_name}
+                        {r.first_name} {r.surname}
                       </Link>
                       {r.employee_code && (
                         <div className="text-[11px] text-gray-500">{r.employee_code}</div>
@@ -484,7 +484,7 @@ export default function EmployeeDirectoryPage() {
               <Link key={r.id} to={`/employees/${r.id}`} className="block px-3 py-3 hover:bg-blue-50/40">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{r.surname}, {r.first_name}</p>
+                    <p className="font-medium text-gray-900 truncate">{r.first_name} {r.surname}</p>
                     <p className="text-xs text-gray-500 truncate">{r.job_title ?? '—'} · {r.department?.name ?? '—'} · {r.site?.name ?? '—'}</p>
                     <p className="text-xs text-gray-500 truncate">{r.email}</p>
                   </div>

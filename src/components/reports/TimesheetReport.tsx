@@ -37,7 +37,7 @@ export default function TimesheetReport() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname')
+    let q = supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('first_name')
     if (scope) q = q.in('id', scope)
     q.then(({ data }) => {
       if (!data) return
@@ -128,7 +128,7 @@ export default function TimesheetReport() {
             <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
               <option value="">Select employee...</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.surname}, {e.first_name} {e.employee_code ? `(${e.employee_code})` : ''}</option>)}
+              {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.surname} {e.employee_code ? `(${e.employee_code})` : ''}</option>)}
             </select>
           </div>
         )}

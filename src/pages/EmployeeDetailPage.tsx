@@ -210,7 +210,7 @@ export default function EmployeeDetailPage() {
       if (isManager) {
         const [{ data: siteData }, { data: profileData }] = await Promise.all([
           supabase.from('sites').select('id, name').order('name'),
-          supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('surname'),
+          supabase.from('profiles').select('id, first_name, surname, employee_code').eq('status', 'active').order('first_name'),
         ])
         if (!cancelled) {
           setSites((siteData ?? []) as { id: string; name: string }[])
@@ -360,7 +360,7 @@ export default function EmployeeDetailPage() {
             <IconChevronLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{employee.surname}, {employee.first_name}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">{employee.first_name} {employee.surname}</h1>
             <p className="text-sm text-gray-500">
               {employee.job_title ?? '—'} · {employee.department?.name ?? '—'} · {employee.site?.name ?? '—'} · {supervisorName ? `Supervisor: ${supervisorName}` : 'No supervisor set'}
             </p>
@@ -419,7 +419,7 @@ export default function EmployeeDetailPage() {
               <select value={profilePatch.supervisor_id} onChange={e => setProfilePatch(p => ({ ...p, supervisor_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
                 <option value="">— No supervisor —</option>
                 {allProfiles.filter(p => p.id !== id).map(p => (
-                  <option key={p.id} value={p.id}>{p.surname}, {p.first_name}{p.employee_code ? ` (${p.employee_code})` : ''}</option>
+                  <option key={p.id} value={p.id}>{p.first_name} {p.surname}{p.employee_code ? ` (${p.employee_code})` : ''}</option>
                 ))}
               </select>
             </label>
