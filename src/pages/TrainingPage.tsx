@@ -553,7 +553,7 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
     if (!bulkStatus || selectedEmps.size === 0) return
     setBulkSaving(true)
     const targetCourses = bulkCourseId === 'all' ? courses : courses.filter(c => c.id === bulkCourseId)
-    const ops: Promise<unknown>[] = []
+    const ops: PromiseLike<unknown>[] = []
     for (const empId of selectedEmps) {
       for (const course of targetCourses) {
         const key = `${empId}:${course.id}`
