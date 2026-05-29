@@ -67,7 +67,6 @@ function buildAnniversaryRows(rawRows: { id: string; first_name: string; surname
     // Anniversary this calendar year
     let anniversaryThisYear = new Date(currentYear, startDate.getMonth(), startDate.getDate())
     // If already passed, show next year's
-    const yearsThisYear = currentYear - startDate.getFullYear()
     if (anniversaryThisYear < today) {
       anniversaryThisYear = new Date(currentYear + 1, startDate.getMonth(), startDate.getDate())
     }

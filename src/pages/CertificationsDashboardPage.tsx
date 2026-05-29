@@ -150,7 +150,7 @@ export default function CertificationsDashboardPage() {
       if (cancelled) return
       if (types) setCertTypes(types as CertType[])
       if (certs) {
-        const enriched: EnrichedCert[] = (certs as RawCertRow[]).map(r => {
+        const enriched: EnrichedCert[] = (certs as unknown as RawCertRow[]).map(r => {
           const { status, days } = computeCertStatus(r.expiry_date)
           return { ...r, cert_status: status, days_until_expiry: days }
         })
