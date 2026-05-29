@@ -420,7 +420,7 @@ export default function CertificationsDashboardPage() {
                               {r.certification_types?.technology && (
                                 <p className="text-xs text-gray-400">
                                   {r.certification_types.technology}
-                                  {r.certification_types.cert_level ? ` � ${r.certification_types.cert_level}` : ''}
+                                  {r.certification_types.cert_level ? ` \u00b7 ${r.certification_types.cert_level}` : ''}
                                 </p>
                               )}
                             </div>
