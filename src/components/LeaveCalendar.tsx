@@ -268,8 +268,18 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                   </span>
                   <span className="flex items-center gap-0.5">
                     {hasBirthdays && (
-                      <span title={bdayEntries.map(b => `${b.first_name} ${b.surname}`).join(', ')}>
-                        <IconCake className="w-3.5 h-3.5 text-pink-400" />
+                      <span className="relative group/bday">
+                        <IconCake className="w-3.5 h-3.5 text-pink-400 cursor-default" />
+                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                          hidden group-hover/bday:flex flex-col gap-0.5 min-w-max
+                          bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg">
+                          <span className="font-semibold text-pink-300 mb-0.5">Birthdays</span>
+                          {bdayEntries.map(b => (
+                            <span key={b.employee_id}>{b.first_name} {b.surname}</span>
+                          ))}
+                          {/* arrow */}
+                          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                        </span>
                       </span>
                     )}
                     {entries.length > 0 && (
