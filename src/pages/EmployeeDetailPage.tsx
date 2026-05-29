@@ -270,7 +270,7 @@ export default function EmployeeDetailPage() {
           <div>
             <h1 className="text-xl font-semibold text-gray-900">{employee.surname}, {employee.first_name}</h1>
             <p className="text-sm text-gray-500">
-              {employee.job_title ?? '—'} · {employee.site?.name ?? '—'} · {employee.supervisor ? `Supervisor: ${employee.supervisor.first_name} ${employee.supervisor.surname}` : 'No supervisor'}
+              {employee.job_title ?? '—'} · {employee.department?.name ?? '—'} · {employee.site?.name ?? '—'} · {employee.supervisor ? `Supervisor: ${employee.supervisor.first_name} ${employee.supervisor.surname}` : 'No supervisor'}
             </p>
           </div>
         </div>

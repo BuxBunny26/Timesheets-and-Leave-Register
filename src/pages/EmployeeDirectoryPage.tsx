@@ -16,6 +16,7 @@ interface Row {
   cell_number: string | null
   status: 'active' | 'inactive'
   site?: { name: string } | null
+  department?: { name: string } | null
   supervisor?: { id: string; first_name: string; surname: string } | null
   details?: {
     passport_expiry: string | null
@@ -49,6 +50,7 @@ export default function EmployeeDirectoryPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [siteFilter, setSiteFilter] = useState('')
+  const [departmentFilter, setDepartmentFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active')
   const [expiringOnly, setExpiringOnly] = useState(false)
 
@@ -58,47 +60,61 @@ export default function EmployeeDirectoryPage() {
 
     async function load() {
       setLoading(true)
-      // Profiles + joined site/supervisor/details
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select(`
           id, employee_code, first_name, surname, email, job_title, cell_number, status,
           site:sites(name),
-          supervisor:profiles!profiles_supervisor_id_fkey(id, first_name, surname),
-          details:employee_details(passport_expiry, drivers_licence_expiry)
+          department:departments(name),
+          supervisor:profiles!profiles_supervisor_id_fkey(id, first_name, surname)
         `)
         .order('surname')
 
       if (error) {
-        console.error(error)
+        console.error('Directory load failed:', error)
         setLoading(false)
         return
       }
 
       const ids = (profiles ?? []).map((p: { id: string }) => p.id)
-      let certsByEmp = new Map<string, EmployeeCertification[]>()
-      if (ids.length > 0) {
-        const { data: certs } = await supabase
-          .from('employee_certifications')
-          .select('id, employee_id, has_certification, expiry_date')
-          .in('employee_id', ids)
-          .eq('has_certification', true)
-          .not('expiry_date', 'is', null)
-        for (const c of (certs ?? []) as EmployeeCertification[]) {
-          const arr = certsByEmp.get(c.employee_id) ?? []
-          arr.push(c)
-          certsByEmp.set(c.employee_id, arr)
-        }
+
+      // Fetch details + certifications in parallel (separate queries to avoid
+      // PostgREST embed issues when employee_details rows are missing).
+      const [{ data: detailRows }, { data: certs }] = await Promise.all([
+        ids.length > 0
+          ? supabase
+              .from('employee_details')
+              .select('employee_id, passport_expiry, drivers_licence_expiry')
+              .in('employee_id', ids)
+          : Promise.resolve({ data: [] as { employee_id: string; passport_expiry: string | null; drivers_licence_expiry: string | null }[] }),
+        ids.length > 0
+          ? supabase
+              .from('employee_certifications')
+              .select('id, employee_id, certification_type_id, has_certification, expiry_date, attached, notes, created_at, updated_at')
+              .in('employee_id', ids)
+              .eq('has_certification', true)
+              .not('expiry_date', 'is', null)
+          : Promise.resolve({ data: [] as EmployeeCertification[] }),
+      ])
+
+      const detailByEmp = new Map<string, { passport_expiry: string | null; drivers_licence_expiry: string | null }>()
+      for (const d of (detailRows ?? []) as Array<{ employee_id: string; passport_expiry: string | null; drivers_licence_expiry: string | null }>) {
+        detailByEmp.set(d.employee_id, { passport_expiry: d.passport_expiry, drivers_licence_expiry: d.drivers_licence_expiry })
+      }
+      const certsByEmp = new Map<string, EmployeeCertification[]>()
+      for (const c of (certs ?? []) as EmployeeCertification[]) {
+        const arr = certsByEmp.get(c.employee_id) ?? []
+        arr.push(c)
+        certsByEmp.set(c.employee_id, arr)
       }
 
       const mapped: Row[] = (profiles ?? []).map((p: Record<string, unknown>) => {
-        const detailsRaw = p.details as unknown
-        const det = Array.isArray(detailsRaw) ? detailsRaw[0] : detailsRaw
-        const passportExp = (det as { passport_expiry?: string | null } | null)?.passport_expiry ?? null
-        const licenceExp = (det as { drivers_licence_expiry?: string | null } | null)?.drivers_licence_expiry ?? null
-        const certs = certsByEmp.get(p.id as string) ?? []
+        const det = detailByEmp.get(p.id as string) ?? null
+        const passportExp = det?.passport_expiry ?? null
+        const licenceExp = det?.drivers_licence_expiry ?? null
+        const ecerts = certsByEmp.get(p.id as string) ?? []
         const expiringSoon = [
-          ...certs.map(c => daysUntil(c.expiry_date)),
+          ...ecerts.map(c => daysUntil(c.expiry_date)),
           daysUntil(passportExp),
           daysUntil(licenceExp),
         ].filter((d): d is number => d !== null && d <= 60).length
@@ -113,6 +129,7 @@ export default function EmployeeDirectoryPage() {
           cell_number: (p.cell_number as string) ?? null,
           status: p.status as 'active' | 'inactive',
           site: (Array.isArray(p.site) ? p.site[0] : p.site) as Row['site'],
+          department: (Array.isArray(p.department) ? p.department[0] : p.department) as Row['department'],
           supervisor: (Array.isArray(p.supervisor) ? p.supervisor[0] : p.supervisor) as Row['supervisor'],
           details: { passport_expiry: passportExp, drivers_licence_expiry: licenceExp },
           expiring_count: expiringSoon,
@@ -135,21 +152,29 @@ export default function EmployeeDirectoryPage() {
     return Array.from(s).sort()
   }, [rows])
 
+  const departments = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of rows) if (r.department?.name) s.add(r.department.name)
+    return Array.from(s).sort()
+  }, [rows])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return rows.filter(r => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
       if (siteFilter && r.site?.name !== siteFilter) return false
+      if (departmentFilter && r.department?.name !== departmentFilter) return false
       if (expiringOnly && (r.expiring_count ?? 0) === 0) return false
       if (!term) return true
       const hay = [
         r.first_name, r.surname, r.email, r.employee_code ?? '',
         r.job_title ?? '', r.cell_number ?? '',
+        r.department?.name ?? '',
         r.supervisor ? `${r.supervisor.first_name} ${r.supervisor.surname}` : '',
       ].join(' ').toLowerCase()
       return hay.includes(term)
     })
-  }, [rows, search, siteFilter, statusFilter, expiringOnly])
+  }, [rows, search, siteFilter, departmentFilter, statusFilter, expiringOnly])
 
   if (!profile) return null
   if (!isAllowed) return <Navigate to="/" replace />
@@ -181,6 +206,14 @@ export default function EmployeeDirectoryPage() {
           {sites.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select
+          value={departmentFilter}
+          onChange={e => setDepartmentFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+        >
+          <option value="">All departments</option>
+          {departments.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
           className="px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -207,6 +240,7 @@ export default function EmployeeDirectoryPage() {
                   <th className="px-3 py-2 text-left font-medium">Surname, Name</th>
                   <th className="px-3 py-2 text-left font-medium">Email</th>
                   <th className="px-3 py-2 text-left font-medium">Job Title</th>
+                  <th className="px-3 py-2 text-left font-medium">Department</th>
                   <th className="px-3 py-2 text-left font-medium">Supervisor</th>
                   <th className="px-3 py-2 text-left font-medium">Site</th>
                   <th className="px-3 py-2 text-left font-medium">Cell</th>
@@ -227,6 +261,7 @@ export default function EmployeeDirectoryPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-700">{r.email}</td>
                     <td className="px-3 py-2 text-gray-700">{r.job_title ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-700">{r.department?.name ?? '—'}</td>
                     <td className="px-3 py-2 text-gray-700">
                       {r.supervisor ? `${r.supervisor.first_name} ${r.supervisor.surname}` : '—'}
                     </td>
@@ -251,7 +286,7 @@ export default function EmployeeDirectoryPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
+                  <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
                 )}
               </tbody>
             </table>
@@ -264,7 +299,7 @@ export default function EmployeeDirectoryPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900 truncate">{r.surname}, {r.first_name}</p>
-                    <p className="text-xs text-gray-500 truncate">{r.job_title ?? '—'} · {r.site?.name ?? '—'}</p>
+                    <p className="text-xs text-gray-500 truncate">{r.job_title ?? '—'} · {r.department?.name ?? '—'} · {r.site?.name ?? '—'}</p>
                     <p className="text-xs text-gray-500 truncate">{r.email}</p>
                   </div>
                   <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium ${r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
