@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { IconBadgeCheck, IconDownload, IconXMark } from '../components/Icons'
+import { IconBadgeCheck, IconDownload, IconEye, IconXMark } from '../components/Icons'
 
 // --- Types --------------------------------------------------------------------
 
@@ -450,20 +450,7 @@ export default function CertificationsDashboardPage() {
                                 : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
                             }`}
                           >
-                            <IconDownload className="w-3 h-3" />
-                            {r.attached ? 'View' : 'No file'}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => openCertViewer(r)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors ${
-                              r.attached
-                                ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
-                            }`}
-                          >
-                            <IconDownload className="w-3 h-3" />
+                            <IconEye className="w-3 h-3" />
                             {r.attached ? 'View' : 'No file'}
                           </button>
                         </td>
@@ -478,55 +465,6 @@ export default function CertificationsDashboardPage() {
             )}
           </div>
         </>
-      )}
-
-      {viewCert && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={() => setViewCert(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-md"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">{viewCert.certName}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{viewCert.employeeName}</p>
-              </div>
-              <button onClick={() => setViewCert(null)} className="p-1 rounded hover:bg-gray-100 text-gray-500">
-                <IconXMark className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4">
-              {loadingAttachments ? (
-                <p className="text-sm text-gray-400 text-center py-4">Loading&hellip;</p>
-              ) : certAttachments.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No certificate file has been uploaded for this record.</p>
-              ) : (
-                <ul className="divide-y divide-gray-100">
-                  {certAttachments.map(att => (
-                    <li key={att.id} className="flex items-center justify-between gap-3 py-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{att.display_name}</p>
-                        <p className="text-xs text-gray-400">
-                          {att.mime_type ?? 'File'}{att.file_size_bytes ? ` � ${formatBytes(att.file_size_bytes)}` : ''}
-                          {' � '}{new Date(att.uploaded_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => downloadAttachment(att)}
-                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B5EA6] border border-[#1B5EA6] rounded-lg hover:bg-blue-50"
-                      >
-                        <IconDownload className="w-3 h-3" /> Open
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
       {viewCert && (
@@ -567,7 +505,7 @@ export default function CertificationsDashboardPage() {
                         onClick={() => downloadAttachment(att)}
                         className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B5EA6] border border-[#1B5EA6] rounded-lg hover:bg-blue-50"
                       >
-                        <IconDownload className="w-3 h-3" /> Open
+                        <IconEye className="w-3 h-3" /> Open
                       </button>
                     </li>
                   ))}
