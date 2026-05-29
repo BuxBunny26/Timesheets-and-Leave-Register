@@ -458,6 +458,23 @@ type Tab = 'overview' | 'sessions' | 'matrix'
 const SUPERVISOR_ROLES = ['supervisor', 'manager', 'admin_manager', 'system_admin']
 const MANAGER_ROLES    = ['manager', 'admin_manager', 'system_admin']
 
+// ── CAT level helpers ─────────────────────────────────────────────────────────
+
+// Extract Roman numeral level from a course name (I=1, II=2, III=3, IV=4)
+// Works for "CAT II", "CAT III", "Infrared I", etc.
+const ROMAN: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4 }
+function getCourseLevel(name: string): number | null {
+  const m = name.match(/\bCAT\s+(I{1,3}V?|IV)\b/i) || name.match(/\b(I{1,3}V?|IV)\s*(?:—|$)/i)
+  if (!m) return null
+  const r = m[1].toUpperCase()
+  return ROMAN[r] ?? null
+}
+
+// Returns true if a group of courses has detectable Roman numeral levels
+function isLevelledGroup(groupCourses: Course[]): boolean {
+  return groupCourses.some(c => getCourseLevel(c.name) !== null)
+}
+
 // ── Training Matrix Component ──────────────────────────────────────────────────
 
 interface TrainingMatrixProps {
@@ -468,11 +485,12 @@ interface TrainingMatrixProps {
 
 function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) {
   const today = new Date()
-  const [fy, setFY]     = useState(getFY(today))
-  const [quarter, setQ] = useState<1 | 2 | 3 | 4>(getFYQ(today))
+  const [fy, setFY]           = useState(getFY(today))
+  const [quarter, setQ]       = useState<1 | 2 | 3 | 4>(getFYQ(today))
   const [entries, setEntries] = useState<MatrixEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving]   = useState<string | null>(null) // key being saved
+  const [saving, setSaving]   = useState<string | null>(null)
+  const [catFilter, setCatFilter] = useState<'all' | 'highest'>('all')
 
   const loadEntries = useCallback(async () => {
     setLoading(true)
@@ -548,6 +566,29 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
     return groups
   }, [courses])
 
+  // For "highest only" mode: per (employee, technology), the highest level
+  // course they have any non-null entry for. Key = `${empId}:${tech}`
+  const highestLevelMap = useMemo(() => {
+    const m = new Map<string, number>()
+    if (catFilter !== 'highest') return m
+    for (const [tech, techCourses] of courseGroups.entries()) {
+      if (!isLevelledGroup(techCourses)) continue
+      for (const emp of employees) {
+        let maxLevel = 0
+        for (const c of techCourses) {
+          const lvl = getCourseLevel(c.name)
+          if (lvl === null) continue
+          const entry = entryMap.get(`${emp.id}:${c.id}`)
+          if (entry && entry.status !== 'not_applicable' && lvl > maxLevel) {
+            maxLevel = lvl
+          }
+        }
+        if (maxLevel > 0) m.set(`${emp.id}:${tech}`, maxLevel)
+      }
+    }
+    return m
+  }, [catFilter, courseGroups, employees, entryMap])
+
   const fyLabel = `FY${fy} (Jul ${fy - 1} – Jun ${fy})`
 
   return (
@@ -584,6 +625,22 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
         </div>
 
         <span className="text-xs text-gray-400">{QUARTER_MONTHS[quarter]}</span>
+
+        {/* CAT level filter */}
+        <div className="ml-auto flex items-center gap-1.5 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setCatFilter('all')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${catFilter === 'all' ? 'bg-white text-[#1B5EA6] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            All CAT levels
+          </button>
+          <button
+            onClick={() => setCatFilter('highest')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${catFilter === 'highest' ? 'bg-white text-[#1B5EA6] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Highest level only
+          </button>
+        </div>
       </div>
 
       {/* Legend */}
@@ -662,20 +719,39 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
                     const entry = entryMap.get(key)
                     const isSaving = saving === key
                     const cfg = entry ? MATRIX_CELL[entry.status] : null
+
+                    // In "highest only" mode, dim levels below an employee's highest
+                    const courseLevel = getCourseLevel(course.name)
+                    const tech = course.technology ?? 'Other'
+                    const empHighest = highestLevelMap.get(`${emp.id}:${tech}`)
+                    const isSuperseded = catFilter === 'highest'
+                      && courseLevel !== null
+                      && empHighest !== undefined
+                      && courseLevel < empHighest
+
                     return (
                       <td key={course.id} className="px-1.5 py-1.5 text-center border-l border-gray-100">
-                        <button
-                          onClick={() => cycleStatus(emp, course)}
-                          disabled={!isManager || isSaving}
-                          title={cfg ? `${cfg.label}${entry?.completed_date ? ` · ${fmt(entry.completed_date)}` : ''}` : 'Not set'}
-                          className={`inline-flex items-center justify-center w-7 h-7 rounded border text-[11px] font-bold transition-colors ${
-                            cfg
-                              ? `${cfg.bg} ${cfg.text}`
-                              : 'border-gray-100 text-gray-300 hover:border-gray-300'
-                          } ${isManager ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} ${isSaving ? 'opacity-50' : ''}`}
-                        >
-                          {isSaving ? '…' : cfg ? cfg.symbol : ''}
-                        </button>
+                        {isSuperseded ? (
+                          <span
+                            title={`Superseded by higher CAT level`}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-100 text-[10px] text-gray-300 bg-gray-50"
+                          >
+                            /
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => cycleStatus(emp, course)}
+                            disabled={!isManager || isSaving}
+                            title={cfg ? `${cfg.label}${entry?.completed_date ? ` \u00b7 ${fmt(entry.completed_date)}` : ''}` : 'Not set'}
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded border text-[11px] font-bold transition-colors ${
+                              cfg
+                                ? `${cfg.bg} ${cfg.text}`
+                                : 'border-gray-100 text-gray-300 hover:border-gray-300'
+                            } ${isManager ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} ${isSaving ? 'opacity-50' : ''}`}
+                          >
+                            {isSaving ? '…' : cfg ? cfg.symbol : ''}
+                          </button>
+                        )}
                       </td>
                     )
                   })}

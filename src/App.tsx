@@ -15,6 +15,7 @@ import BirthdaysPage from './pages/BirthdaysPage'
 import WorkAnniversariesPage from './pages/WorkAnniversariesPage'
 import CertificationsDashboardPage from './pages/CertificationsDashboardPage'
 import TrainingPage from './pages/TrainingPage'
+import PerformanceReviewPage from './pages/PerformanceReviewPage'
 import MyVerificationPage from './pages/MyVerificationPage'
 import Layout from './components/Layout'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -56,6 +57,7 @@ function AppRoutes() {
         <Route path="employees/certifications" element={<CertificationsDashboardPage />} />
         <Route path="employees/:id" element={<EmployeeDetailPage />} />
         <Route path="training" element={<TrainingPage />} />
+        <Route path="performance-reviews" element={<PerformanceReviewPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
