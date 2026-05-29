@@ -74,6 +74,7 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<{ date: Date; entries: CalendarRow[] } | null>(null)
   const [teamOnly, setTeamOnly] = useState(false)
+  const [bdayPopover, setBdayPopover] = useState<{ x: number; y: number; entries: BirthdayMarker[] } | null>(null)
 
   const isSupervisor = !!(profile?.role && SUPERVISOR_ROLES.includes(profile.role))
 
@@ -268,18 +269,14 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                   </span>
                   <span className="flex items-center gap-0.5">
                     {hasBirthdays && (
-                      <span className="relative group/bday">
+                      <span
+                        onMouseEnter={e => {
+                          const r = e.currentTarget.getBoundingClientRect()
+                          setBdayPopover({ x: r.left + r.width / 2, y: r.bottom, entries: bdayEntries })
+                        }}
+                        onMouseLeave={() => setBdayPopover(null)}
+                      >
                         <IconBalloon className="w-3.5 h-3.5 text-gray-800 cursor-default" />
-                        <span className="pointer-events-none absolute top-full right-0 mt-1 z-50
-                          hidden group-hover/bday:flex flex-col gap-0.5 min-w-max
-                          bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg">
-                          {/* arrow */}
-                          <span className="absolute bottom-full right-1 border-4 border-transparent border-b-gray-900" />
-                          <span className="font-semibold text-gray-300 mb-0.5">Birthdays</span>
-                          {bdayEntries.map(b => (
-                            <span key={b.employee_id}>{b.first_name} {b.surname}</span>
-                          ))}
-                        </span>
                       </span>
                     )}
                     {entries.length > 0 && (
@@ -338,6 +335,22 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
           <p className="text-xs text-gray-400 mt-2">No approved leave in this view.</p>
         )}
       </div>
+
+      {/* Birthday popover — fixed positioning escapes the overflow:hidden grid */}
+      {bdayPopover && (
+        <div
+          className="fixed z-[999] pointer-events-none"
+          style={{ top: bdayPopover.y + 6, left: bdayPopover.x, transform: 'translateX(-50%)' }}
+        >
+          <div className="bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
+            <span className="font-semibold text-gray-300 mb-0.5">Birthdays</span>
+            {bdayPopover.entries.map(b => (
+              <span key={b.employee_id}>{b.first_name} {b.surname}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Day detail modal */}
       {selected && (
