@@ -155,6 +155,14 @@ function attachedAsBool(v) {
   return s.length > 0 && s.toLowerCase() !== 'no' && s.toLowerCase() !== 'n/a';
 }
 
+function attachedFileName(v) {
+  if (v == null) return null;
+  if (typeof v === 'boolean') return null;
+  const s = String(v).trim();
+  if (!s || s.toLowerCase() === 'no' || s.toLowerCase() === 'n/a') return null;
+  return s;
+}
+
 function nullableText(v) {
   if (v == null) return null;
   const s = String(v).trim();
@@ -207,10 +215,12 @@ function normaliseEmail(v) {
 function buildDetailsPayload(row) {
   return {
     id_attached:                attachedAsBool(row[C.idAttached]),
+    id_file_name:               attachedFileName(row[C.idAttached]),
     has_passport:               asBool(row[C.hasPassport]),
     passport_number:            nullableText(row[C.passportNum]),
     passport_expiry:            parseDate(row[C.passportExp]),
     passport_attached:          attachedAsBool(row[C.passportAtt]),
+    passport_file_name:         attachedFileName(row[C.passportAtt]),
 
     cell_phone_contract_owner:  nullableText(row[C.cellOwner]),
     service_provider:           nullableText(row[C.serviceProv]),
@@ -221,6 +231,7 @@ function buildDetailsPayload(row) {
     drivers_licence_number:     nullableText(row[C.licenceNum]),
     drivers_licence_expiry:     parseDate(row[C.licenceExp]),
     drivers_licence_attached:   attachedAsBool(row[C.licenceAtt]),
+    drivers_licence_file_name:  attachedFileName(row[C.licenceAtt]),
 
     has_medical_aid:            asBool(row[C.hasMedAid]),
     medical_aid_provider:       nullableText(row[C.medAidProv]),
@@ -359,6 +370,7 @@ async function main() {
       if (!typeId) continue;
       const held = asBool(row[cp.has]);
       const att  = attachedAsBool(row[cp.att]);
+      const fn   = attachedFileName(row[cp.att]);
       if (!held && !att) continue;
       certPayload.push({
         employee_id: profile.id,
@@ -366,6 +378,7 @@ async function main() {
         has_certification: held,
         expiry_date: null,
         attached: att,
+        file_name: fn,
       });
     }
     if (certPayload.length > 0 && !dryRun) {

@@ -8,11 +8,11 @@ import type { Profile, EmployeeDetails, EmployeeDependant, EmployeeCertification
 type DetailsForm = Omit<EmployeeDetails, 'employee_id' | 'created_at' | 'updated_at'>
 
 const EMPTY_DETAILS: DetailsForm = {
-  id_attached: false,
+  id_attached: false, id_file_name: null, id_file_url: null,
   has_passport: false,
-  passport_number: null, passport_expiry: null, passport_attached: false,
+  passport_number: null, passport_expiry: null, passport_attached: false, passport_file_name: null, passport_file_url: null,
   cell_phone_contract_owner: null, service_provider: null, whatsapp_number: null, personal_email: null,
-  has_drivers_licence: false, drivers_licence_number: null, drivers_licence_expiry: null, drivers_licence_attached: false,
+  has_drivers_licence: false, drivers_licence_number: null, drivers_licence_expiry: null, drivers_licence_attached: false, drivers_licence_file_name: null, drivers_licence_file_url: null,
   has_medical_aid: false, medical_aid_provider: null, medical_aid_number: null,
   medical_practitioner_name: null, doctor_contact_number: null, allergies_diet: null,
   home_address: null, complex_street_name: null, suburb: null, city: null, province: null, country: null, postal_code: null, home_pin_location: null,
@@ -72,6 +72,45 @@ function Toggle({ label, checked, onChange, disabled }: { label: string; checked
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} disabled={disabled} />
       {label}
     </label>
+  )
+}
+
+function DocLink({
+  label, url, fileName, onUrlChange, disabled,
+}: {
+  label: string
+  url: string | null | undefined
+  fileName: string | null | undefined
+  onUrlChange: (v: string | null) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="sm:col-span-2 lg:col-span-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-gray-600">{label}</span>
+        {url && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-[#1B5EA6] hover:underline"
+          >
+            View document &rarr;
+          </a>
+        )}
+      </div>
+      <input
+        type="url"
+        value={url ?? ''}
+        onChange={e => onUrlChange(e.target.value.trim() === '' ? null : e.target.value.trim())}
+        disabled={disabled}
+        placeholder="Paste OneDrive / SharePoint link"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-50 disabled:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
+      />
+      {fileName && (
+        <p className="text-[11px] text-gray-500 mt-1 truncate" title={fileName}>File on record: {fileName}</p>
+      )}
+    </div>
   )
 }
 
@@ -181,6 +220,8 @@ export default function EmployeeDetailPage() {
           has_certification: c.has_certification,
           expiry_date: c.expiry_date,
           attached: c.attached,
+          file_name: c.file_name,
+          file_url: c.file_url,
           notes: c.notes,
         }))
         const { error: cErr } = await supabase
@@ -228,6 +269,8 @@ export default function EmployeeDetailPage() {
         has_certification: false,
         expiry_date: null,
         attached: false,
+        file_name: null,
+        file_url: null,
         notes: null,
         created_at: '',
         updated_at: '',
@@ -309,6 +352,8 @@ export default function EmployeeDetailPage() {
           <Field label="Passport expiry" type="date" value={details.passport_expiry} onChange={v => update({ passport_expiry: nullable(v) })} disabled={!canEdit} />
           <div className="mt-1"><ExpiryBadge iso={details.passport_expiry} /></div>
         </div>
+        <DocLink label="ID document link" url={details.id_file_url} fileName={details.id_file_name} onUrlChange={v => update({ id_file_url: v })} disabled={!canEdit} />
+        <DocLink label="Passport document link" url={details.passport_file_url} fileName={details.passport_file_name} onUrlChange={v => update({ passport_file_url: v })} disabled={!canEdit} />
       </Section>
 
       <Section title="Contact">
@@ -328,6 +373,7 @@ export default function EmployeeDetailPage() {
           <Field label="Licence expiry" type="date" value={details.drivers_licence_expiry} onChange={v => update({ drivers_licence_expiry: nullable(v) })} disabled={!canEdit} />
           <div className="mt-1"><ExpiryBadge iso={details.drivers_licence_expiry} /></div>
         </div>
+        <DocLink label="Driver's licence document link" url={details.drivers_licence_file_url} fileName={details.drivers_licence_file_name} onUrlChange={v => update({ drivers_licence_file_url: v })} disabled={!canEdit} />
       </Section>
 
       <Section title="Medical">
@@ -405,7 +451,7 @@ export default function EmployeeDetailPage() {
                 <th className="px-3 py-2 text-left font-medium">Held</th>
                 <th className="px-3 py-2 text-left font-medium">Expiry (YYYY-MM-DD)</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
-                <th className="px-3 py-2 text-left font-medium">Attached</th>
+                <th className="px-3 py-2 text-left font-medium">Document link</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -433,12 +479,31 @@ export default function EmployeeDetailPage() {
                     </td>
                     <td className="px-3 py-2"><ExpiryBadge iso={c?.expiry_date} /></td>
                     <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        disabled={!canEdit}
-                        checked={c?.attached ?? false}
-                        onChange={e => setCert(t.id, { attached: e.target.checked })}
-                      />
+                      <div className="flex flex-col gap-1 min-w-[220px]">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="url"
+                            disabled={!canEdit}
+                            value={c?.file_url ?? ''}
+                            onChange={e => setCert(t.id, { file_url: e.target.value.trim() === '' ? null : e.target.value.trim(), attached: e.target.value.trim() !== '' ? true : (c?.attached ?? false) })}
+                            placeholder="OneDrive / SharePoint link"
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded-md text-sm disabled:bg-gray-50"
+                          />
+                          {c?.file_url && (
+                            <a
+                              href={c.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-[#1B5EA6] hover:underline whitespace-nowrap"
+                            >
+                              View &rarr;
+                            </a>
+                          )}
+                        </div>
+                        {c?.file_name && (
+                          <p className="text-[11px] text-gray-500 truncate" title={c.file_name}>File on record: {c.file_name}</p>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

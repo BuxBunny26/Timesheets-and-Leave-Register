@@ -257,10 +257,14 @@ export interface EmployeeDetails {
   employee_id: string
 
   id_attached: boolean
+  id_file_name: string | null
+  id_file_url: string | null
   has_passport: boolean
   passport_number: string | null
   passport_expiry: string | null
   passport_attached: boolean
+  passport_file_name: string | null
+  passport_file_url: string | null
 
   cell_phone_contract_owner: string | null
   service_provider: string | null
@@ -271,6 +275,8 @@ export interface EmployeeDetails {
   drivers_licence_number: string | null
   drivers_licence_expiry: string | null
   drivers_licence_attached: boolean
+  drivers_licence_file_name: string | null
+  drivers_licence_file_url: string | null
 
   has_medical_aid: boolean
   medical_aid_provider: string | null
@@ -335,6 +341,8 @@ export interface EmployeeCertification {
   has_certification: boolean
   expiry_date: string | null
   attached: boolean
+  file_name: string | null
+  file_url: string | null
   notes: string | null
   created_at: string
   updated_at: string
