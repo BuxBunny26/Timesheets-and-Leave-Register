@@ -256,6 +256,7 @@ export interface AuditLog {
 export interface EmployeeDetails {
   employee_id: string
 
+  id_number: string | null
   id_attached: boolean
   id_file_name: string | null
   id_file_url: string | null

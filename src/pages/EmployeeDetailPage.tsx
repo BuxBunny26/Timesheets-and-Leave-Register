@@ -8,6 +8,7 @@ import type { Profile, EmployeeDetails, EmployeeDependant, EmployeeCertification
 type DetailsForm = Omit<EmployeeDetails, 'employee_id' | 'created_at' | 'updated_at'>
 
 const EMPTY_DETAILS: DetailsForm = {
+  id_number: null,
   id_attached: false, id_file_name: null, id_file_url: null,
   has_passport: false,
   passport_number: null, passport_expiry: null, passport_attached: false, passport_file_name: null, passport_file_url: null,
@@ -427,6 +428,7 @@ export default function EmployeeDetailPage() {
       )}
 
       <Section title="Identity">
+        <Field label="SA ID number" value={details.id_number} onChange={v => update({ id_number: nullable(v) })} disabled={!canEditAdmin} placeholder="13-digit SA ID" />
         <Toggle label="ID attached" checked={details.id_attached} onChange={v => update({ id_attached: v })} disabled={!canEditAdmin} />
         <Toggle label="Has passport" checked={details.has_passport} onChange={v => update({ has_passport: v })} disabled={!canEditAdmin} />
         <Toggle label="Passport attached" checked={details.passport_attached} onChange={v => update({ passport_attached: v })} disabled={!canEditAdmin} />

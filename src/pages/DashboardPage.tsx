@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import LeaveCalendar from '../components/LeaveCalendar'
+import type { BirthdayMarker } from '../components/LeaveCalendar'
 import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
 import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight } from '../components/Icons'
 import type { TimesheetStatus, Role } from '../types'
@@ -55,6 +56,7 @@ export default function DashboardPage() {
   const [pendingOtCount, setPendingOtCount] = useState<number | null>(null)
   const [pendingLeaveCount, setPendingLeaveCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [birthdays, setBirthdays] = useState<BirthdayMarker[]>([])
 
   const isSupervisor = profile?.role && SUPERVISOR_ROLES.includes(profile.role)
   const displayRole = profile?.role?.replace(/_/g, ' ') ?? 'Employee'
@@ -127,6 +129,14 @@ export default function DashboardPage() {
       const tasks: Promise<void>[] = [fetchWeekStatus(), fetchUnread()]
       if (isSupervisor) {
         tasks.push(fetchPendingOt(), fetchPendingLeave())
+      }
+
+      // Load birthdays for the calendar (managers/supervisors only)
+      if (isSupervisor) {
+        supabase
+          .from('birthdays_this_year')
+          .select('employee_id, first_name, surname, birthday_this_year, turning_age')
+          .then(({ data }) => { if (data) setBirthdays(data as BirthdayMarker[]) })
       }
 
       await Promise.all(tasks)
@@ -211,7 +221,7 @@ export default function DashboardPage() {
 
       {/* Team leave calendar */}
       <div className="mb-6">
-        <LeaveCalendar />
+        <LeaveCalendar birthdays={birthdays} />
       </div>
 
       {/* Quick actions */}

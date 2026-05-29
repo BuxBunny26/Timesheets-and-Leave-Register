@@ -58,7 +58,15 @@ function fullName(r: CalendarRow) {
   return `${r.first_name ?? ''} ${r.surname ?? ''}`.trim() || 'Unknown'
 }
 
-export default function LeaveCalendar() {
+export type BirthdayMarker = {
+  employee_id: string
+  first_name: string
+  surname: string
+  birthday_this_year: string   // ISO YYYY-MM-DD
+  turning_age: number
+}
+
+export default function LeaveCalendar({ birthdays = [] }: { birthdays?: BirthdayMarker[] }) {
   const { profile } = useAuth()
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()))
   const [siteFilter, setSiteFilter] = useState<string>('all')
@@ -136,6 +144,17 @@ export default function LeaveCalendar() {
     }
     return map
   }, [filteredRows])
+
+  // Map ISO date → birthday names
+  const birthdaysByDate = useMemo(() => {
+    const map = new Map<string, BirthdayMarker[]>()
+    for (const b of birthdays) {
+      const key = b.birthday_this_year
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(b)
+    }
+    return map
+  }, [birthdays])
 
   const grid = useMemo(() => buildGrid(month), [month])
   const today = new Date()
@@ -226,7 +245,9 @@ export default function LeaveCalendar() {
             const inMonth = d.getMonth() === month.getMonth()
             const isToday = sameDay(d, today)
             const entries = byDate.get(iso) ?? []
+            const bdayEntries = birthdaysByDate.get(iso) ?? []
             const isWeekend = d.getDay() === 0 || d.getDay() === 6
+            const hasBirthdays = bdayEntries.length > 0
             return (
               <button
                 key={iso}
@@ -246,9 +267,14 @@ export default function LeaveCalendar() {
                   >
                     {d.getDate()}
                   </span>
-                  {entries.length > 0 && (
-                    <span className="text-[10px] text-gray-400">{entries.length}</span>
-                  )}
+                  <span className="flex items-center gap-0.5">
+                    {hasBirthdays && (
+                      <span title={bdayEntries.map(b => `${b.first_name} ${b.surname} (turns ${b.turning_age})`).join(', ')} className="text-[11px]">🎂</span>
+                    )}
+                    {entries.length > 0 && (
+                      <span className="text-[10px] text-gray-400">{entries.length}</span>
+                    )}
+                  </span>
                 </div>
                 {entries.length >= 3 ? (
                   // Crowded day: collapse to a single "Multi" badge to keep the cell readable.
