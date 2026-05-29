@@ -269,11 +269,11 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                   <span className="flex items-center gap-0.5">
                     {hasBirthdays && (
                       <span className="relative group/bday">
-                        <span className="block w-2.5 h-2.5 rounded-full bg-pink-400 cursor-default ring-1 ring-white" />
+                        <span className="block w-2.5 h-2.5 rounded-full bg-amber-400 cursor-default ring-1 ring-white" />
                         <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
                           hidden group-hover/bday:flex flex-col gap-0.5 min-w-max
                           bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg">
-                          <span className="font-semibold text-pink-300 mb-0.5">Birthdays</span>
+                          <span className="font-semibold text-amber-300 mb-0.5">Birthdays</span>
                           {bdayEntries.map(b => (
                             <span key={b.employee_id}>{b.first_name} {b.surname}</span>
                           ))}
