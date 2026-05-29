@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { formatDateISO } from '../lib/dateUtils'
-import { IconCalendar, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
+import { IconCalendar, IconBalloon, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
 import type { LeaveType, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -269,16 +269,16 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                   <span className="flex items-center gap-0.5">
                     {hasBirthdays && (
                       <span className="relative group/bday">
-                        <span className="block w-2.5 h-2.5 rounded-full bg-amber-400 cursor-default ring-1 ring-white" />
-                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                        <IconBalloon className="w-3.5 h-3.5 text-gray-800 cursor-default" />
+                        <span className="pointer-events-none absolute top-full right-0 mt-1 z-50
                           hidden group-hover/bday:flex flex-col gap-0.5 min-w-max
                           bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg">
-                          <span className="font-semibold text-amber-300 mb-0.5">Birthdays</span>
+                          {/* arrow */}
+                          <span className="absolute bottom-full right-1 border-4 border-transparent border-b-gray-900" />
+                          <span className="font-semibold text-gray-300 mb-0.5">Birthdays</span>
                           {bdayEntries.map(b => (
                             <span key={b.employee_id}>{b.first_name} {b.surname}</span>
                           ))}
-                          {/* arrow */}
-                          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                         </span>
                       </span>
                     )}

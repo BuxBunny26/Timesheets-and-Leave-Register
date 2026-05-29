@@ -252,6 +252,19 @@ export function IconChevronDown({ className = 'w-5 h-5' }: IconProps) {
   )
 }
 
+export function IconBalloon({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      {/* balloon body */}
+      <ellipse cx="12" cy="9.5" rx="6.5" ry="7" />
+      {/* knot */}
+      <polygon points="11,16.5 13,16.5 12,18.5" />
+      {/* string */}
+      <path d="M12 18.5C11 20 13 21 12 22.5" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconCake({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
