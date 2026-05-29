@@ -268,7 +268,14 @@ export function IconBalloon({ className = 'w-5 h-5' }: IconProps) {
 export function IconCake({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75-1.5.75a3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-1.5-.75m0 0a3.354 3.354 0 01-.75-1.5m0 0V11.25a3 3 0 013-3H18a3 3 0 013 3v5.25" />
+      {/* Balloon body */}
+      <ellipse cx="12" cy="9" rx="5" ry="6.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Knot triangle */}
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 15.3 12 15.7l1.5-.4" />
+      {/* String */}
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.7c0 0-.8 1.8 0 3.3" />
+      {/* Shine highlight */}
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 6.5c.6-.8 1.5-1.2 2.3-1.1" />
     </svg>
   )
 }
