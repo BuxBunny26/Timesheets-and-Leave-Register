@@ -44,6 +44,131 @@ function expiryPill(iso: string | null | undefined, label: string) {
   return null
 }
 
+// ── Organogram components ─────────────────────────────────────────────────────
+
+type OrgNode = Row & { children: OrgNode[] }
+
+function buildOrgTree(employees: Row[]): OrgNode[] {
+  const byId = new Map<string, OrgNode>()
+  for (const emp of employees) byId.set(emp.id, { ...emp, children: [] })
+  const roots: OrgNode[] = []
+  for (const node of byId.values()) {
+    const supId = node.supervisor?.id
+    if (supId && byId.has(supId)) {
+      byId.get(supId)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+  const sortTree = (n: OrgNode) => {
+    n.children.sort((a, b) => a.surname.localeCompare(b.surname))
+    n.children.forEach(sortTree)
+  }
+  roots.sort((a, b) => a.surname.localeCompare(b.surname))
+  roots.forEach(sortTree)
+  return roots
+}
+
+function OrgNodeCard({ node }: { node: OrgNode }) {
+  const hasReports = node.children.length > 0
+  return (
+    <Link to={`/employees/${node.id}`}>
+      <div className={`rounded-lg px-3 py-2.5 w-44 text-center cursor-pointer hover:shadow-md transition-all select-none ${
+        hasReports
+          ? 'bg-blue-50 border border-blue-200 hover:border-[#1B5EA6]'
+          : 'bg-white border border-gray-200 hover:border-gray-300'
+      }`}>
+        <p className="text-[11px] font-semibold text-gray-900 leading-tight">{node.surname}, {node.first_name}</p>
+        {node.job_title && (
+          <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
+        )}
+        {node.employee_code && (
+          <p className="text-[9px] text-gray-400 mt-0.5">{node.employee_code}</p>
+        )}
+        {node.site?.name && (
+          <p className="text-[9px] text-gray-400">{node.site.name}</p>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+function OrgTreeNode({ node, depth = 0, isRoot = false }: { node: OrgNode; depth?: number; isRoot?: boolean }) {
+  const [expanded, setExpanded] = useState(depth < 2)
+  return (
+    <li className={isRoot ? 'flex flex-col items-center' : 'org-li'}>
+      <OrgNodeCard node={node} />
+      {node.children.length > 0 && (
+        <button
+          onClick={e => { e.preventDefault(); setExpanded(x => !x) }}
+          className="mt-1 text-[10px] text-gray-400 hover:text-[#1B5EA6] transition-colors"
+        >
+          {expanded ? '▾ collapse' : `▸ ${node.children.length} report${node.children.length !== 1 ? 's' : ''}`}
+        </button>
+      )}
+      {expanded && node.children.length > 0 && (
+        <ul className="org-ul">
+          {node.children.map(child => (
+            <OrgTreeNode key={child.id} node={child} depth={depth + 1} />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
+function OrgChart({ rows }: { rows: Row[] }) {
+  const [orgSiteFilter, setOrgSiteFilter] = useState('')
+  const sites = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of rows) if (r.site?.name) s.add(r.site.name)
+    return Array.from(s).sort()
+  }, [rows])
+  const filtered = useMemo(
+    () => orgSiteFilter ? rows.filter(r => r.site?.name === orgSiteFilter) : rows,
+    [rows, orgSiteFilter]
+  )
+  const roots = useMemo(() => buildOrgTree(filtered), [filtered])
+  return (
+    <div>
+      <style>{`
+        .org-ul { display: flex; padding-top: 24px; position: relative; list-style: none; margin: 0; padding-left: 0; }
+        .org-ul::before { content: ''; position: absolute; top: 0; left: 50%; border-left: 1px solid #d1d5db; height: 24px; }
+        .org-li { display: flex; flex-direction: column; align-items: center; padding: 24px 10px 0; position: relative; list-style: none; }
+        .org-li::before, .org-li::after { content: ''; position: absolute; top: 0; height: 24px; }
+        .org-li::before { border-top: 1px solid #d1d5db; border-right: 1px solid #d1d5db; right: 50%; left: 0; }
+        .org-li::after { border-top: 1px solid #d1d5db; left: 50%; right: 0; }
+        .org-li:first-child::before { border-top: none; }
+        .org-li:last-child::after { border-top: none; }
+        .org-li:only-child::before { border: none; }
+        .org-li:only-child::after { display: none; }
+      `}</style>
+      <div className="flex gap-3 items-center mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex-wrap">
+        <select
+          value={orgSiteFilter}
+          onChange={e => setOrgSiteFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+        >
+          <option value="">All sites</option>
+          {sites.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span className="text-xs text-gray-500">{filtered.length} employees shown</span>
+        <span className="text-xs text-gray-400 hidden sm:inline">Blue card = has direct reports · Click card to view profile · ▸/▾ to expand/collapse</span>
+      </div>
+      <div className="overflow-x-auto pb-6">
+        <ul className="flex gap-16 list-none pl-6 m-0">
+          {roots.map(root => (
+            <OrgTreeNode key={root.id} node={root} depth={0} isRoot={true} />
+          ))}
+        </ul>
+      </div>
+      {roots.length === 0 && (
+        <div className="text-center py-10 text-gray-500">No employees to display.</div>
+      )}
+    </div>
+  )
+}
+
 export default function EmployeeDirectoryPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -57,6 +182,7 @@ export default function EmployeeDirectoryPage() {
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active')
   const [expiringOnly, setExpiringOnly] = useState(false)
+  const [activeTab, setActiveTab] = useState<'directory' | 'organogram'>('directory')
 
   useEffect(() => {
     if (!isAllowed) return
@@ -217,6 +343,23 @@ export default function EmployeeDirectoryPage() {
         </div>
       )}
 
+      <div className="flex border-b border-gray-200">
+        {(['directory', 'organogram'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === tab
+                ? 'border-[#1B5EA6] text-[#1B5EA6]'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab === 'directory' ? 'Directory' : 'Organogram'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'directory' && (<>
       <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap gap-2">
         <input
           type="text"
@@ -365,6 +508,17 @@ export default function EmployeeDirectoryPage() {
             )}
           </div>
         </div>
+      )}
+      </>)}
+
+      {activeTab === 'organogram' && (
+        loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-5 h-5 border-2 border-[#1B5EA6] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <OrgChart rows={rows.filter(r => r.status === 'active')} />
+        )
       )}
     </div>
   )

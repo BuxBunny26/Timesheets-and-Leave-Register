@@ -661,19 +661,19 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
           <div className="w-5 h-5 border-2 border-[#1B5EA6] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-x-auto overflow-y-auto rounded-xl border border-gray-200 bg-white" style={{ maxHeight: 'calc(100vh - 320px)' }}>
           <table className="text-xs min-w-max">
             <thead>
               {/* Technology group headers */}
               <tr className="border-b border-gray-200">
-                <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-52 border-r border-gray-200">
+                <th className="sticky left-0 top-0 z-30 bg-white px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-52 border-r border-gray-200">
                   Employee
                 </th>
                 {Array.from(courseGroups.entries()).map(([tech, techCourses]) => (
                   <th
                     key={tech}
                     colSpan={techCourses.length}
-                    className="px-3 py-2 text-center text-xs font-semibold text-gray-700 border-l border-gray-200 bg-gray-50 uppercase tracking-wide"
+                    className="sticky top-0 z-20 px-3 py-2 text-center text-xs font-semibold text-gray-700 border-l border-gray-200 bg-gray-50 uppercase tracking-wide"
                   >
                     {tech}
                   </th>
@@ -681,12 +681,12 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
               </tr>
               {/* Course name headers */}
               <tr className="border-b border-gray-200">
-                <th className="sticky left-0 z-10 bg-white px-4 py-2 border-r border-gray-200" />
+                <th className="sticky left-0 top-9 z-30 bg-white px-4 py-2 border-r border-gray-200" />
                 {courses.map(c => {
                   const stats = courseStats[c.id]
                   const pct = stats && stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : null
                   return (
-                    <th key={c.id} className="px-2 py-2 text-center border-l border-gray-100 min-w-[72px] max-w-[96px]">
+                    <th key={c.id} className="sticky top-9 z-20 bg-white px-2 py-2 text-center border-l border-gray-100 min-w-[72px] max-w-[96px]">
                       <div className="font-medium text-gray-700 leading-tight text-[11px] text-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', height: 80 }}>
                         {c.name}
                       </div>
