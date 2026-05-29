@@ -170,6 +170,19 @@ function nullableText(v) {
   return s;
 }
 
+/** Format a cell number to international format (+27 for SA, +258 for MZ, etc.). */
+function formatCell(v) {
+  const s = nullableText(v);
+  if (!s) return null;
+  const digits = s.replace(/[\s\-().]/g, '');
+  if (digits.startsWith('+27')) return digits;
+  if (/^27\d{9}$/.test(digits)) return '+' + digits;       // 27xxxxxxxxx (11 digits)
+  if (/^0\d{9}$/.test(digits)) return '+27' + digits.slice(1); // 0xxxxxxxxx (10 digits)
+  if (/^\d{9}$/.test(digits)) return '+27' + digits;            // 9 digits (leading 0 stripped)
+  if (/^258\d{9}$/.test(digits)) return '+' + digits;           // Mozambique
+  return s;
+}
+
 function nullableInt(v) {
   if (v == null) return null;
   if (typeof v === 'number') return Number.isFinite(v) ? Math.trunc(v) : null;
@@ -339,8 +352,8 @@ async function main() {
 
     // -- Profile patch (only fill blanks) -----------------------------
     const profilePatch = {};
-    const cell = nullableText(row[C.cellNumber]);
-    if (cell && !profile.cell_number)  profilePatch.cell_number = cell;
+    const cell = formatCell(row[C.cellNumber]);
+    if (cell) profilePatch.cell_number = cell; // always overwrite to keep +27 format
     const job  = nullableText(row[C.jobTitle]);
     if (job  && !profile.job_title)    profilePatch.job_title = job;
     const nick = nullableText(row[C.nickName]);

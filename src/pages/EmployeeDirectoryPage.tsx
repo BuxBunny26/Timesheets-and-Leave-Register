@@ -15,6 +15,8 @@ interface Row {
   job_title: string | null
   cell_number: string | null
   status: 'active' | 'inactive'
+  division?: { name: string } | null
+  payment_centre?: { name: string } | null
   site?: { name: string } | null
   department?: { name: string } | null
   supervisor?: { id: string; first_name: string; surname: string } | null
@@ -66,6 +68,8 @@ export default function EmployeeDirectoryPage() {
         .from('profiles')
         .select(`
           id, employee_code, first_name, surname, email, job_title, cell_number, status, supervisor_id,
+          division:divisions(name),
+          payment_centre:payment_centres(name),
           site:sites(name),
           department:departments(name)
         `)
@@ -146,6 +150,8 @@ export default function EmployeeDirectoryPage() {
           job_title: (p.job_title as string) ?? null,
           cell_number: (p.cell_number as string) ?? null,
           status: p.status as 'active' | 'inactive',
+          division: (Array.isArray(p.division) ? p.division[0] : p.division) as Row['division'],
+          payment_centre: (Array.isArray(p.payment_centre) ? p.payment_centre[0] : p.payment_centre) as Row['payment_centre'],
           site: (Array.isArray(p.site) ? p.site[0] : p.site) as Row['site'],
           department: (Array.isArray(p.department) ? p.department[0] : p.department) as Row['department'],
           supervisor: p.supervisor_id ? (supByID.get(p.supervisor_id as string) ?? null) : null,
@@ -266,6 +272,8 @@ export default function EmployeeDirectoryPage() {
                   <th className="px-3 py-2 text-left font-medium">Surname, Name</th>
                   <th className="px-3 py-2 text-left font-medium">Email</th>
                   <th className="px-3 py-2 text-left font-medium">Job Title</th>
+                  <th className="px-3 py-2 text-left font-medium">Division</th>
+                  <th className="px-3 py-2 text-left font-medium">Company</th>
                   <th className="px-3 py-2 text-left font-medium">Department</th>
                   <th className="px-3 py-2 text-left font-medium">Supervisor</th>
                   <th className="px-3 py-2 text-left font-medium">Site</th>
@@ -287,6 +295,8 @@ export default function EmployeeDirectoryPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-700">{r.email}</td>
                     <td className="px-3 py-2 text-gray-700">{r.job_title ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-700">{r.division?.name ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-700">{r.payment_centre?.name ?? '—'}</td>
                     <td className="px-3 py-2 text-gray-700">{r.department?.name ?? '—'}</td>
                     <td className="px-3 py-2 text-gray-700">
                       {r.supervisor ? `${r.supervisor.first_name} ${r.supervisor.surname}` : '—'}
@@ -312,7 +322,7 @@ export default function EmployeeDirectoryPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
                 )}
               </tbody>
             </table>
