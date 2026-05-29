@@ -48,6 +48,7 @@ export default function EmployeeDirectoryPage() {
 
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [siteFilter, setSiteFilter] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('')
@@ -60,27 +61,33 @@ export default function EmployeeDirectoryPage() {
 
     async function load() {
       setLoading(true)
+      setLoadError(null)
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select(`
-          id, employee_code, first_name, surname, email, job_title, cell_number, status,
+          id, employee_code, first_name, surname, email, job_title, cell_number, status, supervisor_id,
           site:sites(name),
-          department:departments(name),
-          supervisor:profiles!profiles_supervisor_id_fkey(id, first_name, surname)
+          department:departments(name)
         `)
         .order('surname')
 
       if (error) {
         console.error('Directory load failed:', error)
+        setLoadError(error.message)
         setLoading(false)
         return
       }
 
       const ids = (profiles ?? []).map((p: { id: string }) => p.id)
+      const supervisorIds = Array.from(new Set(
+        (profiles ?? [])
+          .map((p: { supervisor_id: string | null }) => p.supervisor_id)
+          .filter((s): s is string => !!s)
+      ))
 
-      // Fetch details + certifications in parallel (separate queries to avoid
-      // PostgREST embed issues when employee_details rows are missing).
-      const [{ data: detailRows }, { data: certs }] = await Promise.all([
+      // Fetch details, certifications, and supervisor name lookup in parallel.
+      // Each is a separate query to avoid PostgREST embed/RLS edge cases.
+      const [{ data: detailRows }, { data: certs }, { data: supervisorRows }] = await Promise.all([
         ids.length > 0
           ? supabase
               .from('employee_details')
@@ -95,7 +102,18 @@ export default function EmployeeDirectoryPage() {
               .eq('has_certification', true)
               .not('expiry_date', 'is', null)
           : Promise.resolve({ data: [] as EmployeeCertification[] }),
+        supervisorIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, first_name, surname')
+              .in('id', supervisorIds)
+          : Promise.resolve({ data: [] as { id: string; first_name: string; surname: string }[] }),
       ])
+
+      const supByID = new Map<string, { id: string; first_name: string; surname: string }>()
+      for (const s of (supervisorRows ?? []) as Array<{ id: string; first_name: string; surname: string }>) {
+        supByID.set(s.id, s)
+      }
 
       const detailByEmp = new Map<string, { passport_expiry: string | null; drivers_licence_expiry: string | null }>()
       for (const d of (detailRows ?? []) as Array<{ employee_id: string; passport_expiry: string | null; drivers_licence_expiry: string | null }>) {
@@ -130,7 +148,7 @@ export default function EmployeeDirectoryPage() {
           status: p.status as 'active' | 'inactive',
           site: (Array.isArray(p.site) ? p.site[0] : p.site) as Row['site'],
           department: (Array.isArray(p.department) ? p.department[0] : p.department) as Row['department'],
-          supervisor: (Array.isArray(p.supervisor) ? p.supervisor[0] : p.supervisor) as Row['supervisor'],
+          supervisor: p.supervisor_id ? (supByID.get(p.supervisor_id as string) ?? null) : null,
           details: { passport_expiry: passportExp, drivers_licence_expiry: licenceExp },
           expiring_count: expiringSoon,
         }
@@ -186,8 +204,16 @@ export default function EmployeeDirectoryPage() {
           <h1 className="text-xl font-semibold text-gray-900">Employee Directory</h1>
           <p className="text-sm text-gray-500">Personal, contact, qualifications and certification details for all staff.</p>
         </div>
-        <div className="text-xs text-gray-500">{filtered.length} of {rows.length}</div>
+        <div className="text-xs text-gray-500">
+          {loading ? 'Loading…' : `${filtered.length} of ${rows.length}`}
+        </div>
       </div>
+
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
+          Failed to load directory: {loadError}
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap gap-2">
         <input
