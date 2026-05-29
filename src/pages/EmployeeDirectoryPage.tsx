@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { IconChevronRight } from '../components/Icons'
 import type { EmployeeCertification } from '../types'
 
 const MANAGER_ROLES = ['supervisor', 'manager', 'admin_manager', 'system_admin'] as const
@@ -45,6 +46,7 @@ function expiryPill(iso: string | null | undefined, label: string) {
 
 export default function EmployeeDirectoryPage() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const isAllowed = !!profile?.role && (MANAGER_ROLES as readonly string[]).includes(profile.role)
 
   const [rows, setRows] = useState<Row[]>([])
@@ -273,12 +275,17 @@ export default function EmployeeDirectoryPage() {
                   <th className="px-3 py-2 text-left font-medium">Cell</th>
                   <th className="px-3 py-2 text-left font-medium">Status</th>
                   <th className="px-3 py-2 text-left font-medium">Alerts</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map(r => (
-                  <tr key={r.id} className="hover:bg-blue-50/40">
-                    <td className="px-3 py-2">
+                  <tr
+                    key={r.id}
+                    className="hover:bg-blue-50/40 cursor-pointer"
+                    onClick={() => navigate(`/employees/${r.id}`)}
+                  >
+                    <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <Link to={`/employees/${r.id}`} className="text-[#1B5EA6] hover:underline font-medium">
                         {r.surname}, {r.first_name}
                       </Link>
@@ -311,10 +318,18 @@ export default function EmployeeDirectoryPage() {
                         )}
                       </div>
                     </td>
+                    <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                      <Link
+                        to={`/employees/${r.id}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#1B5EA6] hover:bg-[#174f8c] text-white text-xs font-medium whitespace-nowrap"
+                      >
+                        View <IconChevronRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
                 )}
               </tbody>
             </table>
