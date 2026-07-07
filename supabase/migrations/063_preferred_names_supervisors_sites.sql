@@ -218,9 +218,9 @@ UPDATE profiles SET supervisor_id = (SELECT id FROM profiles WHERE LOWER(email)=
 UPDATE profiles SET supervisor_id = (SELECT id FROM profiles WHERE LOWER(email)='andrew@wearcheckrs.com')
   WHERE LOWER(email) = 'jj@wearcheckrs.com';
 
--- Johandro Oosthuizen → clear supervisor
+-- Johandre Oosthuizen → clear supervisor
 UPDATE profiles SET supervisor_id = NULL
-  WHERE LOWER(email) IN ('johandro@wearcheckrs.com','johandra@wearcheckrs.com');
+  WHERE LOWER(email) = 'johandre@wearcheckrs.com';
 
 -- Leané Bodenstein → clear supervisor
 UPDATE profiles SET supervisor_id = NULL
@@ -553,7 +553,7 @@ UPDATE profiles SET site_id = (SELECT id FROM sites WHERE code='SA-KHU')
 
 -- Samancor - Mooinooi (SA-MOO)
 UPDATE profiles SET site_id = (SELECT id FROM sites WHERE code='SA-MOO')
-  WHERE LOWER(email) IN ('johandro@wearcheckrs.com','johandra@wearcheckrs.com');
+  WHERE LOWER(email) = 'johandre@wearcheckrs.com';
 
 -- Kathu (SA-KAT)
 UPDATE profiles SET site_id = (SELECT id FROM sites WHERE code='SA-KAT')
