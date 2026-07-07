@@ -3,7 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { IconChevronLeft, IconPlus, IconXMark, IconCheck } from '../components/Icons'
-import type { Profile, EmployeeDetails, EmployeeDependant, EmployeeCertification, CertificationType } from '../types'
+import { fyEndYearFor } from '../lib/dateUtils'
+import type { Profile, EmployeeDetails, EmployeeDependant, EmployeeCertification, CertificationType, LeaveBalance } from '../types'
 
 type DetailsForm = Omit<EmployeeDetails, 'employee_id' | 'created_at' | 'updated_at'>
 
