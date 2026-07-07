@@ -23,6 +23,8 @@ interface Row {
   details?: {
     passport_expiry: string | null
     drivers_licence_expiry: string | null
+    start_date: string | null
+    engagement_date: string | null
   } | null
   expiring_count?: number
 }
@@ -221,7 +223,7 @@ export default function EmployeeDirectoryPage() {
         ids.length > 0
           ? supabase
               .from('employee_details')
-              .select('employee_id, passport_expiry, drivers_licence_expiry')
+              .select('employee_id, passport_expiry, drivers_licence_expiry, start_date, engagement_date')
               .in('employee_id', ids)
           : Promise.resolve({ data: [] as { employee_id: string; passport_expiry: string | null; drivers_licence_expiry: string | null }[] }),
         ids.length > 0
@@ -242,9 +244,9 @@ export default function EmployeeDirectoryPage() {
         supByID.set(s.id, s)
       }
 
-      const detailByEmp = new Map<string, { passport_expiry: string | null; drivers_licence_expiry: string | null }>()
-      for (const d of (detailRows ?? []) as Array<{ employee_id: string; passport_expiry: string | null; drivers_licence_expiry: string | null }>) {
-        detailByEmp.set(d.employee_id, { passport_expiry: d.passport_expiry, drivers_licence_expiry: d.drivers_licence_expiry })
+      const detailByEmp = new Map<string, { passport_expiry: string | null; drivers_licence_expiry: string | null; start_date: string | null; engagement_date: string | null }>()
+      for (const d of (detailRows ?? []) as Array<{ employee_id: string; passport_expiry: string | null; drivers_licence_expiry: string | null; start_date: string | null; engagement_date: string | null }>) {
+        detailByEmp.set(d.employee_id, { passport_expiry: d.passport_expiry, drivers_licence_expiry: d.drivers_licence_expiry, start_date: d.start_date, engagement_date: d.engagement_date })
       }
       const certsByEmp = new Map<string, EmployeeCertification[]>()
       for (const c of (certs ?? []) as EmployeeCertification[]) {
@@ -277,7 +279,7 @@ export default function EmployeeDirectoryPage() {
           site: (Array.isArray(p.site) ? p.site[0] : p.site) as Row['site'],
           department: (Array.isArray(p.department) ? p.department[0] : p.department) as Row['department'],
           supervisor: p.supervisor_id ? (supByID.get(p.supervisor_id as string) ?? null) : null,
-          details: { passport_expiry: passportExp, drivers_licence_expiry: licenceExp },
+          details: { passport_expiry: passportExp, drivers_licence_expiry: licenceExp, start_date: det?.start_date ?? null, engagement_date: det?.engagement_date ?? null },
           expiring_count: expiringSoon,
         }
       })
@@ -416,6 +418,7 @@ export default function EmployeeDirectoryPage() {
                   <th className="px-3 py-2 text-left font-medium">Supervisor</th>
                   <th className="px-3 py-2 text-left font-medium">Site</th>
                   <th className="px-3 py-2 text-left font-medium">Cell</th>
+                  <th className="px-3 py-2 text-left font-medium">Start Date</th>
                   <th className="px-3 py-2 text-left font-medium">Status</th>
                   <th className="px-3 py-2 text-left font-medium">Alerts</th>
                   <th className="px-3 py-2"></th>
@@ -445,6 +448,11 @@ export default function EmployeeDirectoryPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-700">{r.site?.name ?? '—'}</td>
                     <td className="px-3 py-2 text-gray-700">{r.cell_number ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                      {r.details?.start_date
+                        ? new Date(r.details.start_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </td>
                     <td className="px-3 py-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
                         {r.status}

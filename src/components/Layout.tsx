@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft, IconChevronDown, IconCake, IconTrophy, IconBadgeCheck, IconAcademicCap, IconClipboardList } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
+import wearCheckLogoUrl from '../assets/WearCheck_Bearing_Logo-removebg-preview.png'
 import type { Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -232,11 +233,7 @@ export default function Layout() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:flex-col md:w-64 md:h-screen md:sticky md:top-0 bg-[#1B5EA6] text-white">
         <div className="flex items-center gap-3 px-6 py-5 border-b border-blue-700 flex-shrink-0">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-            <svg className="w-5 h-5 text-[#1B5EA6]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-            </svg>
-          </div>
+          <img src={wearCheckLogoUrl} alt="WearCheck" className="w-10 h-10 object-contain" />
           <div>
             <p className="font-semibold text-sm">WearCheck</p>
             <p className="text-blue-200 text-xs">Timesheets</p>
@@ -346,11 +343,7 @@ export default function Layout() {
               className="flex items-center gap-2 p-1 rounded hover:bg-white/10"
               aria-label="Home"
             >
-              <span className="w-7 h-7 bg-white rounded-md flex items-center justify-center">
-                <svg className="w-4 h-4 text-[#1B5EA6]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
-              </span>
+              <img src={wearCheckLogoUrl} alt="WearCheck" className="w-7 h-7 object-contain" />
               <p className="font-semibold text-sm">WearCheck</p>
             </Link>
           </div>

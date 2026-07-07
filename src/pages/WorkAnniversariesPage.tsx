@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { IconTrophy } from '../components/Icons'
+import CelebrationCardModal from '../components/CelebrationCardModal'
 
 const MONTHS = [
   'January','February','March','April','May','June',
@@ -99,6 +100,43 @@ export default function WorkAnniversariesPage() {
 
   const isManager = ['manager', 'admin_manager', 'system_admin'].includes(profile?.role ?? '')
   const isSupervisor = profile?.role === 'supervisor'
+  const [cardTarget, setCardTarget] = useState<AnniversaryRow | null>(null)
+  const [awardingId, setAwardingId] = useState<string | null>(null)
+  const currentYear = new Date().getFullYear()
+
+  async function recordServiceAward(row: AnniversaryRow) {
+    if (!confirm(`Record ${row.years_of_service}-year service award for ${row.first_name} ${row.surname}?`)) return
+    setAwardingId(row.employee_id)
+    try {
+      const code = `service_${row.years_of_service}yr`
+      const { data: ctData } = await supabase
+        .from('certification_types')
+        .select('id')
+        .eq('code', code)
+        .maybeSingle()
+      if (!ctData) {
+        alert(`No certification type found for “${code}”. Run migration 060 first.`)
+        return
+      }
+      const { error } = await supabase
+        .from('employee_certifications')
+        .upsert(
+          {
+            employee_id: row.employee_id,
+            certification_type_id: ctData.id,
+            has_certification: true,
+            expiry_date: null,
+            attached: false,
+            notes: `${row.years_of_service}-year service award — recorded ${new Date().toISOString().slice(0, 10)}`,
+          },
+          { onConflict: 'employee_id,certification_type_id' }
+        )
+      if (!error) alert(`✅ ${row.years_of_service}-year service award recorded for ${row.first_name} ${row.surname}.`)
+      else alert(error.message)
+    } finally {
+      setAwardingId(null)
+    }
+  }
 
   useEffect(() => {
     if (!profile) return
@@ -151,6 +189,7 @@ export default function WorkAnniversariesPage() {
   }
 
   return (
+    <>
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Work Anniversaries</h1>
@@ -262,6 +301,24 @@ export default function WorkAnniversariesPage() {
                         </span>
                         <MilestoneBadge years={r.years_of_service} />
                         <AnniversaryBadge iso={r.anniversary_this_year} />
+                        <button
+                          onClick={() => setCardTarget(r)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors"
+                          title="Open anniversary card"
+                        >
+                          🏅 Wishes
+                        </button>
+                        {isManager && MILESTONES.includes(r.years_of_service) && (
+                          <button
+                            onClick={() => void recordServiceAward(r)}
+                            disabled={awardingId === r.employee_id}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-purple-200 text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors"
+                            title={`Record ${r.years_of_service}-year service award`}
+                          >
+                            <IconTrophy className="w-3 h-3" />
+                            {awardingId === r.employee_id ? '…' : 'Award'}
+                          </button>
+                        )}
                       </div>
                     </li>
                   )
@@ -272,5 +329,15 @@ export default function WorkAnniversariesPage() {
         </>
       )}
     </div>
+
+    {cardTarget && (
+      <CelebrationCardModal
+        employee={{ id: cardTarget.employee_id, first_name: cardTarget.first_name, surname: cardTarget.surname }}
+        occasion="anniversary"
+        year={currentYear}
+        onClose={() => setCardTarget(null)}
+      />
+    )}
+  </>
   )
 }

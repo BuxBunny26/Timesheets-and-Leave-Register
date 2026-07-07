@@ -305,6 +305,7 @@ export interface EmployeeDetails {
   diplomas_degrees: string | null
   other_qualification: string | null
   start_date: string | null
+  engagement_date: string | null
 
   comp_alignment: boolean
   comp_balancing: boolean

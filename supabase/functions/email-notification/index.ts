@@ -21,10 +21,14 @@ const EMAILABLE_TYPES = new Set([
   'leave_submitted',
   'leave_approved',
   'leave_denied',
+  'leave_final_approved',
+  'leave_final_denied',
   'timesheet_submitted',
   'timesheet_submitted_supervisor',
   'timesheet_approved',
   'timesheet_rejected',
+  'ot_final_approved',
+  'ot_final_denied',
 ])
 
 type NotificationRow = {
@@ -59,7 +63,12 @@ function ctaLink(notif: NotificationRow): string {
       return `${APP_URL}/approvals`
     case 'leave_approved':
     case 'leave_denied':
+    case 'leave_final_approved':
+    case 'leave_final_denied':
       return `${APP_URL}/leave`
+    case 'ot_final_approved':
+    case 'ot_final_denied':
+      return `${APP_URL}/approvals?tab=my_ot`
     case 'timesheet_submitted_supervisor':
       return `${APP_URL}/approvals`
     case 'timesheet_submitted':
@@ -81,7 +90,12 @@ function buildHtml(firstName: string | null, notif: NotificationRow): string {
         return 'Open approvals'
       case 'leave_approved':
       case 'leave_denied':
+      case 'leave_final_approved':
+      case 'leave_final_denied':
         return 'View leave'
+      case 'ot_final_approved':
+      case 'ot_final_denied':
+        return 'View my OT'
       default:
         return 'Open timesheets'
     }

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import LeaveCalendar from '../components/LeaveCalendar'
-import type { BirthdayMarker } from '../components/LeaveCalendar'
+import type { BirthdayMarker, AnniversaryMarker } from '../components/LeaveCalendar'
 import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
 import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight } from '../components/Icons'
 import type { TimesheetStatus, Role } from '../types'
@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [pendingLeaveCount, setPendingLeaveCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [birthdays, setBirthdays] = useState<BirthdayMarker[]>([])
+  const [anniversaries, setAnniversaries] = useState<AnniversaryMarker[]>([])
 
   const isSupervisor = profile?.role && SUPERVISOR_ROLES.includes(profile.role)
   const displayRole = profile?.role?.replace(/_/g, ' ') ?? 'Employee'
@@ -137,6 +138,34 @@ export default function DashboardPage() {
           .from('birthdays_this_year')
           .select('employee_id, first_name, surname, birthday_this_year')
           .then(({ data }) => { if (data) setBirthdays(data as BirthdayMarker[]) })
+
+        // Load work anniversaries
+        supabase
+          .from('profiles')
+          .select('id, first_name, surname, employee_details!employee_details_employee_id_fkey(start_date)')
+          .eq('status', 'active')
+          .then(({ data }) => {
+            if (!data) return
+            const currentYear = new Date().getFullYear()
+            const markers: AnniversaryMarker[] = []
+            for (const p of data as { id: string; first_name: string; surname: string; employee_details: { start_date: string }[] | null }[]) {
+              const startRaw = p.employee_details?.[0]?.start_date
+              if (!startRaw) continue
+              const startDate = new Date(startRaw + 'T00:00:00')
+              if (isNaN(startDate.getTime())) continue
+              const anniversaryISO = `${currentYear}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+              const years = currentYear - startDate.getFullYear()
+              if (years <= 0) continue
+              markers.push({
+                employee_id: p.id,
+                first_name: p.first_name,
+                surname: p.surname,
+                anniversary_this_year: anniversaryISO,
+                years_of_service: years,
+              })
+            }
+            setAnniversaries(markers)
+          })
       }
 
       await Promise.all(tasks)
@@ -221,7 +250,7 @@ export default function DashboardPage() {
 
       {/* Team leave calendar */}
       <div className="mb-6">
-        <LeaveCalendar birthdays={birthdays} />
+        <LeaveCalendar birthdays={birthdays} anniversaries={anniversaries} />
       </div>
 
       {/* Quick actions */}

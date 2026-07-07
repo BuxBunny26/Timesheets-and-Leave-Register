@@ -18,7 +18,7 @@ const EMPTY_DETAILS: DetailsForm = {
   medical_practitioner_name: null, doctor_contact_number: null, allergies_diet: null,
   home_address: null, complex_street_name: null, suburb: null, city: null, province: null, country: null, postal_code: null, home_pin_location: null,
   next_of_kin_name: null, next_of_kin_relationship: null, next_of_kin_contact: null,
-  matric: false, matric_year: null, trade_certificate: null, diplomas_degrees: null, other_qualification: null, start_date: null,
+  matric: false, matric_year: null, trade_certificate: null, diplomas_degrees: null, other_qualification: null, start_date: null, engagement_date: null,
   comp_alignment: false, comp_balancing: false, comp_vibration: false, comp_sampling: false,
   comp_thermography: false, comp_motor_circuit_analysis: false, comp_vibration_monitoring: false,
 }
@@ -145,6 +145,8 @@ export default function EmployeeDetailPage() {
   const [dependants, setDependants] = useState<EmployeeDependant[]>([])
   const [certTypes, setCertTypes] = useState<CertificationType[]>([])
   const [certs, setCerts] = useState<Record<string, EmployeeCertification>>({}) // keyed by certification_type_id
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([])
+  const currentFY = fyEndYearFor(new Date())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -172,7 +174,7 @@ export default function EmployeeDetailPage() {
     let cancelled = false
     async function load() {
       setLoading(true)
-      const [{ data: prof }, { data: det }, { data: deps }, { data: types }, { data: ec }] = await Promise.all([
+      const [{ data: prof }, { data: det }, { data: deps }, { data: types }, { data: ec }, { data: balances }] = await Promise.all([
         supabase.from('profiles')
           .select('*, division:divisions(*), department:departments(*), payment_centre:payment_centres(*), site:sites(*)')
           .eq('id', id).maybeSingle(),
@@ -180,6 +182,7 @@ export default function EmployeeDetailPage() {
         supabase.from('employee_dependants').select('*').eq('employee_id', id).order('created_at'),
         supabase.from('certification_types').select('*').order('display_order'),
         supabase.from('employee_certifications').select('*').eq('employee_id', id),
+        supabase.from('leave_balances').select('*').eq('employee_id', id).eq('year', fyEndYearFor(new Date())).order('leave_type'),
       ])
       if (cancelled) return
       setEmployee((prof as unknown as Profile) ?? null)
@@ -206,6 +209,7 @@ export default function EmployeeDetailPage() {
       const map: Record<string, EmployeeCertification> = {}
       for (const c of (ec as EmployeeCertification[]) ?? []) map[c.certification_type_id] = c
       setCerts(map)
+      setLeaveBalances((balances as LeaveBalance[]) ?? [])
       // Load site + profile lists for manager dropdowns
       if (isManager) {
         const [{ data: siteData }, { data: profileData }] = await Promise.all([
@@ -521,6 +525,7 @@ export default function EmployeeDetailPage() {
         <Toggle label="Matric" checked={details.matric} onChange={v => update({ matric: v })} disabled={!canEditAdmin} />
         <Field label="Matric completed year" type="number" value={details.matric_year} onChange={v => update({ matric_year: nullableInt(v) })} disabled={!canEditAdmin} />
         <Field label="Start date" type="date" value={details.start_date} onChange={v => update({ start_date: nullable(v) })} disabled={!canEditAdmin} />
+        <Field label="Engagement date" type="date" value={details.engagement_date} onChange={v => update({ engagement_date: nullable(v) })} disabled={!canEditAdmin} />
         <Field label="Trade certificate" value={details.trade_certificate} onChange={v => update({ trade_certificate: nullable(v) })} disabled={!canEditAdmin} />
         <Field label="Diplomas / degrees" value={details.diplomas_degrees} onChange={v => update({ diplomas_degrees: nullable(v) })} disabled={!canEditAdmin} />
         <Field label="Other qualification" value={details.other_qualification} onChange={v => update({ other_qualification: nullable(v) })} disabled={!canEditAdmin} />
@@ -609,6 +614,50 @@ export default function EmployeeDetailPage() {
           />
         ))}
       </Section>
+
+      {/* Leave Balances */}
+      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+          Leave Balances — FY {currentFY}
+        </h2>
+        {leaveBalances.length === 0 ? (
+          <p className="text-sm text-gray-400">No leave balances on record for FY {currentFY}. Balances are set by admin in the Admin panel.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Leave type</th>
+                  <th className="px-3 py-2 text-left font-medium">Total days</th>
+                  <th className="px-3 py-2 text-left font-medium">Used</th>
+                  <th className="px-3 py-2 text-left font-medium">Remaining</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {leaveBalances.map(b => {
+                  const remaining = b.total_days - b.used_days
+                  return (
+                    <tr key={b.id}>
+                      <td className="px-3 py-2 capitalize">{b.leave_type}</td>
+                      <td className="px-3 py-2">{b.total_days}</td>
+                      <td className="px-3 py-2">{b.used_days}</td>
+                      <td className="px-3 py-2">
+                        <span className={`font-semibold ${
+                          remaining <= 0 ? 'text-red-600' :
+                          remaining <= 3 ? 'text-amber-600' :
+                          'text-emerald-600'
+                        }`}>
+                          {remaining}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {canEdit && (
         <div className="flex justify-end">

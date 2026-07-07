@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import CelebrationCardModal from '../components/CelebrationCardModal'
 
 const MONTHS = [
   'January','February','March','April','May','June',
@@ -40,6 +41,8 @@ export default function BirthdaysPage() {
 
   const isManager = ['manager', 'admin_manager', 'system_admin'].includes(profile?.role ?? '')
   const isSupervisor = profile?.role === 'supervisor'
+  const [cardTarget, setCardTarget] = useState<BirthdayRow | null>(null)
+  const currentYear = new Date().getFullYear()
 
   useEffect(() => {
     if (!profile) return
@@ -90,6 +93,7 @@ export default function BirthdaysPage() {
   }
 
   return (
+    <>
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Birthdays</h1>
@@ -201,6 +205,13 @@ export default function BirthdaysPage() {
                       </div>
                       <div className="flex items-center gap-2 flex-none">
                         <BirthdayBadge isoThisYear={r.birthday_this_year} />
+                        <button
+                          onClick={() => setCardTarget(r)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-pink-200 text-pink-700 hover:bg-pink-50 transition-colors"
+                          title="Open birthday card"
+                        >
+                          🎂 Wishes
+                        </button>
                       </div>
                     </li>
                   )
@@ -211,5 +222,15 @@ export default function BirthdaysPage() {
         </>
       )}
     </div>
+
+    {cardTarget && (
+      <CelebrationCardModal
+        employee={{ id: cardTarget.employee_id, first_name: cardTarget.first_name, surname: cardTarget.surname }}
+        occasion="birthday"
+        year={currentYear}
+        onClose={() => setCardTarget(null)}
+      />
+    )}
+    </>
   )
 }

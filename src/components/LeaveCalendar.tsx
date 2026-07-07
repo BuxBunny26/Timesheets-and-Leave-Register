@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { formatDateISO } from '../lib/dateUtils'
-import { IconCalendar, IconBalloon, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
+import { IconCalendar, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
+import birthdayCakeUrl from '../assets/birthday-cake.svg'
+import medalUrl from '../assets/medal-ribbons-star-svgrepo-com.svg'
 import type { LeaveType, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -65,7 +67,21 @@ export type BirthdayMarker = {
   birthday_this_year: string   // ISO YYYY-MM-DD
 }
 
-export default function LeaveCalendar({ birthdays = [] }: { birthdays?: BirthdayMarker[] }) {
+export type AnniversaryMarker = {
+  employee_id: string
+  first_name: string
+  surname: string
+  anniversary_this_year: string  // ISO YYYY-MM-DD
+  years_of_service: number
+}
+
+export default function LeaveCalendar({
+  birthdays = [],
+  anniversaries = [],
+}: {
+  birthdays?: BirthdayMarker[]
+  anniversaries?: AnniversaryMarker[]
+}) {
   const { profile } = useAuth()
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()))
   const [siteFilter, setSiteFilter] = useState<string>('all')
@@ -75,6 +91,7 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
   const [selected, setSelected] = useState<{ date: Date; entries: CalendarRow[] } | null>(null)
   const [teamOnly, setTeamOnly] = useState(false)
   const [bdayPopover, setBdayPopover] = useState<{ x: number; y: number; entries: BirthdayMarker[] } | null>(null)
+  const [annivPopover, setAnnivPopover] = useState<{ x: number; y: number; entries: AnniversaryMarker[] } | null>(null)
 
   const isSupervisor = !!(profile?.role && SUPERVISOR_ROLES.includes(profile.role))
 
@@ -155,6 +172,17 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
     }
     return map
   }, [birthdays])
+
+  // Map ISO date → work anniversaries
+  const anniversariesByDate = useMemo(() => {
+    const map = new Map<string, AnniversaryMarker[]>()
+    for (const a of anniversaries) {
+      const key = a.anniversary_this_year
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(a)
+    }
+    return map
+  }, [anniversaries])
 
   const grid = useMemo(() => buildGrid(month), [month])
   const today = new Date()
@@ -246,8 +274,10 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
             const isToday = sameDay(d, today)
             const entries = byDate.get(iso) ?? []
             const bdayEntries = birthdaysByDate.get(iso) ?? []
+            const annivEntries = anniversariesByDate.get(iso) ?? []
             const isWeekend = d.getDay() === 0 || d.getDay() === 6
             const hasBirthdays = bdayEntries.length > 0
+            const hasAnniversaries = annivEntries.length > 0
             return (
               <button
                 key={iso}
@@ -276,7 +306,18 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
                         }}
                         onMouseLeave={() => setBdayPopover(null)}
                       >
-                        <IconBalloon className="w-3.5 h-3.5 text-gray-800 cursor-default" />
+                        <img src={birthdayCakeUrl} alt="Birthday" className="w-3.5 h-3.5 cursor-default" />
+                      </span>
+                    )}
+                    {hasAnniversaries && (
+                      <span
+                        onMouseEnter={e => {
+                          const r = e.currentTarget.getBoundingClientRect()
+                          setAnnivPopover({ x: r.left + r.width / 2, y: r.bottom, entries: annivEntries })
+                        }}
+                        onMouseLeave={() => setAnnivPopover(null)}
+                      >
+                        <img src={medalUrl} alt="Anniversary" className="w-3.5 h-3.5 cursor-default" />
                       </span>
                     )}
                     {entries.length > 0 && (
@@ -336,7 +377,7 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
         )}
       </div>
 
-      {/* Birthday popover — fixed positioning escapes the overflow:hidden grid */}
+      {/* Birthday popover */}
       {bdayPopover && (
         <div
           className="fixed z-[999] pointer-events-none"
@@ -344,9 +385,25 @@ export default function LeaveCalendar({ birthdays = [] }: { birthdays?: Birthday
         >
           <div className="bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
             <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
-            <span className="font-semibold text-gray-300 mb-0.5">Birthdays</span>
+            <span className="font-semibold text-gray-300 mb-0.5">🎂 Birthdays</span>
             {bdayPopover.entries.map(b => (
               <span key={b.employee_id}>{b.first_name} {b.surname}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Anniversary popover */}
+      {annivPopover && (
+        <div
+          className="fixed z-[999] pointer-events-none"
+          style={{ top: annivPopover.y + 6, left: annivPopover.x, transform: 'translateX(-50%)' }}
+        >
+          <div className="bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
+            <span className="font-semibold text-gray-300 mb-0.5">🏅 Work Anniversaries</span>
+            {annivPopover.entries.map(a => (
+              <span key={a.employee_id}>{a.first_name} {a.surname} · {a.years_of_service}yr</span>
             ))}
           </div>
         </div>
