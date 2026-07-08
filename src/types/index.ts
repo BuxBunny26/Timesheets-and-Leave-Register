@@ -54,6 +54,7 @@ export interface Profile {
   phone: string | null
   emergency_contact_name: string | null
   emergency_contact_phone: string | null
+  sex: 'male' | 'female' | 'other' | null
   avatar_url: string | null
   created_at: string
   updated_at: string
@@ -186,7 +187,7 @@ export const DOCUMENT_CATEGORY_COLOURS: Record<DocumentCategory, string> = {
   contract: 'bg-violet-100 text-violet-700',
   accident_report: 'bg-orange-100 text-orange-700',
   affidavit: 'bg-cyan-100 text-cyan-700',
-  other: 'bg-gray-100 text-gray-600',
+  other: 'bg-[var(--surface-secondary)] text-[var(--text-secondary)]',
 }
 
 export interface Attachment {

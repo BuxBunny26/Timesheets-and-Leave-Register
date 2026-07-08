@@ -12,7 +12,7 @@ import type { TimesheetStatus, Role } from '../types'
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
 
 function StatCard({ label, value, sub, onClick }: { label: string; value: string | number; sub?: string; onClick?: () => void }) {
-  const base = 'bg-white rounded-lg shadow-sm border border-gray-100 p-5 text-left'
+  const base = 'bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)] p-5 text-left'
   if (onClick) {
     return (
       <button
@@ -20,17 +20,17 @@ function StatCard({ label, value, sub, onClick }: { label: string; value: string
         onClick={onClick}
         className={`${base} w-full transition hover:shadow-md hover:border-[#1B5EA6]/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/40`}
       >
-        <p className="text-sm text-gray-500">{label}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+        <p className="text-sm text-[var(--text-muted)]">{label}</p>
+        <p className="text-2xl font-bold text-[var(--text-primary)] mt-1">{value}</p>
+        {sub && <p className="text-xs text-[var(--text-muted)] mt-1">{sub}</p>}
       </button>
     )
   }
   return (
     <div className={base}>
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      <p className="text-sm text-[var(--text-muted)]">{label}</p>
+      <p className="text-2xl font-bold text-[var(--text-primary)] mt-1">{value}</p>
+      {sub && <p className="text-xs text-[var(--text-muted)] mt-1">{sub}</p>}
     </div>
   )
 }
@@ -182,10 +182,10 @@ export default function DashboardPage() {
     <div className="max-w-5xl mx-auto">
       {/* Welcome header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
           Welcome, {profile?.first_name ?? 'there'}
         </h1>
-        <p className="text-gray-500 mt-1 capitalize">
+        <p className="text-[var(--text-muted)] mt-1 capitalize">
           {displayRole}
           {profile?.department ? ` · ${profile.department.name}` : ''}
           {profile?.site ? ` · ${profile.site.name}` : ''}
@@ -254,35 +254,35 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick actions */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick actions</h2>
-        <div className="divide-y divide-gray-50">
-          <a href="/timesheets" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+      <div className="bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)] p-5">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">Quick actions</h2>
+        <div className="divide-y divide-[var(--border)]">
+          <a href="/timesheets" className="flex items-center justify-between gap-3 text-sm text-[var(--text-secondary)] hover:text-[#1B5EA6] py-2">
             <div className="flex items-center gap-3">
-              <IconClipboard className="w-4 h-4 text-gray-400" />
+              <IconClipboard className="w-4 h-4 text-[var(--text-muted)]" />
               Open this week&apos;s timesheet
             </div>
             <IconArrowRight className="w-4 h-4 text-gray-300" />
           </a>
-          <a href="/leave" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+          <a href="/leave" className="flex items-center justify-between gap-3 text-sm text-[var(--text-secondary)] hover:text-[#1B5EA6] py-2">
             <div className="flex items-center gap-3">
-              <IconCalendar className="w-4 h-4 text-gray-400" />
+              <IconCalendar className="w-4 h-4 text-[var(--text-muted)]" />
               Apply for leave
             </div>
             <IconArrowRight className="w-4 h-4 text-gray-300" />
           </a>
           {isSupervisor && (
-            <a href="/approvals" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+            <a href="/approvals" className="flex items-center justify-between gap-3 text-sm text-[var(--text-secondary)] hover:text-[#1B5EA6] py-2">
               <div className="flex items-center gap-3">
-                <IconCheckCircle className="w-4 h-4 text-gray-400" />
+                <IconCheckCircle className="w-4 h-4 text-[var(--text-muted)]" />
                 Review pending approvals
               </div>
               <IconArrowRight className="w-4 h-4 text-gray-300" />
             </a>
           )}
-          <a href="/notifications" className="flex items-center justify-between gap-3 text-sm text-gray-700 hover:text-[#1B5EA6] py-2">
+          <a href="/notifications" className="flex items-center justify-between gap-3 text-sm text-[var(--text-secondary)] hover:text-[#1B5EA6] py-2">
             <div className="flex items-center gap-3">
-              <IconBell className="w-4 h-4 text-gray-400" />
+              <IconBell className="w-4 h-4 text-[var(--text-muted)]" />
               View notifications
             </div>
             <IconArrowRight className="w-4 h-4 text-gray-300" />

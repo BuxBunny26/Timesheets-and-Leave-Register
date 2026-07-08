@@ -45,7 +45,7 @@ function cellClass(status: TimesheetStatus | null): string {
     case 'draft':
       return 'bg-amber-100 text-amber-800 border-amber-200'
     case 'rejected':
-      return 'bg-gray-100 text-gray-600 border-gray-200'
+      return 'bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border)]'
     default:
       return 'bg-red-50 text-red-600 border-red-200'
   }
@@ -257,7 +257,7 @@ export default function TeamOverview() {
 
   if (rows.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-gray-500 text-sm">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-8 text-center text-[var(--text-muted)] text-sm">
         No direct reports found.
       </div>
     )
@@ -266,7 +266,7 @@ export default function TeamOverview() {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="flex items-center gap-4 text-sm text-gray-600 bg-white rounded-lg border border-gray-100 px-4 py-3">
+      <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)] bg-[var(--surface)] rounded-lg border border-[var(--border)] px-4 py-3">
         <span>
           <span className="font-semibold text-blue-700">{submittedThisWeek}</span> submitted awaiting approval this week
         </span>
@@ -275,24 +275,24 @@ export default function TeamOverview() {
           <span className="font-semibold text-red-600">{notStartedThisWeek}</span> not started this week
         </span>
         {hasFilter && (
-          <span className="text-gray-400 ml-auto text-xs">{filteredRows.length} of {rows.length} employees</span>
+          <span className="text-[var(--text-muted)] ml-auto text-xs">{filteredRows.length} of {rows.length} employees</span>
         )}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 bg-white rounded-lg border border-gray-100 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 bg-[var(--surface)] rounded-lg border border-[var(--border)] px-4 py-3">
         <input
           type="search"
           placeholder="Search name or code…"
           value={filter.search}
           onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+          className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
         />
         {deptOptions.length > 1 && (
           <select
             value={filter.department}
             onChange={e => setFilter(f => ({ ...f, department: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All departments</option>
             {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
@@ -302,7 +302,7 @@ export default function TeamOverview() {
           <select
             value={filter.site}
             onChange={e => setFilter(f => ({ ...f, site: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All sites</option>
             {siteOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -312,7 +312,7 @@ export default function TeamOverview() {
           <select
             value={filter.division}
             onChange={e => setFilter(f => ({ ...f, division: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All divisions</option>
             {divOptions.map(d => <option key={d} value={d}>{d}</option>)}
@@ -322,7 +322,7 @@ export default function TeamOverview() {
           <select
             value={filter.jobTitle}
             onChange={e => setFilter(f => ({ ...f, jobTitle: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All job titles</option>
             {jobTitleOptions.map(j => <option key={j} value={j}>{j}</option>)}
@@ -331,7 +331,7 @@ export default function TeamOverview() {
         <select
           value={filter.approval}
           onChange={e => setFilter(f => ({ ...f, approval: e.target.value }))}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-blue-500"
           title="Approval status this week"
         >
           <option value="">Any approval</option>
@@ -343,7 +343,7 @@ export default function TeamOverview() {
         <select
           value={filter.verification}
           onChange={e => setFilter(f => ({ ...f, verification: e.target.value }))}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-blue-500"
           title="Self-verification status this month"
         >
           <option value="">Any verification</option>
@@ -353,7 +353,7 @@ export default function TeamOverview() {
         {hasFilter && (
           <button
             onClick={() => setFilter({ search: '', department: '', site: '', division: '', jobTitle: '', approval: '', verification: '' })}
-            className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5"
+            className="text-sm text-[var(--text-muted)] hover:text-gray-600 px-2 py-1.5"
           >
             Clear
           </button>
@@ -361,28 +361,28 @@ export default function TeamOverview() {
       </div>
 
       {/* Grid */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm overflow-x-auto">
         <table className="w-full text-xs min-w-[700px]">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left px-4 py-3 font-medium text-gray-600 w-48">Employee</th>
+            <tr className="border-b border-[var(--border)]">
+              <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)] w-48">Employee</th>
               {mondays.map((monday, i) => (
-                <th key={i} className="text-center px-2 py-3 font-medium text-gray-600 whitespace-nowrap">
+                <th key={i} className="text-center px-2 py-3 font-medium text-[var(--text-secondary)] whitespace-nowrap">
                   {monday.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-[var(--border)]">
             {filteredRows.map(row => (
               <tr key={row.profile.id} className="hover:bg-gray-50/50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-[var(--text-primary)]">
                         {row.profile.first_name} {row.profile.surname}
                       </p>
-                      <p className="text-gray-400">{row.profile.employee_code}</p>
+                      <p className="text-[var(--text-muted)]">{row.profile.employee_code}</p>
                     </div>
                     {row.pendingCount > 0 && (
                       <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white leading-none">
@@ -423,7 +423,7 @@ export default function TeamOverview() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+      <div className="flex flex-wrap gap-3 text-xs text-[var(--text-muted)]">
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded bg-green-100 border border-green-200" /> Approved
         </span>
@@ -437,7 +437,7 @@ export default function TeamOverview() {
           <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-200" /> Not started
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded bg-gray-100 border border-gray-200" /> Rejected
+          <span className="inline-block w-3 h-3 rounded bg-[var(--surface-secondary)] border border-[var(--border)]" /> Rejected
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-green-600 text-white text-[8px] font-bold leading-none">A</span>

@@ -1,3 +1,474 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — single source of truth for all theming.
+   • Toggle theme: set data-theme="light" | data-theme="dark" on <html>
+   • Every component uses semantic tokens — never raw hex colours.
+   • color-scheme is set per token set so browser-native controls (scrollbars,
+     date pickers, checkboxes) match the current theme automatically.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Light theme ──────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Page/layout surfaces */
+  --background:          #F8FAFC;
+  --surface:             #FFFFFF;
+  --surface-secondary:   #F1F5F9;
+  --surface-hover:       #EFF6FF;
+  --surface-elevated:    #FFFFFF;
+  --border:              #CBD5E1;
+  --border-subtle:       #E2E8F0;
+
+  /* Typography */
+  --text-primary:        #0F172A;
+  --text-secondary:      #334155;
+  --text-muted:          #64748B;
+  --text-subtle:         #94A3B8;
+  --text-inverse:        #FFFFFF;
+  --text-link:           #1B5EA6;
+
+  /* ── Form controls (separate from surface so depth is distinct) */
+  --input-bg:            #FFFFFF;
+  --input-text:          #0F172A;
+  --input-placeholder:   #94A3B8;
+  --input-border:        #CBD5E1;
+  --input-focus-border:  #1B5EA6;
+  --input-focus-ring:    rgba(27, 94, 166, 0.18);
+  --input-disabled-bg:   #F1F5F9;
+  --input-disabled-text: #94A3B8;
+
+  /* ── Checkboxes */
+  --checkbox-bg:           #FFFFFF;
+  --checkbox-border:       #94A3B8;
+  --checkbox-checked-bg:   #1B5EA6;
+  --checkbox-checked-border: #1B5EA6;
+  --checkbox-check:        #FFFFFF;
+  --checkbox-hover-border: #1B5EA6;
+  --checkbox-focus-ring:   rgba(27, 94, 166, 0.22);
+
+  /* ── Calendar */
+  --calendar-surface:         #FFFFFF;
+  --calendar-outside-bg:      #F8FAFC;
+  --calendar-weekend-bg:      rgba(241, 245, 249, 0.55);
+  --calendar-text:            #0F172A;
+  --calendar-date-outside:    #94A3B8;
+  --calendar-weekday:         #64748B;
+  --calendar-grid-gap:        #E2E8F0;
+  --calendar-today-bg:        #1B5EA6;
+  --calendar-today-text:      #FFFFFF;
+  --calendar-hover-bg:        #EFF6FF;
+
+  /* ── Tables */
+  --table-header-bg:    #F8FAFC;
+  --table-header-text:  #475569;
+  --table-body-text:    #0F172A;
+  --table-muted-text:   #64748B;
+  --table-border:       #E2E8F0;
+  --table-row-hover:    #F8FAFC;
+
+  /* ── Sidebar — intentionally ALWAYS dark in both themes */
+  --sidebar-bg:             #0F172A;
+  --sidebar-border:         rgba(255, 255, 255, 0.06);
+  --sidebar-text:           #64748B;
+  --sidebar-text-hover:     #CBD5E1;
+  --sidebar-text-active:    #F1F5F9;
+  --sidebar-hover-bg:       rgba(255, 255, 255, 0.05);
+  --sidebar-active-bg:      rgba(56, 189, 248, 0.10);
+  --sidebar-active-bar:     #38BDF8;
+  --sidebar-badge-bg:       rgba(56, 189, 248, 0.20);
+  --sidebar-badge-text:     #7DD3FC;
+
+  /* ── Tab / segmented-control */
+  --tab-active-bg:           #FFFFFF;     /* white pill — clearly above light container */
+  --tab-active-text:         #0F172A;     /* near-black — max contrast on white        */
+  --tab-inactive-text:       #64748B;
+  --tab-inactive-hover-text: #334155;
+
+  /* ── Brand */
+  --primary:            #1B5EA6;
+  --primary-hover:      #154E8C;
+  --primary-light:      #EFF6FF;
+  --primary-text:       #FFFFFF;
+}
+
+/* ── Dark theme ───────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;   /* ← browser-native controls (inputs, scrollbars, etc.) go dark */
+
+  /* Page/layout surfaces — noticeably stepped for depth */
+  --background:          #070B12;
+  --surface:             #0F172A;
+  --surface-secondary:   #111C2E;
+  --surface-hover:       #1A2740;
+  --surface-elevated:    #1E293B;
+  --border:              #263449;
+  --border-subtle:       #1A2535;
+
+  /* Typography — calibrated for readability, not pure white */
+  --text-primary:        #F8FAFC;   /* headings, key values — very bright        */
+  --text-secondary:      #CBD5E1;   /* body text, labels — clearly readable       */
+  --text-muted:          #94A3B8;   /* helper text, subtitles — softer            */
+  --text-subtle:         #64748B;   /* truly low-priority metadata only           */
+  --text-inverse:        #0F172A;
+  --text-link:           #7DD3FC;
+
+  /* Form controls — slightly lighter than surface to show depth */
+  --input-bg:            #111C2E;
+  --input-text:          #F8FAFC;
+  --input-placeholder:   #64748B;
+  --input-border:        #334155;
+  --input-focus-border:  #38BDF8;
+  --input-focus-ring:    rgba(56, 189, 248, 0.18);
+  --input-disabled-bg:   #0D1526;
+  --input-disabled-text: #475569;
+
+  /* Checkboxes */
+  --checkbox-bg:           #111C2E;
+  --checkbox-border:       #475569;
+  --checkbox-checked-bg:   #2171C7;
+  --checkbox-checked-border: #2171C7;
+  --checkbox-check:        #FFFFFF;
+  --checkbox-hover-border: #38BDF8;
+  --checkbox-focus-ring:   rgba(56, 189, 248, 0.22);
+
+  /* Calendar */
+  --calendar-surface:         #0F172A;
+  --calendar-outside-bg:      #08101E;
+  --calendar-weekend-bg:      rgba(17, 28, 46, 0.60);
+  --calendar-text:            #CBD5E1;
+  --calendar-date-outside:    #475569;
+  --calendar-weekday:         #94A3B8;
+  --calendar-grid-gap:        #263449;
+  --calendar-today-bg:        #1B5EA6;
+  --calendar-today-text:      #FFFFFF;
+  --calendar-hover-bg:        #1A2740;
+
+  /* Tables */
+  --table-header-bg:    #08101E;
+  --table-header-text:  #CBD5E1;
+  --table-body-text:    #CBD5E1;
+  --table-muted-text:   #94A3B8;
+  --table-border:       #263449;
+  --table-row-hover:    #111C2E;
+
+  /* Sidebar — same as light theme (always dark) */
+  --sidebar-bg:             #0F172A;
+  --sidebar-border:         rgba(255, 255, 255, 0.06);
+  --sidebar-text:           #64748B;
+  --sidebar-text-hover:     #CBD5E1;
+  --sidebar-text-active:    #F1F5F9;
+  --sidebar-hover-bg:       rgba(255, 255, 255, 0.05);
+  --sidebar-active-bg:      rgba(56, 189, 248, 0.10);
+  --sidebar-active-bar:     #38BDF8;
+  --sidebar-badge-bg:       rgba(56, 189, 248, 0.20);
+  --sidebar-badge-text:     #7DD3FC;
+  /* ── Tab / segmented-control */
+  --tab-active-bg:           #253248;     /* clearly lighter than dark surface — visible pill */
+  --tab-active-text:         #F8FAFC;     /* bright — max contrast on dark pill               */
+  --tab-inactive-text:       #64748B;
+  --tab-inactive-hover-text: #94A3B8;
+  /* Brand */
+  --primary:            #2171C7;
+  --primary-hover:      #1B5EA6;
+  --primary-light:      rgba(33, 113, 199, 0.12);
+  --primary-text:       #FFFFFF;
+}
+
+/* ── Base layer ─────────────────────────────────────────────────────────────
+   Sets the page canvas and default text from tokens. Everything else inherits.
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+  }
+}
+
+/* ── Form-control baseline (un-layered — beats all Tailwind @layer utilities)
+   Applies ONLY to native HTML element type selectors, not to Tailwind classes.
+   This is NOT global Tailwind utility hijacking — it is standard CSS reset
+   scoped to form elements.
+
+   Un-layered CSS wins over @layer utilities in the CSS cascade, so this
+   overrides any bg-[var(--surface)] or text-[var(--text-secondary)] classes
+   that were applied during migration, giving inputs dedicated --input-* tokens
+   with more contrast than generic surface tokens.
+
+   Intentional fixed-colour form controls (e.g. bg-white for PDF previews)
+   should be annotated with a comment and wrapped in a class to prevent
+   this rule matching them — but none exist in this codebase.
+   ─────────────────────────────────────────────────────────────────────────── */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="image"]),
+select,
+textarea {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border-color: var(--input-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--input-placeholder);
+  opacity: 1;
+}
+
+input:focus:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="range"]):not([type="image"]),
+select:focus,
+textarea:focus {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+  outline: none;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background-color: var(--input-disabled-bg);
+  color: var(--input-disabled-text);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* Date/time inputs inherit the current color-scheme so the calendar picker
+   rendered by the browser matches the app theme. */
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="time"],
+input[type="week"] {
+  color-scheme: inherit;
+}
+
+/* ── Checkboxes — fully theme-aware (un-layered for same reason as above)
+   Uses appearance:none for full cross-browser control.
+   Sizing and border-radius remain controlled by Tailwind utility classes
+   (w-*, h-*, rounded-*) since this CSS does not set those properties.
+   ─────────────────────────────────────────────────────────────────────────── */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1.5px solid var(--checkbox-border);
+  background-color: var(--checkbox-bg);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70%;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background-color 100ms ease, border-color 100ms ease;
+}
+
+/* Checked state — brand-coloured fill + white checkmark SVG */
+input[type="checkbox"]:checked {
+  background-color: var(--checkbox-checked-bg);
+  border-color: var(--checkbox-checked-border);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E");
+}
+
+input[type="checkbox"]:hover:not(:disabled):not(:checked) {
+  border-color: var(--checkbox-hover-border);
+  background-color: var(--surface-hover);
+}
+
+input[type="checkbox"]:focus {
+  outline: 3px solid var(--checkbox-focus-ring);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Radio buttons */
+input[type="radio"] {
+  accent-color: var(--primary);
+}
+
+/* ── Utility classes for semantic tokens ─────────────────────────────────── */
+@layer utilities {
+  .bg-theme-bg            { background-color: var(--background); }
+  .bg-theme-surface       { background-color: var(--surface); }
+  .bg-theme-surface-2     { background-color: var(--surface-secondary); }
+  .bg-theme-elevated      { background-color: var(--surface-elevated); }
+  .border-theme           { border-color: var(--border); }
+  .border-theme-subtle    { border-color: var(--border-subtle); }
+  .divide-theme > * + *   { border-color: var(--border); }
+  .text-theme-1           { color: var(--text-primary); }
+  .text-theme-2           { color: var(--text-secondary); }
+  .text-theme-3           { color: var(--text-muted); }
+  .text-theme-subtle      { color: var(--text-subtle); }
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — single source of truth for all theming.
+   Toggle between themes by setting data-theme="light" | data-theme="dark"
+   on <html>. Components reference semantic tokens — never raw colours.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Light theme ─────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  --background:          #F8FAFC;   /* page canvas                          */
+  --surface:             #FFFFFF;   /* cards, panels, sheets                */
+  --surface-secondary:   #F1F5F9;   /* inset sections, alt table rows       */
+  --surface-elevated:    #FFFFFF;   /* modals, dropdowns, tooltips          */
+  --border:              #E2E8F0;   /* standard dividers and outlines       */
+  --border-subtle:       #F1F5F9;   /* very light separators                */
+  --text-primary:        #0F172A;   /* headings, primary copy               */
+  --text-secondary:      #475569;   /* labels, subtitles                    */
+  --text-muted:          #94A3B8;   /* placeholder, helper, disabled        */
+  --text-inverse:        #FFFFFF;   /* text on coloured / dark surfaces     */
+
+  /* Sidebar — intentionally dark in BOTH themes (by design) */
+  --sidebar-bg:          #0F172A;
+  --sidebar-border:      rgba(255, 255, 255, 0.06);
+  --sidebar-text:        #64748B;
+  --sidebar-text-hover:  #CBD5E1;
+  --sidebar-text-active: #E2E8F0;
+  --sidebar-hover-bg:    rgba(255, 255, 255, 0.05);
+  --sidebar-active-bg:   rgba(56, 189, 248, 0.10);
+  --sidebar-active-bar:  #38BDF8;
+  --sidebar-badge-bg:    rgba(56, 189, 248, 0.20);
+  --sidebar-badge-text:  #7DD3FC;
+
+  /* Brand */
+  --primary:             #1B5EA6;
+  --primary-hover:       #154E8C;
+  --primary-light:       #EFF6FF;
+
+  /* Status (intentional — not theme-toggled) */
+  --status-success:      #16A34A;
+  --status-warning:      #D97706;
+  --status-danger:       #DC2626;
+  --status-info:         #2563EB;
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --background:          #0A0F1A;
+  --surface:             #0F172A;
+  --surface-secondary:   #111827;
+  --surface-elevated:    #1E293B;
+  --border:              #1E2D42;
+  --border-subtle:       #131C2E;
+  --text-primary:        #F1F5F9;
+  --text-secondary:      #94A3B8;
+  --text-muted:          #475569;
+  --text-inverse:        #0F172A;
+
+  /* Sidebar stays identical — same dark values in both themes */
+  --sidebar-bg:          #0F172A;
+  --sidebar-border:      rgba(255, 255, 255, 0.06);
+  --sidebar-text:        #64748B;
+  --sidebar-text-hover:  #CBD5E1;
+  --sidebar-text-active: #E2E8F0;
+  --sidebar-hover-bg:    rgba(255, 255, 255, 0.05);
+  --sidebar-active-bg:   rgba(56, 189, 248, 0.10);
+  --sidebar-active-bar:  #38BDF8;
+  --sidebar-badge-bg:    rgba(56, 189, 248, 0.20);
+  --sidebar-badge-text:  #7DD3FC;
+
+  --primary:             #2171C7;
+  --primary-hover:       #1B5EA6;
+  --primary-light:       rgba(27, 94, 166, 0.15);
+}
+
+/* ── Base defaults ───────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+  }
+
+  /* Smooth transition when toggling theme */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+}
+
+/* ── Tailwind plugin: semantic utility classes ───────────────────────────── */
+/* Using @layer utilities so Tailwind's JIT includes them */
+@layer utilities {
+  .bg-theme-bg            { background-color: var(--background); }
+  .bg-theme-surface       { background-color: var(--surface); }
+  .bg-theme-surface-2     { background-color: var(--surface-secondary); }
+  .bg-theme-elevated      { background-color: var(--surface-elevated); }
+  .border-theme           { border-color: var(--border); }
+  .border-theme-subtle    { border-color: var(--border-subtle); }
+  .divide-theme > * + *   { border-color: var(--border); }
+  .text-theme-1           { color: var(--text-primary); }
+  .text-theme-2           { color: var(--text-secondary); }
+  .text-theme-3           { color: var(--text-muted); }
+}
+
+
+/* Smooth theme switching for everything EXCEPT the page background,
+   which should switch instantly to avoid a 'lights off slowly' effect */
+*, *::before, *::after {
+  transition-property: color, border-color, fill, stroke;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+/* ── Dark mode: global overrides ─────────────────────────────────────────────
+   These rules ensure every white panel and every form control responds to dark
+   mode without requiring individual dark: Tailwind classes on each component.
+   Tailwind utility classes (dark:bg-slate-700 etc.) have equal specificity and
+   appear later in the bundle, so they correctly override these rules where
+   a specific shade is needed.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* White content panels → slate-900 */
+.dark .bg-white {
+  background-color: rgb(15 23 42);      /* slate-900 */
+  color: rgb(226 232 240);              /* slate-200 — inherited by child text */
+}
+
+/* Gray card borders → subtle white */
+.dark .border-gray-100 { border-color: rgba(255, 255, 255, 0.06); }
+.dark .border-gray-200 { border-color: rgba(255, 255, 255, 0.07); }
+.dark .border-gray-300 { border-color: rgba(255, 255, 255, 0.08); }
+.dark .divide-gray-100 > * + * { border-color: rgba(255, 255, 255, 0.05); }
+.dark .divide-gray-200 > * + * { border-color: rgba(255, 255, 255, 0.06); }
+
+/* Gray backgrounds inside panels */
+.dark .bg-gray-50  { background-color: rgba(255, 255, 255, 0.03); }
+.dark .bg-gray-100 { background-color: rgba(255, 255, 255, 0.06); }
+
+/* All form inputs, selects, textareas */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]),
+.dark select,
+.dark textarea {
+  background-color: rgb(30 41 59) !important;      /* slate-800 */
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgb(229 231 235) !important;              /* gray-200 */
+  color-scheme: dark;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(100 116 139) !important; /* slate-500 */
+}
+
+/* Table borders */
+.dark table, .dark td, .dark th {
+  border-color: rgba(255, 255, 255, 0.05);
+}

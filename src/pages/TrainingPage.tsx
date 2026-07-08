@@ -84,13 +84,13 @@ const QUARTER_MONTHS: Record<1 | 2 | 3 | 4, string> = {
 const STATUS_COLOUR: Record<SessionStatus, string> = {
   scheduled:  'bg-blue-50 text-blue-700 border-blue-200',
   completed:  'bg-green-50 text-green-700 border-green-200',
-  cancelled:  'bg-gray-100 text-gray-500 border-gray-200',
+  cancelled:  'bg-[var(--surface-secondary)] text-[var(--text-muted)] border-[var(--border)]',
 }
 
 const ENROL_COLOUR: Record<EnrolStatus, string> = {
   enrolled:   'bg-blue-50 text-blue-700',
   completed:  'bg-green-50 text-green-700',
-  cancelled:  'bg-gray-100 text-gray-500',
+  cancelled:  'bg-[var(--surface-secondary)] text-[var(--text-muted)]',
   no_show:    'bg-red-50 text-red-600',
 }
 
@@ -101,7 +101,7 @@ const MATRIX_CELL: Record<MatrixStatus, { bg: string; text: string; label: strin
   planned:        { bg: 'bg-amber-50  border-amber-200',  text: 'text-amber-700',  label: 'Planned',       symbol: '▪' },
   scheduled:      { bg: 'bg-blue-50   border-blue-200',   text: 'text-blue-700',   label: 'Scheduled',     symbol: '−' },
   completed:      { bg: 'bg-green-50  border-green-200',  text: 'text-green-700',  label: 'Completed',     symbol: '✓' },
-  not_applicable: { bg: 'bg-gray-100  border-gray-200',   text: 'text-gray-400',   label: 'N/A',           symbol: '/' },
+  not_applicable: { bg: 'bg-[var(--surface-secondary)]  border-[var(--border)]',   text: 'text-[var(--text-muted)]',   label: 'N/A',           symbol: '/' },
 }
 
 function fmt(iso: string) {
@@ -184,16 +184,16 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
   return (
     <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" onClick={onClose}>
       <div
-        className="bg-white w-full sm:max-w-2xl sm:rounded-xl shadow-xl flex flex-col max-h-[92dvh]"
+        className="bg-[var(--surface)] w-full sm:max-w-2xl sm:rounded-xl shadow-xl flex flex-col max-h-[92dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <IconAcademicCap className="w-5 h-5 text-[#1B5EA6]" />
-            <span className="font-semibold text-gray-900">Schedule Training Session</span>
+            <span className="font-semibold text-[var(--text-primary)]">Schedule Training Session</span>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-muted)]">
             <IconXMark className="w-4 h-4" />
           </button>
         </div>
@@ -209,18 +209,18 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
 
             {/* Course */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Course <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Course <span className="text-red-500">*</span></label>
               <select
                 value={courseId}
                 onChange={e => setCourseId(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
               >
                 {courses.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
               {course && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-[var(--text-muted)] mt-1">
                   {[course.technology, course.provider, course.duration_days ? `${course.duration_days}d` : null].filter(Boolean).join(' \u00b7 ')}
                 </p>
               )}
@@ -229,22 +229,22 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
             {/* Dates */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Start Date <span className="text-red-500">*</span></label>
                 <input
                   type="date"
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">End Date</label>
                 <input
                   type="date"
                   value={endDate}
                   min={date}
                   onChange={e => setEndDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
                 />
               </div>
             </div>
@@ -252,23 +252,23 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
             {/* Location + Trainer */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Location</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Location</label>
                 <input
                   type="text"
                   value={location}
                   onChange={e => setLocation(e.target.value)}
                   placeholder="e.g. Training Room A"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Trainer</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Trainer</label>
                 <input
                   type="text"
                   value={trainer}
                   onChange={e => setTrainer(e.target.value)}
                   placeholder="Trainer name"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
                 />
               </div>
             </div>
@@ -276,31 +276,31 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
             {/* Max participants + Notes */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Max Participants</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Max Participants</label>
                 <input
                   type="number"
                   min="1"
                   value={maxPax}
                   onChange={e => setMaxPax(e.target.value)}
                   placeholder="No limit"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Notes</label>
                 <input
                   type="text"
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Optional"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
                 />
               </div>
             </div>
 
             {/* Employee enrolment */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
+              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                 Enrol Employees
                 {selected.size > 0 && <span className="ml-1.5 text-[#1B5EA6]">({selected.size} selected)</span>}
               </label>
@@ -309,22 +309,22 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
                 value={empSearch}
                 onChange={e => setEmpSearch(e.target.value)}
                 placeholder="Search by name or code…"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
+                className="w-full border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30"
               />
-              <div className="border border-gray-200 rounded-lg divide-y divide-gray-50 max-h-48 overflow-y-auto">
+              <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--border)] max-h-48 overflow-y-auto">
                 {filteredEmps.length === 0 && (
-                  <p className="text-xs text-gray-400 px-3 py-3 text-center">No employees found</p>
+                  <p className="text-xs text-[var(--text-muted)] px-3 py-3 text-center">No employees found</p>
                 )}
                 {filteredEmps.map(emp => (
-                  <label key={emp.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                  <label key={emp.id} className="flex items-center gap-3 px-3 py-2 hover:bg-[var(--surface-secondary)] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selected.has(emp.id)}
                       onChange={() => toggleEmp(emp.id)}
-                      className="rounded border-gray-300 text-[#1B5EA6] focus:ring-[#1B5EA6]"
+                      className="rounded border-[var(--border)] text-[#1B5EA6] focus:ring-[#1B5EA6]"
                     />
-                    <span className="text-sm text-gray-800">{emp.first_name} {emp.surname}</span>
-                    {emp.employee_code && <span className="text-xs text-gray-400 ml-auto">{emp.employee_code}</span>}
+                    <span className="text-sm text-[var(--text-primary)]">{emp.first_name} {emp.surname}</span>
+                    {emp.employee_code && <span className="text-xs text-[var(--text-muted)] ml-auto">{emp.employee_code}</span>}
                   </label>
                 ))}
               </div>
@@ -332,8 +332,8 @@ function ScheduleForm({ courses, employees, prefillCourseId, prefillEmployeeIds,
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 flex-shrink-0">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+          <div className="flex justify-end gap-2 px-5 py-4 border-t border-[var(--border)] flex-shrink-0">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] rounded-lg">
               Cancel
             </button>
             <button
@@ -356,14 +356,14 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
       <div className="px-4 py-3.5 flex items-start gap-3">
         {/* Date block */}
-        <div className="flex-shrink-0 w-12 text-center bg-gray-50 rounded-lg py-1.5 border border-gray-100">
-          <p className="text-[10px] font-semibold uppercase text-gray-400 leading-none">
+        <div className="flex-shrink-0 w-12 text-center bg-[var(--surface-secondary)] rounded-lg py-1.5 border border-[var(--border)]">
+          <p className="text-[10px] font-semibold uppercase text-[var(--text-muted)] leading-none">
             {new Date(session.scheduled_date + 'T00:00:00').toLocaleDateString('en-ZA', { month: 'short' })}
           </p>
-          <p className="text-xl font-bold text-gray-900 leading-tight">
+          <p className="text-xl font-bold text-[var(--text-primary)] leading-tight">
             {new Date(session.scheduled_date + 'T00:00:00').getDate()}
           </p>
         </div>
@@ -371,7 +371,7 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
         {/* Main info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-gray-900 text-sm">
+            <span className="font-semibold text-[var(--text-primary)] text-sm">
               {session.training_courses?.name ?? 'Unknown Course'}
             </span>
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${STATUS_COLOUR[session.status]}`}>
@@ -379,9 +379,9 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
             </span>
           </div>
           {session.training_courses?.technology && (
-            <p className="text-xs text-gray-400 mt-0.5">{session.training_courses.technology}</p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">{session.training_courses.technology}</p>
           )}
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-[var(--text-muted)]">
             {session.location && (
               <span className="flex items-center gap-1">
                 <IconMapPin className="w-3.5 h-3.5" /> {session.location}
@@ -417,7 +417,7 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
           )}
           <button
             onClick={() => setExpanded(v => !v)}
-            className={`p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`p-1.5 rounded-lg hover:bg-[var(--surface-secondary)] text-[var(--text-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`}
           >
             <IconChevronDown className="w-4 h-4" />
           </button>
@@ -426,9 +426,9 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
 
       {/* Enrollments expansion */}
       {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+        <div className="border-t border-[var(--border)] bg-[var(--surface-secondary)] px-4 py-3">
           {session.training_enrollments.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-1">No employees enrolled</p>
+            <p className="text-xs text-[var(--text-muted)] text-center py-1">No employees enrolled</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {session.training_enrollments.map(e => (
@@ -443,7 +443,7 @@ function SessionCard({ session, onStatusChange }: { session: Session; onStatusCh
             </div>
           )}
           {session.notes && (
-            <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100 italic">{session.notes}</p>
+            <p className="text-xs text-[var(--text-muted)] mt-2 pt-2 border-t border-[var(--border)] italic">{session.notes}</p>
           )}
         </div>
       )}
@@ -628,26 +628,26 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         {/* FY selector */}
-        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
-          <button onClick={() => setFY(y => y - 1)} className="p-0.5 hover:bg-gray-100 rounded text-gray-500">
+        <div className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5">
+          <button onClick={() => setFY(y => y - 1)} className="p-0.5 hover:bg-[var(--surface-secondary)] rounded text-[var(--text-muted)]">
             <IconChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[180px] text-center">{fyLabel}</span>
-          <button onClick={() => setFY(y => y + 1)} className="p-0.5 hover:bg-gray-100 rounded text-gray-500">
+          <span className="text-sm font-medium text-[var(--text-secondary)] min-w-[180px] text-center">{fyLabel}</span>
+          <button onClick={() => setFY(y => y + 1)} className="p-0.5 hover:bg-[var(--surface-secondary)] rounded text-[var(--text-muted)]">
             <IconChevronRight className="w-4 h-4" />
           </button>
         </div>
 
         {/* Quarter tabs */}
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex gap-1 bg-[var(--surface-secondary)] rounded-lg p-1">
           {([1, 2, 3, 4] as const).map(q => (
             <button
               key={q}
               onClick={() => setQ(q)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 quarter === q
-                  ? 'bg-white text-[#1B5EA6] shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--primary)] shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]'
               }`}
             >
               Q{q}
@@ -656,19 +656,19 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
           ))}
         </div>
 
-        <span className="text-xs text-gray-400">{QUARTER_MONTHS[quarter]}</span>
+        <span className="text-xs text-[var(--text-muted)]">{QUARTER_MONTHS[quarter]}</span>
 
         {/* CAT level filter */}
-        <div className="ml-auto flex items-center gap-1.5 bg-gray-100 rounded-lg p-1">
+        <div className="ml-auto flex items-center gap-1.5 bg-[var(--surface-secondary)] rounded-lg p-1">
           <button
             onClick={() => setCatFilter('all')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${catFilter === 'all' ? 'bg-white text-[#1B5EA6] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${catFilter === 'all' ? 'bg-[var(--tab-active-bg)] text-[var(--primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]'}`}
           >
             All CAT levels
           </button>
           <button
             onClick={() => setCatFilter('highest')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${catFilter === 'highest' ? 'bg-white text-[#1B5EA6] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${catFilter === 'highest' ? 'bg-[var(--tab-active-bg)] text-[var(--primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]'}`}
           >
             Highest level only
           </button>
@@ -681,7 +681,7 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
               bulkMode
                 ? 'bg-[#1B5EA6] text-white border-[#1B5EA6]'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                : 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)] hover:border-gray-300'
             }`}
           >
             {bulkMode ? 'Exit Bulk Update' : 'Bulk Update'}
@@ -690,15 +690,15 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-        <span className="font-medium text-gray-600">Key:</span>
+      <div className="flex flex-wrap gap-3 text-xs text-[var(--text-muted)]">
+        <span className="font-medium text-[var(--text-secondary)]">Key:</span>
         {(Object.entries(MATRIX_CELL) as [MatrixStatus, typeof MATRIX_CELL[MatrixStatus]][]).map(([, cfg]) => (
           <span key={cfg.label} className="flex items-center gap-1">
             <span className={`inline-flex items-center justify-center w-5 h-5 rounded border text-[10px] font-bold ${cfg.bg} ${cfg.text}`}>{cfg.symbol}</span>
             {cfg.label}
           </span>
         ))}
-        {isManager && <span className="text-gray-400 italic">Click any cell to cycle status</span>}
+        {isManager && <span className="text-[var(--text-muted)] italic">Click any cell to cycle status</span>}
       </div>
 
       {/* Bulk action bar */}
@@ -708,7 +708,7 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
           <select
             value={bulkCourseId}
             onChange={e => setBulkCourseId(e.target.value)}
-            className="px-2 py-1.5 border border-blue-200 rounded-md text-sm bg-white"
+            className="px-2 py-1.5 border border-blue-200 rounded-md text-sm bg-[var(--surface)]"
           >
             <option value="all">All courses</option>
             {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -716,7 +716,7 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
           <select
             value={bulkStatus}
             onChange={e => setBulkStatus(e.target.value as MatrixStatus | 'clear')}
-            className="px-2 py-1.5 border border-blue-200 rounded-md text-sm bg-white"
+            className="px-2 py-1.5 border border-blue-200 rounded-md text-sm bg-[var(--surface)]"
           >
             <option value="planned">Planned</option>
             <option value="scheduled">Scheduled</option>
@@ -733,7 +733,7 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
           </button>
           <button
             onClick={() => setSelectedEmps(new Set())}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-blue-100 rounded-md"
+            className="px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-blue-100 rounded-md"
           >
             Clear selection
           </button>
@@ -746,17 +746,17 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
           <div className="w-5 h-5 border-2 border-[#1B5EA6] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="overflow-x-auto overflow-y-auto rounded-xl border border-gray-200 bg-white" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+        <div className="overflow-x-auto overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]" style={{ maxHeight: 'calc(100vh - 320px)' }}>
           <table className="text-xs min-w-max">
             <thead>
               {/* Technology group headers */}
-              <tr className="border-b border-gray-200">
-                <th className="sticky left-0 top-0 z-30 bg-white px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-52 border-r border-gray-200">
+              <tr className="border-b border-[var(--border)]">
+                <th className="sticky left-0 top-0 z-30 bg-[var(--surface)] px-4 py-2 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide w-52 border-r border-[var(--border)]">
                   <div className="flex items-center gap-2">
                     {isManager && bulkMode && (
                       <input
                         type="checkbox"
-                        className="rounded border-gray-300 text-[#1B5EA6]"
+                        className="rounded border-[var(--border)] text-[#1B5EA6]"
                         checked={selectedEmps.size === employees.length && employees.length > 0}
                         onChange={e => setSelectedEmps(e.target.checked ? new Set(employees.map(emp => emp.id)) : new Set())}
                       />
@@ -768,25 +768,25 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
                   <th
                     key={tech}
                     colSpan={techCourses.length}
-                    className="sticky top-0 z-20 px-3 py-2 text-center text-xs font-semibold text-gray-700 border-l border-gray-200 bg-gray-50 uppercase tracking-wide"
+                    className="sticky top-0 z-20 px-3 py-2 text-center text-xs font-semibold text-[var(--text-secondary)] border-l border-[var(--border)] bg-[var(--surface-secondary)] uppercase tracking-wide"
                   >
                     {tech}
                   </th>
                 ))}
               </tr>
               {/* Course name headers */}
-              <tr className="border-b border-gray-200">
-                <th className="sticky left-0 top-9 z-30 bg-white px-4 py-2 border-r border-gray-200" />
+              <tr className="border-b border-[var(--border)]">
+                <th className="sticky left-0 top-9 z-30 bg-[var(--surface)] px-4 py-2 border-r border-[var(--border)]" />
                 {courses.map(c => {
                   const stats = courseStats[c.id]
                   const pct = stats && stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : null
                   return (
-                    <th key={c.id} className="sticky top-9 z-20 bg-white px-2 py-2 text-center border-l border-gray-100 min-w-[72px] max-w-[96px]">
-                      <div className="font-medium text-gray-700 leading-tight text-[11px] text-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', height: 80 }}>
+                    <th key={c.id} className="sticky top-9 z-20 bg-[var(--surface)] px-2 py-2 text-center border-l border-[var(--border)] min-w-[72px] max-w-[96px]">
+                      <div className="font-medium text-[var(--text-secondary)] leading-tight text-[11px] text-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', height: 80 }}>
                         {c.name}
                       </div>
                       {pct !== null && (
-                        <div className={`text-[10px] mt-1 font-semibold ${pct === 100 ? 'text-green-600' : pct >= 50 ? 'text-amber-600' : 'text-gray-400'}`}>
+                        <div className={`text-[10px] mt-1 font-semibold ${pct === 100 ? 'text-green-600' : pct >= 50 ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
                           {pct}%
                         </div>
                       )}
@@ -795,15 +795,15 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
                 })}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {employees.map((emp, i) => (
-                <tr key={emp.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                  <td className="sticky left-0 z-10 px-4 py-2 border-r border-gray-200 bg-inherit">
+                <tr key={emp.id} className={i % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-gray-50/50'}>
+                  <td className="sticky left-0 z-10 px-4 py-2 border-r border-[var(--border)] bg-inherit">
                     <div className="flex items-center gap-2">
                       {isManager && bulkMode && (
                         <input
                           type="checkbox"
-                          className="rounded border-gray-300 text-[#1B5EA6] flex-shrink-0"
+                          className="rounded border-[var(--border)] text-[#1B5EA6] flex-shrink-0"
                           checked={selectedEmps.has(emp.id)}
                           onChange={() => setSelectedEmps(prev => {
                             const next = new Set(prev)
@@ -815,12 +815,12 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
                       <div>
                         <Link
                           to={`/employees/${emp.id}`}
-                          className="font-medium text-gray-800 hover:text-[#1B5EA6] whitespace-nowrap"
+                          className="font-medium text-[var(--text-primary)] hover:text-[#1B5EA6] whitespace-nowrap"
                         >
                           {emp.first_name} {emp.surname}
                         </Link>
                         {emp.employee_code && (
-                          <p className="text-[10px] text-gray-400">{emp.employee_code}</p>
+                          <p className="text-[10px] text-[var(--text-muted)]">{emp.employee_code}</p>
                         )}
                       </div>
                     </div>
@@ -841,11 +841,11 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
                       && courseLevel < empHighest
 
                     return (
-                      <td key={course.id} className="px-1.5 py-1.5 text-center border-l border-gray-100">
+                      <td key={course.id} className="px-1.5 py-1.5 text-center border-l border-[var(--border)]">
                         {isSuperseded ? (
                           <span
                             title={`Superseded by higher CAT level`}
-                            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-100 text-[10px] text-gray-300 bg-gray-50"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded border border-[var(--border)] text-[10px] text-gray-300 bg-[var(--surface-secondary)]"
                           >
                             /
                           </span>
@@ -857,7 +857,7 @@ function TrainingMatrix({ courses, employees, isManager }: TrainingMatrixProps) 
                             className={`inline-flex items-center justify-center w-7 h-7 rounded border text-[11px] font-bold transition-colors ${
                               cfg
                                 ? `${cfg.bg} ${cfg.text}`
-                                : 'border-gray-100 text-gray-300 hover:border-gray-300'
+                                : 'border-[var(--border)] text-gray-300 hover:border-gray-300'
                             } ${isManager ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} ${isSaving ? 'opacity-50' : ''}`}
                           >
                             {isSaving ? '…' : cfg ? cfg.symbol : ''}
@@ -946,7 +946,7 @@ export default function TrainingPage() {
 
   if (!isSupervisor) {
     return (
-      <div className="text-center py-10 text-gray-500 text-sm">
+      <div className="text-center py-10 text-[var(--text-muted)] text-sm">
         You don't have access to the training register.
       </div>
     )
@@ -957,8 +957,8 @@ export default function TrainingPage() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Training</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Schedule sessions, track enrolments, and manage the quarterly training matrix.</p>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Training</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">Schedule sessions, track enrolments, and manage the quarterly training matrix.</p>
         </div>
         {isManager && (
           <button
@@ -971,7 +971,7 @@ export default function TrainingPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-[var(--border)]">
         {([
           { key: 'overview', label: 'Overview' },
           { key: 'sessions', label: `Sessions${sessions.length ? ` (${sessions.length})` : ''}` },
@@ -983,7 +983,7 @@ export default function TrainingPage() {
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
               tab === t.key
                 ? 'border-[#1B5EA6] text-[#1B5EA6]'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
             }`}
           >
             {t.label}
@@ -1001,32 +1001,32 @@ export default function TrainingPage() {
           {tab === 'overview' && (
             <div className="space-y-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Upcoming Sessions</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{upcoming.length}</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Upcoming Sessions</p>
+                  <p className="text-3xl font-bold text-[var(--text-primary)] mt-1">{upcoming.length}</p>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Completed This Year</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Completed This Year</p>
                   <p className="text-3xl font-bold text-green-600 mt-1">{completedThisYear.length}</p>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Trained This Year</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                  <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Trained This Year</p>
                   <p className="text-3xl font-bold text-[#1B5EA6] mt-1">{totalEnrolledThisYear}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">completions</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">completions</p>
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2.5">
-                  <h2 className="text-sm font-semibold text-gray-700">Upcoming Sessions</h2>
+                  <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Upcoming Sessions</h2>
                   {upcoming.length > 3 && (
                     <button onClick={() => setTab('sessions')} className="text-xs text-[#1B5EA6] hover:underline">View all</button>
                   )}
                 </div>
                 {upcoming.length === 0 ? (
-                  <div className="bg-white border border-dashed border-gray-300 rounded-xl py-8 text-center">
+                  <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-xl py-8 text-center">
                     <IconAcademicCap className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No upcoming sessions scheduled.</p>
+                    <p className="text-sm text-[var(--text-muted)]">No upcoming sessions scheduled.</p>
                     {isManager && (
                       <button onClick={() => openSchedule()} className="mt-2 text-sm text-[#1B5EA6] hover:underline">
                         Schedule one now
@@ -1044,14 +1044,14 @@ export default function TrainingPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2.5">
-                  <h2 className="text-sm font-semibold text-gray-700">Training Matrix</h2>
+                  <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Training Matrix</h2>
                   <button onClick={() => setTab('matrix')} className="text-xs text-[#1B5EA6] hover:underline">Open matrix</button>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
                   <IconBadgeCheck className="w-8 h-8 text-[#1B5EA6] flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Quarterly Training Planner</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Quarterly Training Planner</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
                       Plan and track training for all employees across Q1–Q4 of the financial year (Jul–Jun).
                     </p>
                   </div>
@@ -1070,10 +1070,10 @@ export default function TrainingPage() {
           {tab === 'sessions' && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-sm font-semibold text-gray-700 mb-2.5">Upcoming ({upcoming.length})</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-2.5">Upcoming ({upcoming.length})</h2>
                 {upcoming.length === 0 ? (
-                  <div className="bg-white border border-dashed border-gray-300 rounded-xl py-8 text-center">
-                    <p className="text-sm text-gray-400">No upcoming sessions.</p>
+                  <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-xl py-8 text-center">
+                    <p className="text-sm text-[var(--text-muted)]">No upcoming sessions.</p>
                     {isManager && (
                       <button onClick={() => openSchedule()} className="mt-1.5 text-sm text-[#1B5EA6] hover:underline">Schedule one</button>
                     )}
@@ -1088,7 +1088,7 @@ export default function TrainingPage() {
               </div>
               {past.length > 0 && (
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-700 mb-2.5">Past Sessions ({past.length})</h2>
+                  <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-2.5">Past Sessions ({past.length})</h2>
                   <div className="space-y-2">
                     {past.map(s => (
                       <SessionCard key={s.id} session={s} onStatusChange={handleStatusChange} />

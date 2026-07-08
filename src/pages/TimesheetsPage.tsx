@@ -119,6 +119,14 @@ export default function TimesheetsPage() {
   const [leaveByDate, setLeaveByDate] = useState<Record<string, { id: string; leave_type: string }>>({})
   // Mon/Fri sick days for current employee in current calendar month, EXCLUDING dates in the currently-viewed week
   const [monthMonFriSickOutsideWeek, setMonthMonFriSickOutsideWeek] = useState<number>(0)
+  // Context snapshot panel: leave balances + OT
+  const [showContextPanel, setShowContextPanel] = useState(true)
+  const [ctxBalances, setCtxBalances] = useState<{leave_type: string; total_days: number; used_days: number}[]>([])
+  const [ctxOtPrev, setCtxOtPrev] = useState(0)
+  const [ctxOtCurr, setCtxOtCurr] = useState(0)
+  const [ctxOtPrevPending, setCtxOtPrevPending] = useState(0)
+  const [ctxOtCurrPending, setCtxOtCurrPending] = useState(0)
+  const [loadingCtx, setLoadingCtx] = useState(false)
   // Track which (weekId, dateISO) mismatches we've already sent notifications for this session
   const notifiedMismatchesRef = useRef<Set<string>>(new Set())
   // Set of dateISO strings auto-filled from leave that still need persisting via autosave
@@ -149,6 +157,60 @@ export default function TimesheetsPage() {
     pendingLeaveAutofillRef.current = new Set()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, profile?.id])
+
+  // Load leave balances + OT summary for the context snapshot panel
+  useEffect(() => {
+    if (profile?.id) fetchContextData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id])
+
+  async function fetchContextData() {
+    if (!profile?.id) return
+    setLoadingCtx(true)
+    try {
+      const now = new Date()
+      const fy = now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear()
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+      const currMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+      const [{ data: balData }, { data: otData }] = await Promise.all([
+        supabase
+          .from('leave_balances')
+          .select('leave_type, total_days, used_days')
+          .eq('employee_id', profile.id)
+          .eq('year', fy),
+        supabase
+          .from('ot_approvals')
+          .select('status, final_status, timesheet_day:timesheet_days(date, overtime_hours)')
+          .eq('employee_id', profile.id)
+          .gte('submitted_at', cutoff.toISOString()),
+      ])
+      setCtxBalances((balData ?? []) as {leave_type: string; total_days: number; used_days: number}[])
+      let prevApproved = 0, currApproved = 0, prevPending = 0, currPending = 0
+      for (const row of (otData ?? []) as {status: string; final_status: string | null; timesheet_day: {date: string; overtime_hours: number | null} | null}[]) {
+        const dateStr = row.timesheet_day?.date
+        if (!dateStr) continue
+        const d = new Date(dateStr + 'T00:00:00')
+        const hrs = row.timesheet_day?.overtime_hours ?? 0
+        const approved = row.final_status === 'approved' || (row.status === 'approved' && !row.final_status)
+        const pending = row.status === 'pending' || row.final_status === 'pending'
+        if (d >= prevMonthStart && d <= prevMonthEnd) {
+          if (approved) prevApproved += hrs
+          else if (pending) prevPending += hrs
+        } else if (d >= currMonthStart) {
+          if (approved) currApproved += hrs
+          else if (pending) currPending += hrs
+        }
+      }
+      setCtxOtPrev(prevApproved)
+      setCtxOtCurr(currApproved)
+      setCtxOtPrevPending(prevPending)
+      setCtxOtCurrPending(currPending)
+    } finally {
+      setLoadingCtx(false)
+    }
+  }
 
   function buildDaysFromDates(weekStartDate: Date): DayState[] {
     const dateArr = getDaysOfWeek(weekStartDate)
@@ -639,7 +701,7 @@ export default function TimesheetsPage() {
       public_holiday: 'text-purple-600',
       standby: 'text-amber-600',
     }
-    return map[status] ?? 'text-gray-500'
+    return map[status] ?? 'text-[var(--text-muted)]'
   }
 
   function formatBytes(bytes: number | null): string {
@@ -790,8 +852,8 @@ export default function TimesheetsPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Timesheets</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Timesheets</h1>
+          <p className="text-[var(--text-muted)] text-sm mt-0.5">
             {viewMode === 'my' ? 'Weekly timesheet entry' : 'Team timesheet overview'}
           </p>
         </div>
@@ -805,19 +867,19 @@ export default function TimesheetsPage() {
               }
             />
           )}
-          {saving && <span className="text-xs text-gray-400">Saving…</span>}
+          {saving && <span className="text-xs text-[var(--text-muted)]">Saving…</span>}
         </div>
       </div>
 
       {/* View toggle */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
+      <div className="flex gap-1 bg-[var(--surface-secondary)] p-1 rounded-lg w-fit mb-5">
         <button
           type="button"
           onClick={() => setViewMode('my')}
           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
             viewMode === 'my'
-              ? 'bg-white text-[#1B5EA6] shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-[var(--tab-active-bg)] text-[var(--primary)] shadow-sm'
+              : 'text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]'
           }`}
         >
           My Timesheet
@@ -827,8 +889,8 @@ export default function TimesheetsPage() {
           onClick={() => setViewMode('history')}
           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
             viewMode === 'history'
-              ? 'bg-white text-[#1B5EA6] shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-[var(--tab-active-bg)] text-[var(--primary)] shadow-sm'
+              : 'text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]'
           }`}
         >
           History
@@ -839,14 +901,102 @@ export default function TimesheetsPage() {
             onClick={() => setViewMode('team')}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
               viewMode === 'team'
-                ? 'bg-white text-[#1B5EA6] shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-[var(--tab-active-bg)] text-[var(--primary)] shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]'
             }`}
           >
             Team Overview
           </button>
         )}
       </div>
+
+      {/* ── My snapshot panel: leave balances + OT ─────────────────── */}
+      {viewMode === 'my' && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">My Snapshot</p>
+            <button
+              type="button"
+              onClick={() => setShowContextPanel(v => !v)}
+              className="text-xs text-[var(--text-muted)] hover:text-gray-600"
+            >
+              {showContextPanel ? 'Hide' : 'Show balances & OT'}
+            </button>
+          </div>
+          {showContextPanel && (
+            <div className={`bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4 grid grid-cols-1 sm:grid-cols-2 gap-5 ${loadingCtx ? 'opacity-60' : ''}`}>
+              {/* Leave balances */}
+              <div>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">Leave Balances — current FY</p>
+                {(['annual', 'sick', 'family', 'study'] as const).map(type => {
+                  const bal = ctxBalances.find(b => b.leave_type === type)
+                  const DEFAULTS: Record<string, number> = { annual: 15, sick: 30, family: 3, study: 0 }
+                  const total = bal?.total_days ?? DEFAULTS[type] ?? 0
+                  const used = bal?.used_days ?? 0
+                  const avail = Math.max(0, total - used)
+                  const LABELS: Record<string, string> = { annual: 'Annual', sick: 'Sick (36-mo)', family: 'Family Resp.', study: 'Study' }
+                  const pct = total > 0 ? (used / total) * 100 : 0
+                  const colorCls = avail === 0 && total > 0 ? 'text-red-500' : avail > 0 && avail <= 3 && avail < total ? 'text-amber-500' : 'text-[var(--text-secondary)]'
+                  return (
+                    <div key={type} className="mb-2">
+                      <div className="flex justify-between text-xs mb-0.5">
+                        <span className="text-[var(--text-muted)]">{LABELS[type]}</span>
+                        <span className={`font-medium ${colorCls}`}>
+                          {total === 0 ? 'per policy' : `${avail} / ${total} days`}
+                          {avail === 0 && total > 0 ? ' ⚠' : avail > 0 && avail <= 3 && avail < total ? ' ⚠' : ''}
+                        </span>
+                      </div>
+                      {total > 0 && (
+                        <div className="h-1 rounded-full bg-[var(--surface-secondary)] overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${avail === 0 ? 'bg-red-400' : avail > 0 && avail <= 3 && avail < total ? 'bg-amber-400' : 'bg-blue-400'}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <div className="mt-3 pt-2 border-t border-[var(--border)] space-y-0.5">
+                  {profile?.sex === 'female'
+                    ? <p className="text-[11px] text-[var(--text-muted)]">Maternity: 4 months unpaid (BCEA s25)</p>
+                    : <p className="text-[11px] text-[var(--text-muted)]">Parental: 10 days unpaid (BCEA s25B)</p>
+                  }
+                  <p className="text-[11px] text-[var(--text-muted)]">Adoption: 10 weeks unpaid (BCEA s25A)</p>
+                </div>
+              </div>
+              {/* OT summary */}
+              <div>
+                <p className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">Overtime Summary</p>
+                {([
+                  {
+                    label: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' }),
+                    approved: ctxOtPrev,
+                    pending: ctxOtPrevPending,
+                  },
+                  {
+                    label: new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' }),
+                    approved: ctxOtCurr,
+                    pending: ctxOtCurrPending,
+                  },
+                ] as {label: string; approved: number; pending: number}[]).map(({ label, approved, pending }) => (
+                  <div key={label} className="mb-3">
+                    <p className="text-xs text-[var(--text-muted)] mb-0.5">{label}</p>
+                    <p className="text-xs">
+                      <span className="font-medium text-[var(--text-secondary)]">{approved} hr{approved !== 1 ? 's' : ''} approved</span>
+                      {pending > 0 && <span className="text-amber-600 ml-1">· {pending} hr{pending !== 1 ? 's' : ''} pending</span>}
+                      {approved === 0 && pending === 0 && <span className="text-[var(--text-muted)] ml-1">· none recorded</span>}
+                    </p>
+                  </div>
+                ))}
+                <p className="text-[11px] text-[var(--text-muted)] mt-2 pt-2 border-t border-[var(--border)]">
+                  Approved = fully signed off. Pending = awaiting action.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Team overview */}
       {viewMode === 'team' && <TeamOverview />}
@@ -855,13 +1005,13 @@ export default function TimesheetsPage() {
       {viewMode === 'history' && (
         <div>
           {/* Filters */}
-          <div className="flex flex-wrap gap-4 mb-4 bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex flex-wrap gap-4 mb-4 bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Status</label>
+              <label className="block text-xs text-[var(--text-muted)] mb-1">Status</label>
               <select
                 value={historyStatusFilter}
                 onChange={e => setHistoryStatusFilter(e.target.value as TimesheetStatus | 'all')}
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700"
+                className="text-sm border border-[var(--border)] rounded px-2 py-1.5 bg-[var(--surface)] text-[var(--text-secondary)]"
               >
                 <option value="all">All statuses</option>
                 <option value="draft">Draft</option>
@@ -871,21 +1021,21 @@ export default function TimesheetsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">From week</label>
+              <label className="block text-xs text-[var(--text-muted)] mb-1">From week</label>
               <input
                 type="date"
                 value={historyDateFrom}
                 onChange={e => setHistoryDateFrom(e.target.value)}
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700"
+                className="text-sm border border-[var(--border)] rounded px-2 py-1.5 bg-[var(--surface)] text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">To week</label>
+              <label className="block text-xs text-[var(--text-muted)] mb-1">To week</label>
               <input
                 type="date"
                 value={historyDateTo}
                 onChange={e => setHistoryDateTo(e.target.value)}
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700"
+                className="text-sm border border-[var(--border)] rounded px-2 py-1.5 bg-[var(--surface)] text-[var(--text-secondary)]"
               />
             </div>
             {(historyDateFrom || historyDateTo || historyStatusFilter !== 'all') && (
@@ -893,7 +1043,7 @@ export default function TimesheetsPage() {
                 <button
                   type="button"
                   onClick={() => { setHistoryStatusFilter('all'); setHistoryDateFrom(''); setHistoryDateTo('') }}
-                  className="text-xs text-gray-400 underline py-1.5 hover:text-gray-600"
+                  className="text-xs text-[var(--text-muted)] underline py-1.5 hover:text-gray-600"
                 >
                   Clear filters
                 </button>
@@ -907,11 +1057,11 @@ export default function TimesheetsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : historyWeeks.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-10 text-center">
-              <p className="text-sm text-gray-400">No timesheets found.</p>
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-10 text-center">
+              <p className="text-sm text-[var(--text-muted)]">No timesheets found.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
               {historyWeeks.map(week => {
                 const ws = new Date(week.week_start + 'T00:00:00')
                 const we = new Date(week.week_end + 'T00:00:00')
@@ -919,13 +1069,13 @@ export default function TimesheetsPage() {
                 return (
                   <div key={week.id}>
                     <div
-                      className="flex flex-col gap-2 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-2 px-4 py-3 hover:bg-[var(--surface-secondary)] transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between"
                       onClick={() => toggleExpandWeek(week.id)}
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800">{formatWeekRange(ws, we)}</p>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{formatWeekRange(ws, we)}</p>
                         {week.submitted_at && (
-                          <p className="text-xs text-gray-400 mt-0.5">
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">
                             Submitted {new Date(week.submitted_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </p>
                         )}
@@ -945,17 +1095,17 @@ export default function TimesheetsPage() {
                           <button
                             type="button"
                             onClick={e => { e.stopPropagation(); navigateToWeek(week.week_start) }}
-                            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                            className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] transition-colors"
                           >
                             {week.status === 'approved' ? 'View' : 'Edit'}
                           </button>
-                          <IconChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                          <IconChevronDown className={`w-4 h-4 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                         </div>
                       </div>
                     </div>
 
                     {isExpanded && (
-                      <div className="border-t border-gray-100 bg-gray-50 px-4 py-4">
+                      <div className="border-t border-[var(--border)] bg-[var(--surface-secondary)] px-4 py-4">
                         {expandedData?.loading ? (
                           <div className="flex justify-center py-4">
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
@@ -965,14 +1115,14 @@ export default function TimesheetsPage() {
                             {/* Day summary */}
                             {expandedData && expandedData.days.length > 0 && (
                               <div className="mb-4">
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Week Summary</p>
+                                <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Week Summary</p>
                                 <div
                                   className="grid gap-1.5"
                                   style={{ gridTemplateColumns: `repeat(${Math.min(expandedData.days.length, 7)}, minmax(0, 1fr))` }}
                                 >
                                   {expandedData.days.map(d => (
-                                    <div key={d.id} className="bg-white rounded border border-gray-200 px-1 py-2 text-center">
-                                      <p className="text-[10px] font-semibold text-gray-600 mb-0.5">{d.day_of_week}</p>
+                                    <div key={d.id} className="bg-[var(--surface)] rounded border border-[var(--border)] px-1 py-2 text-center">
+                                      <p className="text-[10px] font-semibold text-[var(--text-secondary)] mb-0.5">{d.day_of_week}</p>
                                       <p className={`text-[9px] font-medium leading-tight break-words ${getDayStatusColour(d.primary_status)}`}>
                                         {d.primary_status.replace(/_/g, ' ')}
                                       </p>
@@ -990,19 +1140,19 @@ export default function TimesheetsPage() {
 
                             {/* Attachments */}
                             <div>
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                              <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">
                                 Attachments{expandedData?.attachments.length ? ` (${expandedData.attachments.length})` : ''}
                               </p>
                               {!expandedData || expandedData.attachments.length === 0 ? (
-                                <p className="text-xs text-gray-400 italic">No attachments for this week.</p>
+                                <p className="text-xs text-[var(--text-muted)] italic">No attachments for this week.</p>
                               ) : (
                                 <ul className="space-y-1.5">
                                   {expandedData.attachments.map(att => (
-                                    <li key={att.id} className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-3 py-2">
+                                    <li key={att.id} className="flex items-center justify-between bg-[var(--surface)] rounded-lg border border-[var(--border)] px-3 py-2">
                                       <div className="flex items-center gap-2 min-w-0">
-                                        <IconDocument className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                        <IconDocument className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
                                         <div className="min-w-0">
-                                          <p className="text-xs font-medium text-gray-700 truncate max-w-[200px]">{att.ai_display_name ?? att.display_name}</p>
+                                          <p className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[200px]">{att.ai_display_name ?? att.display_name}</p>
                                           <div className="flex items-center gap-1 mt-0.5">
                                             {editingAttachmentCategoryId === att.id ? (
                                               <select
@@ -1010,7 +1160,7 @@ export default function TimesheetsPage() {
                                                 onChange={e => { e.stopPropagation(); handleUpdateAttachmentCategory(att.id, e.target.value as DocumentCategory) }}
                                                 onBlur={() => setEditingAttachmentCategoryId(null)}
                                                 autoFocus
-                                                className="border border-gray-200 rounded px-1 py-0.5 text-[10px] bg-white"
+                                                className="border border-[var(--border)] rounded px-1 py-0.5 text-[10px] bg-[var(--surface)]"
                                               >
                                                 {(Object.entries(DOCUMENT_CATEGORY_LABELS) as [DocumentCategory, string][]).map(([key, label]) => (
                                                   <option key={key} value={key}>{label}</option>
@@ -1018,9 +1168,9 @@ export default function TimesheetsPage() {
                                               </select>
                                             ) : att.ai_classified_at === null ? (
                                               <div className="flex items-center gap-0.5">
-                                                <span className="text-[10px] text-gray-400 italic">Classifying…</span>
-                                                <button type="button" onClick={e => { e.stopPropagation(); setEditingAttachmentCategoryId(att.id) }} title="Set category" className="p-0.5 rounded hover:bg-gray-100">
-                                                  <IconPencil className="w-3 h-3 text-gray-400" />
+                                                <span className="text-[10px] text-[var(--text-muted)] italic">Classifying…</span>
+                                                <button type="button" onClick={e => { e.stopPropagation(); setEditingAttachmentCategoryId(att.id) }} title="Set category" className="p-0.5 rounded hover:bg-[var(--surface-secondary)]">
+                                                  <IconPencil className="w-3 h-3 text-[var(--text-muted)]" />
                                                 </button>
                                               </div>
                                             ) : (
@@ -1029,8 +1179,8 @@ export default function TimesheetsPage() {
                                                   <IconSparkles className="w-2.5 h-2.5" />
                                                   {DOCUMENT_CATEGORY_LABELS[att.category ?? 'other']}
                                                 </span>
-                                                <button type="button" onClick={e => { e.stopPropagation(); setEditingAttachmentCategoryId(att.id) }} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-100 transition-opacity" title="Edit category">
-                                                  <IconPencil className="w-3 h-3 text-gray-400" />
+                                                <button type="button" onClick={e => { e.stopPropagation(); setEditingAttachmentCategoryId(att.id) }} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--surface-secondary)] transition-opacity" title="Edit category">
+                                                  <IconPencil className="w-3 h-3 text-[var(--text-muted)]" />
                                                 </button>
                                               </div>
                                             )}
@@ -1040,7 +1190,7 @@ export default function TimesheetsPage() {
                                       <button
                                         type="button"
                                         onClick={e => { e.stopPropagation(); handleDownloadAttachment(att) }}
-                                        className="p-1.5 rounded hover:bg-gray-200 text-gray-500 shrink-0"
+                                        className="p-1.5 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-muted)] shrink-0"
                                         title="Download"
                                       >
                                         <IconDownload className="w-3.5 h-3.5" />
@@ -1066,15 +1216,15 @@ export default function TimesheetsPage() {
       {viewMode === 'my' && (<>
 
       {/* Week navigation */}
-      <div className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4">
+      <div className="flex items-center justify-between bg-[var(--surface)] rounded-lg border border-[var(--border)] px-4 py-3 mb-4">
         <button
           onClick={() => setWeekOffset(o => o - 1)}
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-600 font-bold"
+          className="p-1.5 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-secondary)] font-bold"
         >
           ←
         </button>
         <div className="text-center">
-          <p className="font-semibold text-gray-800 text-sm">{formatWeekRange(weekStart, weekEnd)}</p>
+          <p className="font-semibold text-[var(--text-primary)] text-sm">{formatWeekRange(weekStart, weekEnd)}</p>
           {weekOffset === 0 && <p className="text-xs text-blue-600">Current week</p>}
           {weekOffset !== 0 && (
             <button
@@ -1087,7 +1237,7 @@ export default function TimesheetsPage() {
         </div>
         <button
           onClick={() => setWeekOffset(o => o + 1)}
-          className="p-1.5 rounded hover:bg-gray-100 text-gray-600 font-bold"
+          className="p-1.5 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-secondary)] font-bold"
         >
           →
         </button>
@@ -1160,12 +1310,12 @@ export default function TimesheetsPage() {
               return (
                 <div
                   key={weekStartStr + idx}
-                  className={`bg-white rounded-lg border p-3 ${
-                    isWeekend ? 'border-gray-100 bg-gray-50' : 'border-gray-200'
+                  className={`bg-[var(--surface)] rounded-lg border p-3 ${
+                    isWeekend ? 'border-[var(--border)] bg-[var(--surface-secondary)]' : 'border-[var(--border)]'
                   } ${leaveMismatch ? 'border-amber-300 ring-1 ring-amber-200' : ''} ${locked && !day.is_public_holiday ? 'opacity-75' : ''}`}
                 >
                   {/* Day heading */}
-                  <p className="text-xs font-semibold text-gray-700 mb-1">
+                  <p className="text-xs font-semibold text-[var(--text-secondary)] mb-1">
                     {formatDayHeading(date, idx)}
                   </p>
 
@@ -1196,8 +1346,8 @@ export default function TimesheetsPage() {
                       const newStatus = e.target.value as DayStatus | ''
                       handleDayChange(idx, { primary_status: newStatus })
                     }}
-                    className={`w-full text-xs border border-gray-200 rounded px-2 py-1.5 mb-2 bg-white ${
-                      locked || day.is_public_holiday ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700'
+                    className={`w-full text-xs border border-[var(--border)] rounded px-2 py-1.5 mb-2 bg-[var(--surface)] ${
+                      locked || day.is_public_holiday ? 'text-[var(--text-muted)] cursor-not-allowed' : 'text-[var(--text-secondary)]'
                     }`}
                   >
                     {isWeekend && <option value="">— select —</option>}
@@ -1250,9 +1400,9 @@ export default function TimesheetsPage() {
                       checked={day.overtime_flag}
                       disabled={locked}
                       onChange={e => handleDayChange(idx, { overtime_flag: e.target.checked, overtime_reason: '' })}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border)]"
                     />
-                    <span className="text-xs text-gray-600">OT</span>
+                    <span className="text-xs text-[var(--text-secondary)]">OT</span>
                   </label>
                   {day.overtime_flag && (
                     <div className="mb-2 space-y-1">
@@ -1286,7 +1436,7 @@ export default function TimesheetsPage() {
                             return next
                           })
                         }}
-                        className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                        className="w-full text-xs border border-[var(--border)] rounded px-2 py-1"
                         placeholder="Hours (e.g. 5 or 5.5)"
                       />
                       {otHourErrors[idx] && (
@@ -1302,7 +1452,7 @@ export default function TimesheetsPage() {
                         rows={2}
                         placeholder="OT reason (required)…"
                         className={`w-full text-xs border rounded px-2 py-1 resize-none placeholder:text-gray-300 ${
-                          !day.overtime_reason.trim() && !locked ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                          !day.overtime_reason.trim() && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
                         }`}
                       />
                       {!day.overtime_reason.trim() && !locked && (
@@ -1318,9 +1468,9 @@ export default function TimesheetsPage() {
                       checked={day.standby_flag}
                       disabled={locked}
                       onChange={e => handleDayChange(idx, { standby_flag: e.target.checked })}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border)]"
                     />
-                    <span className="text-xs text-gray-600">Standby</span>
+                    <span className="text-xs text-[var(--text-secondary)]">Standby</span>
                   </label>
 
                   {/* LOL */}
@@ -1330,9 +1480,9 @@ export default function TimesheetsPage() {
                       checked={day.lol_flag}
                       disabled={locked}
                       onChange={e => handleDayChange(idx, { lol_flag: e.target.checked })}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border)]"
                     />
-                    <span className="text-xs text-gray-600">LOL</span>
+                    <span className="text-xs text-[var(--text-secondary)]">LOL</span>
                   </label>
 
                   {/* LOI */}
@@ -1342,9 +1492,9 @@ export default function TimesheetsPage() {
                       checked={day.loi_flag}
                       disabled={locked}
                       onChange={e => handleDayChange(idx, { loi_flag: e.target.checked })}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border)]"
                     />
-                    <span className="text-xs text-gray-600">LOI</span>
+                    <span className="text-xs text-[var(--text-secondary)]">LOI</span>
                   </label>
 
                   {/* Notes */}
@@ -1354,7 +1504,7 @@ export default function TimesheetsPage() {
                     onChange={e => handleDayChange(idx, { notes: e.target.value })}
                     rows={2}
                     placeholder="Notes…"
-                    className="w-full text-xs border border-gray-200 rounded px-2 py-1 resize-none placeholder:text-gray-300"
+                    className="w-full text-xs border border-[var(--border)] rounded px-2 py-1 resize-none placeholder:text-gray-300"
                   />
                 </div>
               )
@@ -1362,13 +1512,13 @@ export default function TimesheetsPage() {
           </div>
 
           {/* Attachments */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+          <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <IconPaperclip className="w-4 h-4 text-gray-500" />
-                <h3 className="text-sm font-semibold text-gray-700">Attachments</h3>
+                <IconPaperclip className="w-4 h-4 text-[var(--text-muted)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Attachments</h3>
                 {attachments.length > 0 && (
-                  <span className="text-xs text-gray-400">({attachments.length})</span>
+                  <span className="text-xs text-[var(--text-muted)]">({attachments.length})</span>
                 )}
               </div>
               {!isLocked && (
@@ -1398,10 +1548,10 @@ export default function TimesheetsPage() {
             </div>
 
             {attachments.length === 0 && weekId && (
-              <p className="text-xs text-gray-400 italic">No attachments yet. Upload sick notes, OT approval emails, or any supporting documents.</p>
+              <p className="text-xs text-[var(--text-muted)] italic">No attachments yet. Upload sick notes, OT approval emails, or any supporting documents.</p>
             )}
             {attachments.length === 0 && !weekId && !isLocked && (
-              <p className="text-xs text-gray-400 italic">No attachments yet. Click "Add file" to upload a sick note, OT approval email, or any supporting document.</p>
+              <p className="text-xs text-[var(--text-muted)] italic">No attachments yet. Click "Add file" to upload a sick note, OT approval email, or any supporting document.</p>
             )}
 
             {uploadError && (
@@ -1414,11 +1564,11 @@ export default function TimesheetsPage() {
             {attachments.length > 0 && (
               <ul className="space-y-2">
                 {attachments.map(att => (
-                  <li key={att.id} className="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <li key={att.id} className="flex items-center justify-between gap-2 bg-[var(--surface-secondary)] rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <IconDocument className="w-4 h-4 text-gray-400 shrink-0" />
+                      <IconDocument className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs font-medium text-gray-700 truncate">
+                        <p className="text-xs font-medium text-[var(--text-secondary)] truncate">
                           {att.ai_display_name ?? att.display_name}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -1428,7 +1578,7 @@ export default function TimesheetsPage() {
                               onChange={e => handleUpdateAttachmentCategory(att.id, e.target.value as DocumentCategory)}
                               onBlur={() => setEditingAttachmentCategoryId(null)}
                               autoFocus
-                              className="border border-gray-200 rounded px-1 py-0.5 text-[10px] bg-white"
+                              className="border border-[var(--border)] rounded px-1 py-0.5 text-[10px] bg-[var(--surface)]"
                             >
                               {(Object.entries(DOCUMENT_CATEGORY_LABELS) as [DocumentCategory, string][]).map(([key, label]) => (
                                 <option key={key} value={key}>{label}</option>
@@ -1436,9 +1586,9 @@ export default function TimesheetsPage() {
                             </select>
                           ) : att.ai_classified_at === null ? (
                             <div className="flex items-center gap-0.5">
-                              <span className="text-[10px] text-gray-400 italic">Classifying…</span>
-                              <button type="button" onClick={() => setEditingAttachmentCategoryId(att.id)} title="Set category" className="p-0.5 rounded hover:bg-gray-100">
-                                <IconPencil className="w-3 h-3 text-gray-400" />
+                              <span className="text-[10px] text-[var(--text-muted)] italic">Classifying…</span>
+                              <button type="button" onClick={() => setEditingAttachmentCategoryId(att.id)} title="Set category" className="p-0.5 rounded hover:bg-[var(--surface-secondary)]">
+                                <IconPencil className="w-3 h-3 text-[var(--text-muted)]" />
                               </button>
                             </div>
                           ) : (
@@ -1447,13 +1597,13 @@ export default function TimesheetsPage() {
                                 <IconSparkles className="w-2.5 h-2.5" />
                                 {DOCUMENT_CATEGORY_LABELS[att.category ?? 'other']}
                               </span>
-                              <button type="button" onClick={() => setEditingAttachmentCategoryId(att.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-100 transition-opacity" title="Edit category">
-                                <IconPencil className="w-3 h-3 text-gray-400" />
+                              <button type="button" onClick={() => setEditingAttachmentCategoryId(att.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--surface-secondary)] transition-opacity" title="Edit category">
+                                <IconPencil className="w-3 h-3 text-[var(--text-muted)]" />
                               </button>
                             </div>
                           )}
                           {att.file_size_bytes && (
-                            <span className="text-[10px] text-gray-400">{formatBytes(att.file_size_bytes)}</span>
+                            <span className="text-[10px] text-[var(--text-muted)]">{formatBytes(att.file_size_bytes)}</span>
                           )}
                         </div>
                       </div>
@@ -1462,7 +1612,7 @@ export default function TimesheetsPage() {
                       <button
                         type="button"
                         onClick={() => handleDownloadAttachment(att)}
-                        className="p-1 rounded hover:bg-gray-200 text-gray-500"
+                        className="p-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-muted)]"
                         title="Download"
                       >
                         <IconDownload className="w-3.5 h-3.5" />
@@ -1471,7 +1621,7 @@ export default function TimesheetsPage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteAttachment(att)}
-                          className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"
+                          className="p-1 rounded hover:bg-red-100 text-[var(--text-muted)] hover:text-red-500"
                           title="Remove"
                         >
                           <IconTrash className="w-3.5 h-3.5" />
@@ -1515,7 +1665,7 @@ export default function TimesheetsPage() {
               </button>
             )}
             {weekStatus === 'approved' && (
-              <p className="text-sm text-gray-500 italic">
+              <p className="text-sm text-[var(--text-muted)] italic">
                 Timesheet is <strong>approved</strong> and locked.
               </p>
             )}
@@ -1533,15 +1683,15 @@ export default function TimesheetsPage() {
       {/* Confirm dialog */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Submit timesheet?</h3>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="bg-[var(--surface)] rounded-xl shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Submit timesheet?</h3>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
               You can still edit this timesheet until your supervisor approves it. Once approved, no further changes can be made. Submit now?
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]"
               >
                 Cancel
               </button>

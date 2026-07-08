@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { IconGrid, IconClipboard, IconCalendar, IconCheckCircle, IconBell, IconUser, IconUsers, IconChartBar, IconFolder, IconEllipsis, IconXMark, IconChevronLeft, IconChevronDown, IconCake, IconTrophy, IconBadgeCheck, IconAcademicCap, IconClipboardList } from './Icons'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { supabase } from '../lib/supabase'
@@ -48,7 +49,9 @@ const navItems: NavItem[] = [
 
 export default function Layout() {
   const { profile, signOut } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const { unreadCount } = useNotifications()
+  const [isOnline, setIsOnline] = useState(typeof window !== 'undefined' ? window.navigator.onLine : true)
   const [approvalsCount, setApprovalsCount] = useState(0)
   const [verifyCount, setVerifyCount] = useState(0)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -89,6 +92,18 @@ export default function Layout() {
 
   const isManager = !!profile?.role && MANAGER_ROLES.includes(profile.role)
   const isSupervisor = !!profile?.role && SUPERVISOR_ROLES.includes(profile.role)
+
+  // Online / offline tracking
+  useEffect(() => {
+    const on  = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online',  on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online',  on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
 
   // Auto-expand Employees group when navigating into that section
   useEffect(() => {
@@ -229,18 +244,21 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-[var(--background)] flex">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:flex-col md:w-64 md:h-screen md:sticky md:top-0 bg-[#1B5EA6] text-white">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-blue-700 flex-shrink-0">
-          <img src={wearCheckLogoUrl} alt="WearCheck" className="w-10 h-10 object-contain" />
-          <div>
-            <p className="font-semibold text-sm">WearCheck</p>
-            <p className="text-blue-200 text-xs">Timesheets</p>
+      <aside className="hidden md:flex md:flex-col md:w-64 md:h-screen md:sticky md:top-0 bg-[var(--sidebar-bg)] text-[var(--sidebar-text-active)]">
+        <div className="flex items-center gap-3 px-5 py-[18px] border-b border-[var(--sidebar-border)] flex-shrink-0">
+          <img src={wearCheckLogoUrl} alt="WearCheck" className="w-9 h-9 object-contain" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-[var(--sidebar-text-active)] tracking-tight">WearCheck</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors duration-500 ${isOnline ? 'bg-green-400' : 'bg-red-400'}`} />
+              <p className="text-[var(--sidebar-text)] text-[11px] font-medium">{isOnline ? 'Online' : 'Offline'}</p>
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-0.5">
           {visibleItems.map(item => {
             if (item.children) {
               const isGroupActive = location.pathname.startsWith('/employees')
@@ -249,8 +267,10 @@ export default function Layout() {
                   <button
                     type="button"
                     onClick={() => setEmployeesExpanded(prev => !prev)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm w-full transition-colors ${
-                      isGroupActive ? 'bg-white/20 text-white font-medium' : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] w-full transition-all duration-150 ${
+                      isGroupActive
+                        ? 'bg-[var(--sidebar-active-bg)] text-sky-300 font-medium border-l-[3px] border-sky-400 pl-[9px] pr-3'
+                        : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)] border-l-[3px] border-transparent pl-[9px] pr-3'
                     }`}
                   >
                     {item.icon}
@@ -258,15 +278,17 @@ export default function Layout() {
                     <IconChevronDown className={`w-4 h-4 transition-transform duration-150 ${employeesExpanded ? 'rotate-180' : ''}`} />
                   </button>
                   {employeesExpanded && (
-                    <div className="ml-3 mt-0.5 space-y-0.5 border-l border-blue-500/40 pl-3">
+                    <div className="ml-3 mt-0.5 space-y-0.5 border-l border-[var(--sidebar-border)] pl-3">
                       {item.children.map(child => (
                         <NavLink
                           key={child.to}
                           to={child.to}
                           end={child.exact}
                           className={({ isActive }) =>
-                            `flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                              isActive ? 'bg-white/20 text-white font-medium' : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                            `flex items-center gap-3 py-1.5 rounded-md text-[12px] transition-all duration-150 border-l-[3px] ${
+                              isActive
+                                ? 'bg-[var(--sidebar-active-bg)] text-sky-300 font-medium border-sky-400 pl-[9px] pr-3'
+                                : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)] border-transparent pl-[9px] pr-3'
                             }`
                           }
                         >
@@ -286,8 +308,10 @@ export default function Layout() {
               to={item.to}
               end={item.exact}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive ? 'bg-white/20 text-white font-medium' : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                `flex items-center gap-3 py-2.5 rounded-lg text-[13px] transition-all duration-150 border-l-[3px] ${
+                  isActive
+                    ? 'bg-[var(--sidebar-active-bg)] text-sky-300 font-medium border-sky-400 pl-[9px] pr-3'
+                    : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-text-hover)] border-transparent pl-[9px] pr-3'
                 }`
               }
             >
@@ -303,7 +327,7 @@ export default function Layout() {
               ) : item.icon}
               <span className="flex-1">{item.label}</span>
               {badge > 0 && item.to !== '/notifications' && (
-                <span className="min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+                <span className="min-w-[18px] h-[18px] px-1 bg-[var(--sidebar-badge-bg)] text-[var(--sidebar-badge-text)] text-[10px] font-semibold rounded-full border border-sky-500/30 flex items-center justify-center tabular-nums">
                   {badge > 9 ? '9+' : badge}
                 </span>
               )}
@@ -312,21 +336,47 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="px-4 py-4 border-t border-blue-700 flex-shrink-0">
-          <p className="text-xs text-blue-200 truncate">{profile?.first_name} {profile?.surname}</p>
-          <p className="text-xs text-blue-300 capitalize">{profile?.role?.replace('_', ' ')}</p>
-          <button
-            onClick={signOut}
-            className="mt-2 text-xs text-blue-200 hover:text-white transition-colors"
-          >
-            Sign out
-          </button>
+        <div className="px-3 py-4 border-t border-[var(--sidebar-border)] flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-sky-300 text-[11px] font-bold leading-none">
+                {(profile?.first_name?.[0] ?? '').toUpperCase()}{(profile?.surname?.[0] ?? '').toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-medium text-[var(--sidebar-text-active)] truncate leading-tight">{profile?.first_name} {profile?.surname}</p>
+              <p className="text-[11px] text-[var(--sidebar-text)] capitalize truncate leading-tight mt-0.5">{profile?.role?.replace(/_/g, ' ')}</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-3">
+            <button
+              onClick={signOut}
+              className="text-[11px] text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              Sign out
+            </button>
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            >
+              {theme === 'dark' ? (
+                <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
-        <header className="md:hidden bg-[#1B5EA6] text-white px-3 py-2 flex items-center justify-between gap-2">
+        <header className="md:hidden bg-[var(--sidebar-bg)] text-[var(--sidebar-text-active)] px-3 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             {location.pathname !== '/' && (
               <button
@@ -350,7 +400,19 @@ export default function Layout() {
           <button onClick={signOut} className="text-xs text-blue-200 px-2 py-1 rounded hover:bg-white/10">Sign out</button>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-auto p-4 md:p-6">
+        <div ref={scrollRef} className="flex-1 overflow-auto p-4 md:p-6 transition-colors duration-150">
+          {/* Offline banner — shown whenever the browser loses connectivity */}
+          {!isOnline && (
+            <div className="mb-4 flex items-start gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-500/20 rounded-xl px-4 py-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-400">You are offline</p>
+                <p className="text-xs text-amber-700/70 dark:text-amber-500 mt-0.5">
+                  Read-only access only. Changes you make will not be saved until you reconnect.
+                </p>
+              </div>
+            </div>
+          )}
           <Outlet />
         </div>
       </main>
@@ -371,7 +433,7 @@ export default function Layout() {
 
         return (
           <>
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex">
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--border)] flex">
               {primaryItems.map(item => {
                 const badge = badgeFor(item.to)
                 return (
@@ -381,7 +443,7 @@ export default function Layout() {
                     end={item.exact}
                     className={({ isActive }) =>
                       `flex-1 flex flex-col items-center py-2 text-[11px] transition-colors ${
-                        isActive ? 'text-[#1B5EA6] font-medium' : 'text-gray-500'
+                        isActive ? 'text-[var(--primary)] font-medium' : 'text-[var(--text-muted)]'
                       }`
                     }
                   >
@@ -401,7 +463,7 @@ export default function Layout() {
                 <button
                   type="button"
                   onClick={() => setMoreOpen(true)}
-                  className="flex-1 flex flex-col items-center py-2 text-[11px] text-gray-500"
+                  className="flex-1 flex flex-col items-center py-2 text-[11px] text-[var(--text-muted)]"
                 >
                   <span className="w-5 h-5 relative">
                     <IconEllipsis className="w-5 h-5" />
@@ -423,7 +485,7 @@ export default function Layout() {
                 onClick={() => setMoreOpen(false)}
               >
                 <div
-                  className="w-full bg-white rounded-t-xl shadow-lg pb-[env(safe-area-inset-bottom)]"
+                  className="w-full bg-[var(--surface-elevated)] rounded-t-xl shadow-lg pb-[env(safe-area-inset-bottom)]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">

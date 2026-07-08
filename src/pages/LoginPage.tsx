@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--surface-secondary)] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Logo */}
         <div className="flex justify-center">
@@ -46,22 +46,22 @@ export default function LoginPage() {
             </svg>
           </div>
         </div>
-        <h2 className="mt-5 text-center text-2xl font-bold tracking-tight text-gray-900">
+        <h2 className="mt-5 text-center text-2xl font-bold tracking-tight text-[var(--text-primary)]">
           WearCheck ARC
         </h2>
-        <p className="mt-1 text-center text-sm text-gray-500">
+        <p className="mt-1 text-center text-sm text-[var(--text-muted)]">
           Timesheet &amp; Leave Management
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-sm border border-gray-200 rounded-xl">
+        <div className="bg-[var(--surface)] py-8 px-6 shadow-sm border border-[var(--border)] rounded-xl">
 
           {/* LOGIN VIEW */}
           {view === 'login' && (
             <form onSubmit={handleSignIn} className="space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                   Email address
                 </label>
                 <input
@@ -71,13 +71,13 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
+                  className="block w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
                   placeholder="you@wearcheckrs.com"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                   Password
                 </label>
                 <div className="relative">
@@ -88,13 +88,13 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="block w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
+                    className="block w-full px-3 py-2.5 pr-10 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(p => !p)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-muted)] hover:text-gray-600"
                     tabIndex={-1}
                   >
                     {showPassword ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
@@ -131,18 +131,18 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => { setView('login'); setError('') }}
-                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 -mt-1 mb-1"
+                className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)] -mt-1 mb-1"
               >
                 <IconChevronLeft className="w-4 h-4" /> Back to sign in
               </button>
               <div>
-                <h3 className="text-base font-semibold text-gray-900">Reset your password</h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <h3 className="text-base font-semibold text-[var(--text-primary)]">Reset your password</h3>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
                   Enter your email and we&apos;ll send you a reset link.
                 </p>
               </div>
               <div>
-                <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="reset-email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                   Email address
                 </label>
                 <input
@@ -151,7 +151,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
+                  className="block w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
                   placeholder="you@wearcheckrs.com"
                 />
               </div>
@@ -177,8 +177,8 @@ export default function LoginPage() {
                 </svg>
               </div>
               <div>
-                <p className="font-medium text-gray-900">Check your email</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="font-medium text-[var(--text-primary)]">Check your email</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
                   We sent a password reset link to <span className="font-medium">{email}</span>
                 </p>
               </div>

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { formatDateISO } from '../lib/dateUtils'
 import { IconCalendar, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
 import birthdayCakeUrl from '../assets/birthday-cake.svg'
+import birthdayCakeWhiteUrl from '../../assets/birthday-cake-white.svg'
 import medalUrl from '../assets/medal-ribbons-star-svgrepo-com.svg'
+import medalWhiteUrl from '../../assets/medal-ribbons-star-white.svg'
 import type { LeaveType, Role } from '../types'
 
 const SUPERVISOR_ROLES: Role[] = ['supervisor', 'manager', 'admin_manager', 'system_admin']
@@ -29,7 +32,7 @@ const LEAVE_COLORS: Record<LeaveType, { dot: string; pill: string }> = {
   sick:    { dot: 'bg-rose-500',    pill: 'bg-rose-50 text-rose-700 border-rose-200' },
   family:  { dot: 'bg-amber-500',   pill: 'bg-amber-50 text-amber-700 border-amber-200' },
   study:   { dot: 'bg-sky-500',     pill: 'bg-sky-50 text-sky-700 border-sky-200' },
-  unpaid:  { dot: 'bg-gray-500',    pill: 'bg-gray-50 text-gray-700 border-gray-200' },
+  unpaid:  { dot: 'bg-gray-500',    pill: 'bg-[var(--surface-secondary)] text-[var(--text-secondary)] border-[var(--border)]' },
   other:   { dot: 'bg-violet-500',  pill: 'bg-violet-50 text-violet-700 border-violet-200' },
 }
 
@@ -83,6 +86,10 @@ export default function LeaveCalendar({
   anniversaries?: AnniversaryMarker[]
 }) {
   const { profile } = useAuth()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const cakeIcon  = isDark ? birthdayCakeWhiteUrl  : birthdayCakeUrl
+  const medalIcon = isDark ? medalWhiteUrl          : medalUrl
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()))
   const [siteFilter, setSiteFilter] = useState<string>('all')
   const [sites, setSites] = useState<SiteOption[]>([])
@@ -189,21 +196,21 @@ export default function LeaveCalendar({
   const monthLabel = month.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+    <div className="bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-gray-100">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
-          <IconCalendar className="w-4 h-4 text-gray-500" />
-          <h2 className="text-sm font-semibold text-gray-700">Team leave calendar</h2>
+          <IconCalendar className="w-4 h-4 text-[var(--text-muted)]" />
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Team leave calendar</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isSupervisor && (
-            <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+            <label className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={teamOnly}
                 onChange={(e) => setTeamOnly(e.target.checked)}
-                className="w-3.5 h-3.5 rounded border-gray-300 text-[#1B5EA6] focus:ring-[#1B5EA6]"
+                className="w-3.5 h-3.5 rounded border-[var(--border)] text-[#1B5EA6] focus:ring-[#1B5EA6]"
               />
               My team only
             </label>
@@ -211,7 +218,7 @@ export default function LeaveCalendar({
           <select
             value={siteFilter}
             onChange={(e) => setSiteFilter(e.target.value)}
-            className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
+            className="text-xs border border-[var(--border)] rounded-md px-2 py-1 bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
             aria-label="Filter by site"
           >
             <option value="all">All sites</option>
@@ -223,7 +230,7 @@ export default function LeaveCalendar({
             <button
               type="button"
               onClick={() => setMonth(addMonths(month, -1))}
-              className="p-1 rounded hover:bg-gray-100 text-gray-600"
+              className="p-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
               aria-label="Previous month"
             >
               <IconChevronLeft className="w-4 h-4" />
@@ -231,14 +238,14 @@ export default function LeaveCalendar({
             <button
               type="button"
               onClick={() => setMonth(startOfMonth(new Date()))}
-              className="text-xs px-2 py-1 rounded hover:bg-gray-100 text-gray-600"
+              className="text-xs px-2 py-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
             >
               Today
             </button>
             <button
               type="button"
               onClick={() => setMonth(addMonths(month, 1))}
-              className="p-1 rounded hover:bg-gray-100 text-gray-600"
+              className="p-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
               aria-label="Next month"
             >
               <IconChevronRight className="w-4 h-4" />
@@ -249,8 +256,8 @@ export default function LeaveCalendar({
 
       {/* Month label + legend */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 pt-3">
-        <p className="text-sm font-medium text-gray-800">{monthLabel}</p>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
+        <p className="text-sm font-medium text-[var(--text-primary)]">{monthLabel}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
           {(Object.keys(LEAVE_COLORS) as LeaveType[]).map(t => (
             <span key={t} className="inline-flex items-center gap-1 capitalize">
               <span className={`w-2 h-2 rounded-full ${LEAVE_COLORS[t].dot}`} />
@@ -262,12 +269,12 @@ export default function LeaveCalendar({
 
       {/* Grid */}
       <div className="p-3">
-        <div className="grid grid-cols-7 gap-px text-[11px] font-medium text-gray-500 mb-1">
+        <div className="grid grid-cols-7 gap-px text-[11px] font-medium text-[var(--calendar-weekday)] mb-1">
           {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
             <div key={d} className="text-center py-1">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-px bg-gray-100 rounded-md overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-[var(--calendar-grid-gap)] rounded-md overflow-hidden">
           {grid.map((d) => {
             const iso = formatDateISO(d)
             const inMonth = d.getMonth() === month.getMonth()
@@ -284,13 +291,13 @@ export default function LeaveCalendar({
                 type="button"
                 onClick={() => entries.length > 0 && setSelected({ date: d, entries })}
                 className={`min-h-[72px] sm:min-h-[88px] text-left p-1.5 transition-colors
-                  ${inMonth ? 'bg-white' : 'bg-gray-50'}
-                  ${isWeekend && inMonth ? 'bg-gray-50/60' : ''}
-                  ${entries.length > 0 ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}
+                  ${inMonth ? 'bg-[var(--calendar-surface)]' : 'bg-[var(--calendar-outside-bg)]'}
+                  ${isWeekend && inMonth ? 'bg-[var(--calendar-weekend-bg)]' : ''}
+                  ${entries.length > 0 ? 'hover:bg-[var(--calendar-hover-bg)] cursor-pointer' : 'cursor-default'}
                 `}
               >
                 <div className={`flex items-center justify-between text-[11px] mb-1
-                  ${inMonth ? 'text-gray-700' : 'text-gray-400'}`}
+                  ${inMonth ? 'text-[var(--calendar-text)]' : 'text-[var(--calendar-date-outside)]'}`}
                 >
                   <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full
                     ${isToday ? 'bg-[#1B5EA6] text-white font-semibold' : ''}`}
@@ -306,7 +313,7 @@ export default function LeaveCalendar({
                         }}
                         onMouseLeave={() => setBdayPopover(null)}
                       >
-                        <img src={birthdayCakeUrl} alt="Birthday" className="w-3.5 h-3.5 cursor-default" />
+                        <img src={cakeIcon} alt="Birthday" className="w-3.5 h-3.5 cursor-default" />
                       </span>
                     )}
                     {hasAnniversaries && (
@@ -317,11 +324,11 @@ export default function LeaveCalendar({
                         }}
                         onMouseLeave={() => setAnnivPopover(null)}
                       >
-                        <img src={medalUrl} alt="Anniversary" className="w-3.5 h-3.5 cursor-default" />
+                        <img src={medalIcon} alt="Anniversary" className="w-3.5 h-3.5 cursor-default" />
                       </span>
                     )}
                     {entries.length > 0 && (
-                      <span className="text-[10px] text-gray-400">{entries.length}</span>
+                      <span className="text-[10px] text-[var(--text-muted)]">{entries.length}</span>
                     )}
                   </span>
                 </div>
@@ -371,9 +378,9 @@ export default function LeaveCalendar({
             )
           })}
         </div>
-        {loading && <p className="text-xs text-gray-400 mt-2">Loading…</p>}
+        {loading && <p className="text-xs text-[var(--text-muted)] mt-2">Loading…</p>}
         {!loading && filteredRows.length === 0 && (
-          <p className="text-xs text-gray-400 mt-2">No approved leave in this view.</p>
+          <p className="text-xs text-[var(--text-muted)] mt-2">No approved leave in this view.</p>
         )}
       </div>
 
@@ -383,9 +390,9 @@ export default function LeaveCalendar({
           className="fixed z-[999] pointer-events-none"
           style={{ top: bdayPopover.y + 6, left: bdayPopover.x, transform: 'translateX(-50%)' }}
         >
-          <div className="bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
-            <span className="font-semibold text-gray-300 mb-0.5">🎂 Birthdays</span>
+          <div className="bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--text-primary)] text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[var(--surface-elevated)]" />
+            <span className="font-semibold text-[var(--text-secondary)] mb-0.5">🎂 Birthdays</span>
             {bdayPopover.entries.map(b => (
               <span key={b.employee_id}>{b.first_name} {b.surname}</span>
             ))}
@@ -399,9 +406,9 @@ export default function LeaveCalendar({
           className="fixed z-[999] pointer-events-none"
           style={{ top: annivPopover.y + 6, left: annivPopover.x, transform: 'translateX(-50%)' }}
         >
-          <div className="bg-gray-900 text-white text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
-            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
-            <span className="font-semibold text-gray-300 mb-0.5">🏅 Work Anniversaries</span>
+          <div className="bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--text-primary)] text-[11px] rounded-md px-2.5 py-1.5 shadow-lg flex flex-col gap-0.5 min-w-max relative">
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[var(--surface-elevated)]" />
+            <span className="font-semibold text-[var(--text-secondary)] mb-0.5">🏅 Work Anniversaries</span>
             {annivPopover.entries.map(a => (
               <span key={a.employee_id}>{a.first_name} {a.surname} · {a.years_of_service}yr</span>
             ))}
@@ -416,31 +423,31 @@ export default function LeaveCalendar({
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-white rounded-lg shadow-lg w-full max-w-md max-h-[80vh] overflow-y-auto"
+            className="bg-[var(--surface)] rounded-lg shadow-lg w-full max-w-md max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 On leave · {selected.date.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </h3>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                className="p-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-muted)]"
                 aria-label="Close"
               >
                 <IconXMark className="w-4 h-4" />
               </button>
             </div>
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-[var(--border)]">
               {selected.entries.map((r) => (
                 <li key={r.id} className="flex items-center gap-3 p-3">
                   <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-semibold text-white ${LEAVE_COLORS[r.leave_type].dot}`}>
                     {initialsOf(r.first_name, r.surname)}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 truncate">{fullName(r)}</p>
-                    <p className="text-[11px] text-gray-500 truncate">
+                    <p className="text-sm text-[var(--text-primary)] truncate">{fullName(r)}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] truncate">
                       {r.site_name ?? 'No site'} · {new Date(r.start_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
                       {' – '}
                       {new Date(r.end_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}

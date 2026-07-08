@@ -6,9 +6,9 @@ import { IconUser, IconCheck, IconXMark } from '../components/Icons'
 function ReadOnlyField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-      <dt className="text-sm font-medium text-gray-500">{label}</dt>
-      <dd className="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
-        {value ?? <span className="text-gray-400 italic">Not set</span>}
+      <dt className="text-sm font-medium text-[var(--text-muted)]">{label}</dt>
+      <dd className="mt-1 text-sm text-[var(--text-primary)] sm:col-span-2 sm:mt-0">
+        {value ?? <span className="text-[var(--text-muted)] italic">Not set</span>}
       </dd>
     </div>
   )
@@ -31,7 +31,7 @@ function FormField({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
         {label}
       </label>
       <input
@@ -40,7 +40,7 @@ function FormField({
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
+        className="block w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent"
       />
     </div>
   )
@@ -56,6 +56,7 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState('')
   const [emergencyContactName, setEmergencyContactName] = useState('')
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('')
+  const [sex, setSex] = useState('')
   const [_avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
@@ -74,6 +75,7 @@ export default function ProfilePage() {
       setPhone(profile.phone ?? '')
       setEmergencyContactName(profile.emergency_contact_name ?? '')
       setEmergencyContactPhone(profile.emergency_contact_phone ?? '')
+      setSex(profile.sex ?? '')
       setAvatarUrl(profile.avatar_url ?? null)
       setAvatarPreview(profile.avatar_url ?? null)
     }
@@ -96,6 +98,7 @@ export default function ProfilePage() {
         phone: phone.trim() || null,
         emergency_contact_name: emergencyContactName.trim() || null,
         emergency_contact_phone: emergencyContactPhone.trim() || null,
+        sex: (sex || null) as 'male' | 'female' | 'other' | null,
       })
       .eq('id', profile.id)
 
@@ -150,7 +153,7 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-12 text-gray-400">
+      <div className="max-w-2xl mx-auto text-center py-12 text-[var(--text-muted)]">
         Loading profile...
       </div>
     )
@@ -160,7 +163,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+      <h1 className="text-2xl font-bold text-[var(--text-primary)]">My Profile</h1>
 
       {/* Toast */}
       {toast && (
@@ -198,7 +201,7 @@ export default function ProfilePage() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingAvatar}
-            className="absolute -bottom-1 -right-1 w-7 h-7 bg-white text-[#1B5EA6] rounded-full flex items-center justify-center shadow-md hover:bg-blue-50 transition-colors disabled:opacity-50"
+            className="absolute -bottom-1 -right-1 w-7 h-7 bg-[var(--surface)] text-[#1B5EA6] rounded-full flex items-center justify-center shadow-md hover:bg-blue-50 transition-colors disabled:opacity-50"
             title="Upload photo"
           >
             {uploadingAvatar ? (
@@ -230,11 +233,11 @@ export default function ProfilePage() {
       </div>
 
       {/* Read-only employment info */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-6">
-        <h2 className="text-sm font-semibold text-gray-700 pt-4 pb-1 border-b border-gray-100">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm px-6">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] pt-4 pb-1 border-b border-[var(--border)]">
           Employment Details
         </h2>
-        <dl className="divide-y divide-gray-100">
+        <dl className="divide-y divide-[var(--border)]">
           <ReadOnlyField label="Employee code" value={profile.employee_code} />
           <ReadOnlyField label="Division" value={profile.division?.name} />
           <ReadOnlyField label="Department" value={profile.department?.name} />
@@ -252,8 +255,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Editable fields */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-4 pb-2 border-b border-[var(--border)]">
           Personal Information
         </h2>
         <div className="space-y-4">
@@ -280,6 +283,20 @@ export default function ProfilePage() {
             onChange={setPreferredName}
             placeholder="What you like to be called (optional)"
           />
+          <div>
+            <label htmlFor="sex" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Sex</label>
+            <select
+              id="sex"
+              value={sex}
+              onChange={e => setSex(e.target.value)}
+              className="block w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] focus:border-transparent bg-[var(--surface)]"
+            >
+              <option value="">Prefer not to say</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
           <FormField
             label="Phone number"
             id="phone"
@@ -292,8 +309,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Emergency contact */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm p-6">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-4 pb-2 border-b border-[var(--border)]">
           Emergency Contact
         </h2>
         <div className="space-y-4">
@@ -317,11 +334,11 @@ export default function ProfilePage() {
 
       {/* Admin section */}
       {isAdmin && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-6">
-          <h2 className="text-sm font-semibold text-gray-700 pt-4 pb-1 border-b border-gray-100">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-sm px-6">
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)] pt-4 pb-1 border-b border-[var(--border)]">
             Admin Info
           </h2>
-          <dl className="divide-y divide-gray-100">
+          <dl className="divide-y divide-[var(--border)]">
             <ReadOnlyField label="Role" value={profile.role} />
             <ReadOnlyField label="Status" value={profile.status} />
             <ReadOnlyField label="Email" value={profile.email} />

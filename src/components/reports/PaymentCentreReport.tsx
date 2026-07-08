@@ -126,9 +126,9 @@ export default function PaymentCentreReport() {
     >
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Payment Centre</label>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Payment Centre</label>
           <select value={centre} onChange={e => setCentre(e.target.value as 'WEARCHECK' | 'GP_CONSULT' | 'AFS')}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+            className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
             <option value="WEARCHECK">WearCheck</option>
             <option value="GP_CONSULT">GP Consult</option>
             <option value="AFS">AFS</option>
@@ -138,7 +138,7 @@ export default function PaymentCentreReport() {
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="space-y-6 overflow-x-auto">
           {Array.from(grouped.entries()).map(([code, empRows]) => {
@@ -148,35 +148,35 @@ export default function PaymentCentreReport() {
             return (
               <div key={code}>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="font-semibold text-sm text-gray-900">{empRows[0].employee_name}</span>
-                  <span className="text-xs text-gray-400">{code}</span>
-                  <span className="text-xs text-gray-400">{empRows[0].division} · {empRows[0].department} · {empRows[0].site}</span>
+                  <span className="font-semibold text-sm text-[var(--text-primary)]">{empRows[0].employee_name}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{code}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{empRows[0].division} · {empRows[0].department} · {empRows[0].site}</span>
                 </div>
                 <table className="w-full text-sm mb-1">
                   <thead>
-                    <tr className="bg-gray-50 text-left">
-                      <th className="px-3 py-1.5 text-xs font-medium text-gray-500">Date</th>
-                      <th className="px-3 py-1.5 text-xs font-medium text-gray-500">Day</th>
-                      <th className="px-3 py-1.5 text-xs font-medium text-gray-500">Status</th>
-                      <th className="px-3 py-1.5 text-xs font-medium text-gray-500 text-center">OT hrs</th>
-                      <th className="px-3 py-1.5 text-xs font-medium text-gray-500 text-center">LOL</th>
-                      <th className="px-3 py-1.5 text-xs font-medium text-gray-500 text-center">LOI</th>
+                    <tr className="bg-[var(--surface-secondary)] text-left">
+                      <th className="px-3 py-1.5 text-xs font-medium text-[var(--text-muted)]">Date</th>
+                      <th className="px-3 py-1.5 text-xs font-medium text-[var(--text-muted)]">Day</th>
+                      <th className="px-3 py-1.5 text-xs font-medium text-[var(--text-muted)]">Status</th>
+                      <th className="px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] text-center">OT hrs</th>
+                      <th className="px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] text-center">LOL</th>
+                      <th className="px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] text-center">LOI</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-[var(--border)]">
                     {empRows.map((r, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-3 py-1.5 text-gray-700 whitespace-nowrap">{formatDateDisplay(r.date)}</td>
-                        <td className="px-3 py-1.5 text-gray-600">{r.day}</td>
+                      <tr key={i} className="hover:bg-[var(--surface-secondary)]">
+                        <td className="px-3 py-1.5 text-[var(--text-secondary)] whitespace-nowrap">{formatDateDisplay(r.date)}</td>
+                        <td className="px-3 py-1.5 text-[var(--text-secondary)]">{r.day}</td>
                         <td className="px-3 py-1.5"><StatusBadge status={r.status} /></td>
-                        <td className="px-3 py-1.5 text-center text-gray-700">{r.ot_hours ?? '—'}</td>
-                        <td className="px-3 py-1.5 text-center text-gray-700">{r.lol ? 'Yes' : '—'}</td>
-                        <td className="px-3 py-1.5 text-center text-gray-700">{r.loi ? 'Yes' : '—'}</td>
+                        <td className="px-3 py-1.5 text-center text-[var(--text-secondary)]">{r.ot_hours ?? '—'}</td>
+                        <td className="px-3 py-1.5 text-center text-[var(--text-secondary)]">{r.lol ? 'Yes' : '—'}</td>
+                        <td className="px-3 py-1.5 text-center text-[var(--text-secondary)]">{r.loi ? 'Yes' : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-blue-50 text-xs font-semibold text-gray-700">
+                    <tr className="bg-blue-50 text-xs font-semibold text-[var(--text-secondary)]">
                       <td colSpan={3} className="px-3 py-1.5">Subtotal</td>
                       <td className="px-3 py-1.5 text-center">{otTotal > 0 ? otTotal.toFixed(1) : '—'}</td>
                       <td className="px-3 py-1.5 text-center">{lolTotal > 0 ? lolTotal : '—'}</td>

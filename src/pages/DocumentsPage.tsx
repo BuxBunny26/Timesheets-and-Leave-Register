@@ -190,8 +190,8 @@ export default function DocumentsPage() {
           <IconFolder className="w-5 h-5 text-[#1B5EA6]" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-gray-500 text-sm">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Documents</h1>
+          <p className="text-[var(--text-muted)] text-sm">
             {isAdmin
               ? 'All uploaded attachments across timesheets and leave requests'
               : isSupervisor
@@ -208,12 +208,12 @@ export default function DocumentsPage() {
           placeholder="Search employee or file name…"
           value={filter.search}
           onChange={e => setFilter(f => ({ ...f, search: e.target.value }))}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
         <select
           value={filter.type}
           onChange={e => setFilter(f => ({ ...f, type: e.target.value as typeof filter.type }))}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-[var(--surface)]"
         >
           <option value="">All types</option>
           <option value="timesheet">Timesheet</option>
@@ -222,7 +222,7 @@ export default function DocumentsPage() {
         <select
           value={filter.category}
           onChange={e => setFilter(f => ({ ...f, category: e.target.value as typeof filter.category }))}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-[var(--surface)]"
         >
           <option value="">All categories</option>
           {(Object.entries(DOCUMENT_CATEGORY_LABELS) as [DocumentCategory, string][]).map(([key, label]) => (
@@ -233,12 +233,12 @@ export default function DocumentsPage() {
           type="month"
           value={filter.month}
           onChange={e => setFilter(f => ({ ...f, month: e.target.value }))}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+          className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-[var(--surface)]"
         />
         {(filter.search || filter.type || filter.month || filter.category) && (
           <button
             onClick={() => setFilter({ search: '', type: '', month: '', category: '' })}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+            className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]"
           >
             <IconXMark className="w-3.5 h-3.5" />
             Clear
@@ -257,41 +257,41 @@ export default function DocumentsPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-20 text-[var(--text-muted)]">
           <IconFolder className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">No documents found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">File</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Employee</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Category</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Week</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Size</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Uploaded</th>
+              <tr className="bg-[var(--surface-secondary)] border-b border-[var(--border)]">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">File</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide hidden md:table-cell">Employee</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide hidden md:table-cell">Category</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide hidden lg:table-cell">Week</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide hidden lg:table-cell">Size</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Uploaded</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[var(--border)]">
               {filtered.map(att => (
-                <tr key={att.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={att.id} className="hover:bg-[var(--surface-secondary)] transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <IconDocument className="w-4 h-4 text-gray-400 shrink-0" />
+                      <IconDocument className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-800 truncate max-w-[200px]">
+                        <p className="font-medium text-[var(--text-primary)] truncate max-w-[200px]">
                           {att.ai_display_name ?? att.display_name}
                         </p>
                         {att.ai_display_name && att.ai_display_name !== att.display_name && (
-                          <p className="text-[10px] text-gray-400 truncate max-w-[200px]">{att.display_name}</p>
+                          <p className="text-[10px] text-[var(--text-muted)] truncate max-w-[200px]">{att.display_name}</p>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{att.employee_name ?? '—'}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)] hidden md:table-cell">{att.employee_name ?? '—'}</td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     {editingCategoryId === att.id ? (
                       <select
@@ -299,7 +299,7 @@ export default function DocumentsPage() {
                         onChange={e => handleUpdateCategory(att.id, e.target.value as DocumentCategory)}
                         onBlur={() => setEditingCategoryId(null)}
                         autoFocus
-                        className="border border-gray-200 rounded px-1.5 py-0.5 text-xs bg-white"
+                        className="border border-[var(--border)] rounded px-1.5 py-0.5 text-xs bg-[var(--surface)]"
                       >
                         {(Object.entries(DOCUMENT_CATEGORY_LABELS) as [DocumentCategory, string][]).map(([key, label]) => (
                           <option key={key} value={key}>{label}</option>
@@ -307,12 +307,12 @@ export default function DocumentsPage() {
                       </select>
                     ) : att.ai_classified_at === null ? (
                       <div className="flex items-center gap-1">
-                        <span className="text-xs text-gray-400 italic">Classifying…</span>
-                        <button type="button" onClick={() => handleReclassify(att.id)} title="Retry classification" className="p-0.5 rounded hover:bg-gray-100">
+                        <span className="text-xs text-[var(--text-muted)] italic">Classifying…</span>
+                        <button type="button" onClick={() => handleReclassify(att.id)} title="Retry classification" className="p-0.5 rounded hover:bg-[var(--surface-secondary)]">
                           <IconSparkles className="w-3 h-3 text-blue-500" />
                         </button>
-                        <button type="button" onClick={() => setEditingCategoryId(att.id)} title="Set category manually" className="p-0.5 rounded hover:bg-gray-100">
-                          <IconPencil className="w-3 h-3 text-gray-400" />
+                        <button type="button" onClick={() => setEditingCategoryId(att.id)} title="Set category manually" className="p-0.5 rounded hover:bg-[var(--surface-secondary)]">
+                          <IconPencil className="w-3 h-3 text-[var(--text-muted)]" />
                         </button>
                       </div>
                     ) : (
@@ -321,23 +321,23 @@ export default function DocumentsPage() {
                           <IconSparkles className="w-3 h-3" />
                           {DOCUMENT_CATEGORY_LABELS[att.category ?? 'other']}
                         </span>
-                        <button type="button" onClick={() => setEditingCategoryId(att.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-100 transition-opacity" title="Edit category">
-                          <IconPencil className="w-3 h-3 text-gray-400" />
+                        <button type="button" onClick={() => setEditingCategoryId(att.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--surface-secondary)] transition-opacity" title="Edit category">
+                          <IconPencil className="w-3 h-3 text-[var(--text-muted)]" />
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
+                  <td className="px-4 py-3 text-[var(--text-muted)] hidden lg:table-cell">
                     {att.week_start ? formatDate(att.week_start) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{formatBytes(att.file_size_bytes)}</td>
-                  <td className="px-4 py-3 text-gray-500">{formatDate(att.uploaded_at)}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)] hidden lg:table-cell">{formatBytes(att.file_size_bytes)}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{formatDate(att.uploaded_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleDownload(att)}
-                        className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                        className="p-1.5 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)]"
                         title="Download"
                       >
                         <IconDownload className="w-4 h-4" />
@@ -347,7 +347,7 @@ export default function DocumentsPage() {
                           type="button"
                           onClick={() => handleDelete(att)}
                           disabled={deleting === att.id}
-                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                          className="p-1.5 rounded hover:bg-red-50 text-[var(--text-muted)] hover:text-red-500 disabled:opacity-50"
                           title="Delete"
                         >
                           <IconTrash className="w-4 h-4" />
@@ -359,8 +359,8 @@ export default function DocumentsPage() {
               ))}
             </tbody>
           </table>
-          <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
-            <p className="text-xs text-gray-400">{filtered.length} document{filtered.length !== 1 ? 's' : ''}</p>
+          <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--surface-secondary)]">
+            <p className="text-xs text-[var(--text-muted)]">{filtered.length} document{filtered.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
       )}

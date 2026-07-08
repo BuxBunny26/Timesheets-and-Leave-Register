@@ -89,7 +89,7 @@ const STATUS_COLOURS: Record<CertStatus, string> = {
   expiring_30: 'bg-orange-100 text-orange-800',
   expiring_60: 'bg-yellow-100 text-yellow-800',
   valid: 'bg-green-100 text-green-800',
-  no_expiry: 'bg-gray-100 text-gray-700',
+  no_expiry: 'bg-[var(--surface-secondary)] text-[var(--text-secondary)]',
 }
 
 function formatBytes(bytes: number | null) {
@@ -288,7 +288,7 @@ export default function CertificationsDashboardPage() {
 
   if (!isManager && !isSupervisor) {
     return (
-      <div className="text-center py-10 text-gray-500 text-sm">
+      <div className="text-center py-10 text-[var(--text-muted)] text-sm">
         You don't have access to view certifications.
       </div>
     )
@@ -298,30 +298,30 @@ export default function CertificationsDashboardPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Certifications</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Overview of all employee certifications and expiry status.</p>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Certifications</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">Overview of all employee certifications and expiry status.</p>
         </div>
         <button
           onClick={() => exportCSV(filtered)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] bg-[var(--surface)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-secondary)]"
         >
           <IconDownload className="w-4 h-4" /> Export CSV
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-gray-400 text-sm">Loading&hellip;</div>
+        <div className="text-center py-10 text-[var(--text-muted)] text-sm">Loading&hellip;</div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Total Certifications', value: summary.total, colour: 'text-gray-900', bg: 'bg-white' },
+              { label: 'Total Certifications', value: summary.total, colour: 'text-[var(--text-primary)]', bg: 'bg-[var(--surface)]' },
               { label: 'Expired', value: summary.expired, colour: 'text-red-700', bg: 'bg-red-50' },
               { label: 'Expiring =30 days', value: summary.expiring30, colour: 'text-orange-700', bg: 'bg-orange-50' },
               { label: 'Valid / No Expiry', value: summary.valid, colour: 'text-green-700', bg: 'bg-green-50' },
             ].map(card => (
-              <div key={card.label} className={`${card.bg} border border-gray-200 rounded-lg p-4`}>
-                <p className="text-xs text-gray-500">{card.label}</p>
+              <div key={card.label} className={`${card.bg} border border-[var(--border)] rounded-lg p-4`}>
+                <p className="text-xs text-[var(--text-muted)]">{card.label}</p>
                 <p className={`text-2xl font-bold mt-1 ${card.colour}`}>{card.value}</p>
               </div>
             ))}
@@ -333,12 +333,12 @@ export default function CertificationsDashboardPage() {
               placeholder="Search employee or certification..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
+              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
             />
             <select
               value={filterTechnology}
               onChange={e => { setFilterTechnology(e.target.value); setFilterLevel('all') }}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
+              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
             >
               <option value="all">All Technologies</option>
               {technologies.map(t => (
@@ -349,7 +349,7 @@ export default function CertificationsDashboardPage() {
               <select
                 value={filterLevel}
                 onChange={e => setFilterLevel(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
+                className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
               >
                 <option value="all">All Levels</option>
                 {levels.map(l => (
@@ -360,7 +360,7 @@ export default function CertificationsDashboardPage() {
             <select
               value={filterStatus}
               onChange={e => setFilterStatus(e.target.value as FilterStatus)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
+              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--surface)] focus:outline-none focus:ring-1 focus:ring-[#1B5EA6]"
             >
               {(Object.keys(STATUS_LABELS) as FilterStatus[]).map(k => (
                 <option key={k} value={k}>{STATUS_LABELS[k]}</option>
@@ -369,47 +369,47 @@ export default function CertificationsDashboardPage() {
             {anyFilter && (
               <button
                 onClick={() => { setFilterTechnology('all'); setFilterLevel('all'); setFilterStatus('all'); setSearch('') }}
-                className="text-xs text-gray-500 hover:text-gray-700 underline"
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--tab-inactive-hover-text)] underline"
               >
                 Clear filters
               </button>
             )}
-            <span className="ml-auto text-xs text-gray-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+            <span className="ml-auto text-xs text-[var(--text-muted)]">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden">
             {filtered.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-gray-500">No certifications match the current filters.</p>
+              <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">No certifications match the current filters.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-[var(--surface-secondary)] border-b border-[var(--border)]">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none" onClick={() => toggleSort('name')}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide cursor-pointer hover:text-[var(--tab-inactive-hover-text)] select-none" onClick={() => toggleSort('name')}>
                         Employee <SortIndicator field="name" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none" onClick={() => toggleSort('cert')}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide cursor-pointer hover:text-[var(--tab-inactive-hover-text)] select-none" onClick={() => toggleSort('cert')}>
                         Certification <SortIndicator field="cert" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none" onClick={() => toggleSort('expiry')}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide cursor-pointer hover:text-[var(--tab-inactive-hover-text)] select-none" onClick={() => toggleSort('expiry')}>
                         Expiry <SortIndicator field="expiry" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none" onClick={() => toggleSort('status')}>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide cursor-pointer hover:text-[var(--tab-inactive-hover-text)] select-none" onClick={() => toggleSort('status')}>
                         Status <SortIndicator field="status" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Certificate</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Certificate</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Notes</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-[var(--border)]">
                     {filtered.map(r => (
-                      <tr key={r.id} className="hover:bg-gray-50">
+                      <tr key={r.id} className="hover:bg-[var(--surface-secondary)]">
                         <td className="px-4 py-3">
-                          <Link to={`/employees/${r.employee_id}`} className="font-medium text-gray-900 hover:text-[#1B5EA6]">
+                          <Link to={`/employees/${r.employee_id}`} className="font-medium text-[var(--text-primary)] hover:text-[#1B5EA6]">
                             {r.profiles?.first_name} {r.profiles?.surname}
                           </Link>
                           {r.profiles?.employee_code && (
-                            <p className="text-xs text-gray-400">{r.profiles.employee_code}</p>
+                            <p className="text-xs text-[var(--text-muted)]">{r.profiles.employee_code}</p>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -418,7 +418,7 @@ export default function CertificationsDashboardPage() {
                             <div>
                               <p>{r.certification_types?.name}</p>
                               {r.certification_types?.technology && (
-                                <p className="text-xs text-gray-400">
+                                <p className="text-xs text-[var(--text-muted)]">
                                   {r.certification_types.technology}
                                   {r.certification_types.cert_level ? ` \u00b7 ${r.certification_types.cert_level}` : ''}
                                 </p>
@@ -426,16 +426,16 @@ export default function CertificationsDashboardPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-[var(--text-secondary)]">
                           {r.expiry_date
                             ? new Date(r.expiry_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : <span className="text-gray-400">—</span>
+                            : <span className="text-[var(--text-muted)]">—</span>
                           }
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={r.cert_status} />
                           {r.days_until_expiry !== null && r.days_until_expiry >= 0 && r.days_until_expiry <= 60 && (
-                            <p className="text-xs text-gray-400 mt-0.5">{r.days_until_expiry}d left</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5">{r.days_until_expiry}d left</p>
                           )}
                           {r.days_until_expiry !== null && r.days_until_expiry < 0 && (
                             <p className="text-xs text-red-500 mt-0.5">{Math.abs(r.days_until_expiry)}d ago</p>
@@ -447,14 +447,14 @@ export default function CertificationsDashboardPage() {
                             className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors ${
                               r.attached
                                 ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
+                                : 'border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--text-muted)] hover:bg-[var(--surface-secondary)]'
                             }`}
                           >
                             <IconEye className="w-3 h-3" />
                             {r.attached ? 'View' : 'No file'}
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-500 max-w-[180px] truncate">
+                        <td className="px-4 py-3 text-xs text-[var(--text-muted)] max-w-[180px] truncate">
                           {r.notes ?? '—'}
                         </td>
                       </tr>
@@ -473,30 +473,30 @@ export default function CertificationsDashboardPage() {
           onClick={() => setViewCert(null)}
         >
           <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-md"
+            className="bg-[var(--surface)] rounded-xl shadow-xl w-full max-w-md"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
               <div>
-                <p className="font-semibold text-gray-900 text-sm">{viewCert.certName}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{viewCert.employeeName}</p>
+                <p className="font-semibold text-[var(--text-primary)] text-sm">{viewCert.certName}</p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">{viewCert.employeeName}</p>
               </div>
-              <button onClick={() => setViewCert(null)} className="p-1 rounded hover:bg-gray-100 text-gray-500">
+              <button onClick={() => setViewCert(null)} className="p-1 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-muted)]">
                 <IconXMark className="w-4 h-4" />
               </button>
             </div>
             <div className="px-5 py-4">
               {loadingAttachments ? (
-                <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
+                <p className="text-sm text-[var(--text-muted)] text-center py-4">Loading…</p>
               ) : certAttachments.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">No certificate file has been uploaded for this record.</p>
+                <p className="text-sm text-[var(--text-muted)] text-center py-4">No certificate file has been uploaded for this record.</p>
               ) : (
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-[var(--border)]">
                   {certAttachments.map(att => (
                     <li key={att.id} className="flex items-center justify-between gap-3 py-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{att.display_name}</p>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{att.display_name}</p>
+                        <p className="text-xs text-[var(--text-muted)]">
                           {att.mime_type ?? 'File'}{att.file_size_bytes ? ` · ${formatBytes(att.file_size_bytes)}` : ''}
                           {' · '}{new Date(att.uploaded_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>

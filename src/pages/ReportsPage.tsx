@@ -28,7 +28,7 @@ export default function ReportsPage() {
 
   const canAccess = profile && ALL_ROLES.includes(profile.role)
   if (!canAccess) return (
-    <div className="max-w-2xl mx-auto py-12 text-center text-gray-500">
+    <div className="max-w-2xl mx-auto py-12 text-center text-[var(--text-muted)]">
       You do not have permission to access reports.
     </div>
   )
@@ -53,8 +53,8 @@ export default function ReportsPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500 mt-1 text-sm">Generate and export timesheet, leave, and overtime reports.</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Reports</h1>
+        <p className="text-[var(--text-muted)] mt-1 text-sm">Generate and export timesheet, leave, and overtime reports.</p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
@@ -62,22 +62,22 @@ export default function ReportsPage() {
         <aside className="md:w-52 flex-shrink-0">
           {/* Mobile dropdown */}
           <select
-            className="md:hidden w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
+            className="md:hidden w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
             value={activeReport}
             onChange={e => setActiveReport(e.target.value)}
           >
             {visibleReports.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
           {/* Desktop list */}
-          <nav className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <nav className="hidden md:block bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden">
             {visibleReports.map(r => (
               <button
                 key={r.id}
                 onClick={() => setActiveReport(r.id)}
-                className={`w-full text-left px-4 py-3 text-sm border-b border-gray-50 last:border-0 transition-colors ${
+                className={`w-full text-left px-4 py-3 text-sm border-b border-[var(--border)] last:border-0 transition-colors ${
                   activeReport === r.id
-                    ? 'bg-[#1B5EA6] text-white font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-[#1B5EA6] dark:bg-sky-500 text-white font-medium'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]'
                 }`}
               >
                 {r.label}

@@ -103,18 +103,18 @@ export default function LeaveReport() {
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         {!isPlainEmployee && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Employee (optional)</label>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Employee (optional)</label>
             <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
               <option value="">All employees</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.surname}</option>)}
             </select>
           </div>
         )}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Leave type</label>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Leave type</label>
           <select value={leaveType} onChange={e => setLeaveType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+            className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
             <option value="">All types</option>
             {(['annual', 'sick', 'family', 'study', 'unpaid', 'other'] as LeaveType[]).map(t => (
               <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
@@ -125,7 +125,7 @@ export default function LeaveReport() {
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
           {(() => {
@@ -148,53 +148,53 @@ export default function LeaveReport() {
             return (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left w-8" />
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Employee</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Code</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Type</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">From</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">To</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">Days</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Status</th>
+                  <tr className="bg-[var(--surface-secondary)]">
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left w-8" />
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Employee</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Code</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Type</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">From</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">To</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-center">Days</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[var(--border)]">
                   {groups.map(g => {
                     const isOpen = expanded.has(g.key)
                     return (
                       <Fragment key={g.key}>
                         <tr
                           onClick={() => toggleEmployee(g.key)}
-                          className="hover:bg-gray-50 cursor-pointer bg-gray-50/50 font-medium"
+                          className="hover:bg-[var(--surface-secondary)] cursor-pointer bg-gray-50/50 font-medium"
                         >
-                          <td className="px-3 py-2 text-gray-500 select-none">
+                          <td className="px-3 py-2 text-[var(--text-muted)] select-none">
                             <span className={`inline-block transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
                           </td>
-                          <td className="px-3 py-2 text-gray-900">{g.name}</td>
-                          <td className="px-3 py-2 text-gray-500">{g.code}</td>
-                          <td className="px-3 py-2 text-xs text-gray-500">
+                          <td className="px-3 py-2 text-[var(--text-primary)]">{g.name}</td>
+                          <td className="px-3 py-2 text-[var(--text-muted)]">{g.code}</td>
+                          <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
                             {g.rows.length} {g.rows.length === 1 ? 'request' : 'requests'}
                           </td>
                           <td className="px-3 py-2" />
                           <td className="px-3 py-2" />
-                          <td className="px-3 py-2 text-center font-semibold text-gray-900">{g.totalDays}</td>
-                          <td className="px-3 py-2 text-xs text-gray-400">
+                          <td className="px-3 py-2 text-center font-semibold text-[var(--text-primary)]">{g.totalDays}</td>
+                          <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
                             {isOpen ? 'Click to collapse' : 'Click to expand'}
                           </td>
                         </tr>
                         {g.rows.map((r, i) => (
                           <tr
                             key={`${g.key}-${i}`}
-                            className={`hover:bg-gray-50 ${isOpen ? '' : 'hidden print:table-row'}`}
+                            className={`hover:bg-[var(--surface-secondary)] ${isOpen ? '' : 'hidden print:table-row'}`}
                           >
                             <td className="px-3 py-2" />
-                            <td className="px-3 py-2 text-gray-600 pl-8">↳</td>
-                            <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                            <td className="px-3 py-2 capitalize text-gray-700">{r.leave_type}</td>
-                            <td className="px-3 py-2 text-gray-700">{r.start_date}</td>
-                            <td className="px-3 py-2 text-gray-700">{r.end_date}</td>
-                            <td className="px-3 py-2 text-center text-gray-800">{r.total_days}</td>
+                            <td className="px-3 py-2 text-[var(--text-secondary)] pl-8">↳</td>
+                            <td className="px-3 py-2 text-[var(--text-muted)]">{r.employee_code}</td>
+                            <td className="px-3 py-2 capitalize text-[var(--text-secondary)]">{r.leave_type}</td>
+                            <td className="px-3 py-2 text-[var(--text-secondary)]">{r.start_date}</td>
+                            <td className="px-3 py-2 text-[var(--text-secondary)]">{r.end_date}</td>
+                            <td className="px-3 py-2 text-center text-[var(--text-primary)]">{r.total_days}</td>
                             <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                           </tr>
                         ))}
@@ -204,8 +204,8 @@ export default function LeaveReport() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-blue-50 font-semibold text-sm">
-                    <td colSpan={6} className="px-3 py-2 text-gray-700">Total days</td>
-                    <td className="px-3 py-2 text-center text-gray-800">{grandTotal}</td>
+                    <td colSpan={6} className="px-3 py-2 text-[var(--text-secondary)]">Total days</td>
+                    <td className="px-3 py-2 text-center text-[var(--text-primary)]">{grandTotal}</td>
                     <td />
                   </tr>
                 </tfoot>

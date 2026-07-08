@@ -124,9 +124,9 @@ export default function TimesheetReport() {
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         {canSeeOthers && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Employee</label>
             <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
               <option value="">Select employee...</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.surname} {e.employee_code ? `(${e.employee_code})` : ''}</option>)}
             </select>
@@ -135,42 +135,42 @@ export default function TimesheetReport() {
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-3 py-2 text-xs font-medium text-gray-500 whitespace-nowrap">Date</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500">Day</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500">Status</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">OT hrs</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">LOL</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">LOI</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500">Notes</th>
+              <tr className="bg-[var(--surface-secondary)] text-left">
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] whitespace-nowrap">Date</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)]">Day</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)]">Status</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-center">OT hrs</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-center">LOL</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-center">LOI</th>
+                <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)]">Notes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {rows.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-700">{formatDateDisplay(r.date)}</td>
-                  <td className="px-3 py-2 text-gray-600">{r.day_of_week}</td>
-                  <td className="px-3 py-2 capitalize text-gray-700">{r.primary_status.replace('_', ' ')}</td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.overtime_flag ? r.overtime_hours : '—'}</td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.lol_flag ? 'Yes' : '—'}</td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.loi_flag ? 'Yes' : '—'}</td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">{r.notes ?? '—'}</td>
+                <tr key={r.id} className="hover:bg-[var(--surface-secondary)]">
+                  <td className="px-3 py-2 whitespace-nowrap text-[var(--text-secondary)]">{formatDateDisplay(r.date)}</td>
+                  <td className="px-3 py-2 text-[var(--text-secondary)]">{r.day_of_week}</td>
+                  <td className="px-3 py-2 capitalize text-[var(--text-secondary)]">{r.primary_status.replace('_', ' ')}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.overtime_flag ? r.overtime_hours : '—'}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.lol_flag ? 'Yes' : '—'}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.loi_flag ? 'Yes' : '—'}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)] text-xs">{r.notes ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-blue-50 font-medium">
-                <td colSpan={3} className="px-3 py-2 text-xs text-gray-600">Totals</td>
-                <td className="px-3 py-2 text-center text-xs text-gray-800">
+                <td colSpan={3} className="px-3 py-2 text-xs text-[var(--text-secondary)]">Totals</td>
+                <td className="px-3 py-2 text-center text-xs text-[var(--text-primary)]">
                   {rows.reduce((s, r) => s + (r.overtime_flag ? r.overtime_hours ?? 0 : 0), 0).toFixed(1)}
                 </td>
-                <td className="px-3 py-2 text-center text-xs text-gray-800">{rows.filter(r => r.lol_flag).length}</td>
-                <td className="px-3 py-2 text-center text-xs text-gray-800">{rows.filter(r => r.loi_flag).length}</td>
+                <td className="px-3 py-2 text-center text-xs text-[var(--text-primary)]">{rows.filter(r => r.lol_flag).length}</td>
+                <td className="px-3 py-2 text-center text-xs text-[var(--text-primary)]">{rows.filter(r => r.loi_flag).length}</td>
                 <td />
               </tr>
             </tfoot>

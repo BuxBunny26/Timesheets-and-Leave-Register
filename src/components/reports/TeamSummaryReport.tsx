@@ -68,26 +68,26 @@ export default function TeamSummaryReport() {
         <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50">
+              <tr className="bg-[var(--surface-secondary)]">
                 {['Employee', 'Code', 'Week Start', 'Status', 'Submitted At', 'OT Hours'].map(h => (
-                  <th key={h} className="px-3 py-2 text-xs font-medium text-gray-500 text-left">{h}</th>
+                  <th key={h} className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-800">{r.employee_name}</td>
-                  <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.week_start}</td>
+                <tr key={i} className="hover:bg-[var(--surface-secondary)]">
+                  <td className="px-3 py-2 text-[var(--text-primary)]">{r.employee_name}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)]">{r.employee_code}</td>
+                  <td className="px-3 py-2 text-[var(--text-secondary)]">{r.week_start}</td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">{r.submitted_at ? new Date(r.submitted_at).toLocaleString('en-ZA') : '—'}</td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.ot_hours > 0 ? r.ot_hours.toFixed(1) : '—'}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)] text-xs">{r.submitted_at ? new Date(r.submitted_at).toLocaleString('en-ZA') : '—'}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.ot_hours > 0 ? r.ot_hours.toFixed(1) : '—'}</td>
                 </tr>
               ))}
             </tbody>

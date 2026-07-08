@@ -13,11 +13,11 @@ interface Props {
 
 export default function ReportShell({ title, subtitle, onExcel, onPrint, loading, children, reportId }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)]">
+      <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">{title}</h2>
+          {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
           {onExcel && (
@@ -33,7 +33,7 @@ export default function ReportShell({ title, subtitle, onExcel, onPrint, loading
             <button
               onClick={onPrint}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] bg-[var(--surface-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--surface-secondary)] disabled:opacity-50 transition-colors"
             >
               <IconPrinter className="w-3.5 h-3.5" /> Print
             </button>

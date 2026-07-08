@@ -36,8 +36,8 @@ const COMPETENCIES: { key: keyof DetailsForm; label: string }[] = [
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">{title}</h2>
+    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 space-y-3">
+      <h2 className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wide">{title}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{children}</div>
     </section>
   )
@@ -55,14 +55,14 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-gray-600 mb-1">{label}</span>
+      <span className="block text-xs font-medium text-[var(--text-secondary)] mb-1">{label}</span>
       <input
         type={type}
         value={value ?? ''}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-50 disabled:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
+        className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm disabled:bg-gray-50 disabled:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
       />
     </label>
   )
@@ -70,7 +70,7 @@ function Field({
 
 function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+    <label className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} disabled={disabled} />
       {label}
     </label>
@@ -89,7 +89,7 @@ function DocLink({
   return (
     <div className="sm:col-span-2 lg:col-span-3">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-gray-600">{label}</span>
+        <span className="text-xs font-medium text-[var(--text-secondary)]">{label}</span>
         {url && (
           <a
             href={url}
@@ -107,10 +107,10 @@ function DocLink({
         onChange={e => onUrlChange(e.target.value.trim() === '' ? null : e.target.value.trim())}
         disabled={disabled}
         placeholder="Paste OneDrive / SharePoint link"
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-50 disabled:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
+        className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm disabled:bg-gray-50 disabled:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
       />
       {fileName && (
-        <p className="text-[11px] text-gray-500 mt-1 truncate" title={fileName}>File on record: {fileName}</p>
+        <p className="text-[11px] text-[var(--text-muted)] mt-1 truncate" title={fileName}>File on record: {fileName}</p>
       )}
     </div>
   )
@@ -126,7 +126,7 @@ function daysUntil(iso: string | null | undefined): number | null {
 function ExpiryBadge({ iso }: { iso: string | null | undefined }) {
   const d = daysUntil(iso)
   if (d === null) return null
-  let cls = 'bg-gray-100 text-gray-600'
+  let cls = 'bg-[var(--surface-secondary)] text-[var(--text-secondary)]'
   let text = `${d} days`
   if (d < 0) { cls = 'bg-red-100 text-red-700'; text = 'Expired' }
   else if (d <= 7) cls = 'bg-red-100 text-red-700'
@@ -348,7 +348,7 @@ export default function EmployeeDetailPage() {
     return warn
   }, [certs, certTypes, details])
 
-  if (loading) return <div className="text-center py-10 text-gray-500">Loading…</div>
+  if (loading) return <div className="text-center py-10 text-[var(--text-muted)]">Loading…</div>
   if (!employee) return <div className="text-center py-10 text-red-600">{canViewPage ? 'Employee not found.' : 'You do not have access to this profile.'}</div>
 
   return (
@@ -361,12 +361,12 @@ export default function EmployeeDetailPage() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-gray-100 text-gray-600">
+          <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-[var(--surface-secondary)] text-[var(--text-secondary)]">
             <IconChevronLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{employee.first_name} {employee.surname}</h1>
-            <p className="text-sm text-gray-500">
+            <h1 className="text-xl font-semibold text-[var(--text-primary)]">{employee.first_name} {employee.surname}</h1>
+            <p className="text-sm text-[var(--text-muted)]">
               {employee.job_title ?? '—'} · {employee.department?.name ?? '—'} · {employee.site?.name ?? '—'} · {supervisorName ? `Supervisor: ${supervisorName}` : 'No supervisor set'}
             </p>
           </div>
@@ -383,7 +383,7 @@ export default function EmployeeDetailPage() {
       </div>
 
       {!canEdit && (
-        <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-xs text-gray-600">
+        <div className="bg-[var(--surface-secondary)] border border-[var(--border)] rounded-md px-3 py-2 text-xs text-[var(--text-secondary)]">
           {isSupervisor ? 'You have read-only access to this profile.' : 'You can update your personal information below. Contact your manager to change work details.'}
         </div>
       )}
@@ -398,30 +398,30 @@ export default function EmployeeDetailPage() {
       )}
 
       {canEditAdmin && (
-        <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Staff Details</h2>
+        <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wide">Staff Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <label className="block">
-              <span className="block text-xs font-medium text-gray-600 mb-1">Job Title</span>
-              <input type="text" value={profilePatch.job_title} onChange={e => setProfilePatch(p => ({ ...p, job_title: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]" />
+              <span className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Job Title</span>
+              <input type="text" value={profilePatch.job_title} onChange={e => setProfilePatch(p => ({ ...p, job_title: e.target.value }))} className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]" />
             </label>
             <label className="block">
-              <span className="block text-xs font-medium text-gray-600 mb-1">Status</span>
-              <select value={profilePatch.status} onChange={e => setProfilePatch(p => ({ ...p, status: e.target.value as 'active' | 'inactive' }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              <span className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Status</span>
+              <select value={profilePatch.status} onChange={e => setProfilePatch(p => ({ ...p, status: e.target.value as 'active' | 'inactive' }))} className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
             </label>
             <label className="block">
-              <span className="block text-xs font-medium text-gray-600 mb-1">Site</span>
-              <select value={profilePatch.site_id} onChange={e => setProfilePatch(p => ({ ...p, site_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              <span className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Site</span>
+              <select value={profilePatch.site_id} onChange={e => setProfilePatch(p => ({ ...p, site_id: e.target.value }))} className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
                 <option value="">— No site —</option>
                 {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </label>
             <label className="block sm:col-span-2">
-              <span className="block text-xs font-medium text-gray-600 mb-1">Supervisor</span>
-              <select value={profilePatch.supervisor_id} onChange={e => setProfilePatch(p => ({ ...p, supervisor_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              <span className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Supervisor</span>
+              <select value={profilePatch.supervisor_id} onChange={e => setProfilePatch(p => ({ ...p, supervisor_id: e.target.value }))} className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
                 <option value="">— No supervisor —</option>
                 {allProfiles.filter(p => p.id !== id).map(p => (
                   <option key={p.id} value={p.id}>{p.first_name} {p.surname}{p.employee_code ? ` (${p.employee_code})` : ''}</option>
@@ -492,24 +492,24 @@ export default function EmployeeDetailPage() {
         <Field label="Contact number" value={details.next_of_kin_contact} onChange={v => update({ next_of_kin_contact: nullable(v) })} disabled={!canEdit} />
       </Section>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+      <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Dependants (Children)</h2>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wide">Dependants (Children)</h2>
           {canEdit && (
-            <button onClick={addDependant} className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">
+            <button onClick={addDependant} className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-[var(--border)] rounded hover:bg-[var(--surface-secondary)]">
               <IconPlus className="w-3 h-3" /> Add
             </button>
           )}
         </div>
         {dependants.length === 0 ? (
-          <p className="text-sm text-gray-500">No dependants on file.</p>
+          <p className="text-sm text-[var(--text-muted)]">No dependants on file.</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-[var(--border)]">
             {dependants.map(d => (
               <li key={d.id} className="flex items-center justify-between py-2 text-sm">
                 <div>
-                  <span className="font-medium text-gray-900">{d.name}</span>
-                  {d.date_of_birth && <span className="text-gray-500 ml-2">DOB {d.date_of_birth}</span>}
+                  <span className="font-medium text-[var(--text-primary)]">{d.name}</span>
+                  {d.date_of_birth && <span className="text-[var(--text-muted)] ml-2">DOB {d.date_of_birth}</span>}
                 </div>
                 {canEdit && (
                   <button onClick={() => removeDependant(d.id)} className="text-red-600 hover:text-red-800 p-1">
@@ -532,11 +532,11 @@ export default function EmployeeDetailPage() {
         <Field label="Other qualification" value={details.other_qualification} onChange={v => update({ other_qualification: nullable(v) })} disabled={!canEditAdmin} />
       </Section>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Certifications</h2>
+      <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wide">Certifications</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="bg-[var(--surface-secondary)] text-[var(--text-secondary)]">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">Certification</th>
                 <th className="px-3 py-2 text-left font-medium">Held</th>
@@ -545,12 +545,12 @@ export default function EmployeeDetailPage() {
                 <th className="px-3 py-2 text-left font-medium">Document link</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[var(--border)]">
               {certTypes.map(t => {
                 const c = certs[t.id]
                 return (
                   <tr key={t.id}>
-                    <td className="px-3 py-2 text-gray-900">{t.name}</td>
+                    <td className="px-3 py-2 text-[var(--text-primary)]">{t.name}</td>
                     <td className="px-3 py-2">
                       <input
                         type="checkbox"
@@ -565,7 +565,7 @@ export default function EmployeeDetailPage() {
                         disabled={!canEditAdmin || !(c?.has_certification ?? false)}
                         value={c?.expiry_date ?? ''}
                         onChange={e => setCert(t.id, { expiry_date: e.target.value || null })}
-                        className="px-2 py-1 border border-gray-300 rounded-md text-sm disabled:bg-gray-50"
+                        className="px-2 py-1 border border-[var(--border)] rounded-md text-sm disabled:bg-gray-50"
                       />
                     </td>
                     <td className="px-3 py-2"><ExpiryBadge iso={c?.expiry_date} /></td>
@@ -578,7 +578,7 @@ export default function EmployeeDetailPage() {
                             value={c?.file_url ?? ''}
                             onChange={e => setCert(t.id, { file_url: e.target.value.trim() === '' ? null : e.target.value.trim(), attached: e.target.value.trim() !== '' ? true : (c?.attached ?? false) })}
                             placeholder="OneDrive / SharePoint link"
-                            className="flex-1 px-2 py-1 border border-gray-300 rounded-md text-sm disabled:bg-gray-50"
+                            className="flex-1 px-2 py-1 border border-[var(--border)] rounded-md text-sm disabled:bg-gray-50"
                           />
                           {c?.file_url && (
                             <a
@@ -592,7 +592,7 @@ export default function EmployeeDetailPage() {
                           )}
                         </div>
                         {c?.file_name && (
-                          <p className="text-[11px] text-gray-500 truncate" title={c.file_name}>File on record: {c.file_name}</p>
+                          <p className="text-[11px] text-[var(--text-muted)] truncate" title={c.file_name}>File on record: {c.file_name}</p>
                         )}
                       </div>
                     </td>
@@ -617,16 +617,16 @@ export default function EmployeeDetailPage() {
       </Section>
 
       {/* Leave Balances */}
-      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+      <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wide">
           Leave Balances — FY {currentFY}
         </h2>
         {leaveBalances.length === 0 ? (
-          <p className="text-sm text-gray-400">No leave balances on record for FY {currentFY}. Balances are set by admin in the Admin panel.</p>
+          <p className="text-sm text-[var(--text-muted)]">No leave balances on record for FY {currentFY}. Balances are set by admin in the Admin panel.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
+              <thead className="bg-[var(--surface-secondary)] text-[var(--text-secondary)]">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">Leave type</th>
                   <th className="px-3 py-2 text-left font-medium">Total days</th>
@@ -634,7 +634,7 @@ export default function EmployeeDetailPage() {
                   <th className="px-3 py-2 text-left font-medium">Remaining</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[var(--border)]">
                 {leaveBalances.map(b => {
                   const remaining = b.total_days - b.used_days
                   return (

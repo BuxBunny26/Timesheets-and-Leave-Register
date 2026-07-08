@@ -13,7 +13,7 @@ export default function TeamScopeToggle({ show, myTeamOnly, onChange }: Props) {
   if (!show) return null
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">Scope</label>
+      <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Scope</label>
       <button
         type="button"
         onClick={() => onChange(!myTeamOnly)}
@@ -21,12 +21,12 @@ export default function TeamScopeToggle({ show, myTeamOnly, onChange }: Props) {
         className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] ${
           myTeamOnly
             ? 'bg-[#1B5EA6] border-[#1B5EA6] text-white hover:bg-[#154d8a]'
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+            : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]'
         }`}
       >
         <span
           className={`flex items-center justify-center w-4 h-4 rounded border ${
-            myTeamOnly ? 'bg-white border-white text-[#1B5EA6]' : 'border-gray-300 text-transparent'
+            myTeamOnly ? 'bg-[var(--surface)] border-white text-[#1B5EA6]' : 'border-[var(--border)] text-transparent'
           }`}
           aria-hidden="true"
         >

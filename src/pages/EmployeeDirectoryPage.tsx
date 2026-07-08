@@ -78,17 +78,17 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
       <div className={`rounded-lg px-3 py-2.5 w-44 text-center cursor-pointer hover:shadow-md transition-all select-none ${
         hasReports
           ? 'bg-blue-50 border border-blue-200 hover:border-[#1B5EA6]'
-          : 'bg-white border border-gray-200 hover:border-gray-300'
+          : 'bg-[var(--surface)] border border-[var(--border)] hover:border-gray-300'
       }`}>
-        <p className="text-[11px] font-semibold text-gray-900 leading-tight">{node.first_name} {node.surname}</p>
+        <p className="text-[11px] font-semibold text-[var(--text-primary)] leading-tight">{node.first_name} {node.surname}</p>
         {node.job_title && (
           <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
         )}
         {node.employee_code && (
-          <p className="text-[9px] text-gray-400 mt-0.5">{node.employee_code}</p>
+          <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{node.employee_code}</p>
         )}
         {node.site?.name && (
-          <p className="text-[9px] text-gray-400">{node.site.name}</p>
+          <p className="text-[9px] text-[var(--text-muted)]">{node.site.name}</p>
         )}
       </div>
     </Link>
@@ -103,7 +103,7 @@ function OrgTreeNode({ node, depth = 0, isRoot = false }: { node: OrgNode; depth
       {node.children.length > 0 && (
         <button
           onClick={e => { e.preventDefault(); setExpanded(x => !x) }}
-          className="mt-1 text-[10px] text-gray-400 hover:text-[#1B5EA6] transition-colors"
+          className="mt-1 text-[10px] text-[var(--text-muted)] hover:text-[#1B5EA6] transition-colors"
         >
           {expanded ? '▾ collapse' : `▸ ${node.children.length} report${node.children.length !== 1 ? 's' : ''}`}
         </button>
@@ -145,17 +145,17 @@ function OrgChart({ rows }: { rows: Row[] }) {
         .org-li:only-child::before { border: none; }
         .org-li:only-child::after { display: none; }
       `}</style>
-      <div className="flex gap-3 items-center mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex-wrap">
+      <div className="flex gap-3 items-center mb-4 p-3 bg-[var(--surface-secondary)] rounded-lg border border-[var(--border)] flex-wrap">
         <select
           value={orgSiteFilter}
           onChange={e => setOrgSiteFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          className="px-3 py-2 border border-[var(--border)] rounded-md text-sm"
         >
           <option value="">All sites</option>
           {sites.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="text-xs text-gray-500">{filtered.length} employees shown</span>
-        <span className="text-xs text-gray-400 hidden sm:inline">Blue card = has direct reports · Click card to view profile · ▸/▾ to expand/collapse</span>
+        <span className="text-xs text-[var(--text-muted)]">{filtered.length} employees shown</span>
+        <span className="text-xs text-[var(--text-muted)] hidden sm:inline">Blue card = has direct reports · Click card to view profile · ▸/▾ to expand/collapse</span>
       </div>
       <div className="overflow-x-auto pb-6">
         <ul className="flex gap-16 list-none pl-6 m-0">
@@ -165,7 +165,7 @@ function OrgChart({ rows }: { rows: Row[] }) {
         </ul>
       </div>
       {roots.length === 0 && (
-        <div className="text-center py-10 text-gray-500">No employees to display.</div>
+        <div className="text-center py-10 text-[var(--text-muted)]">No employees to display.</div>
       )}
     </div>
   )
@@ -331,10 +331,10 @@ export default function EmployeeDirectoryPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Employee Directory</h1>
-          <p className="text-sm text-gray-500">Personal, contact, qualifications and certification details for all staff.</p>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Employee Directory</h1>
+          <p className="text-sm text-[var(--text-muted)]">Personal, contact, qualifications and certification details for all staff.</p>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-[var(--text-muted)]">
           {loading ? 'Loading…' : `${filtered.length} of ${rows.length}`}
         </div>
       </div>
@@ -345,7 +345,7 @@ export default function EmployeeDirectoryPage() {
         </div>
       )}
 
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-[var(--border)]">
         {(['directory', 'organogram'] as const).map(tab => (
           <button
             key={tab}
@@ -353,7 +353,7 @@ export default function EmployeeDirectoryPage() {
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               activeTab === tab
                 ? 'border-[#1B5EA6] text-[#1B5EA6]'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
             }`}
           >
             {tab === 'directory' ? 'Directory' : 'Organogram'}
@@ -362,18 +362,18 @@ export default function EmployeeDirectoryPage() {
       </div>
 
       {activeTab === 'directory' && (<>
-      <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-wrap gap-2">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 flex flex-wrap gap-2">
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search name, email, job title, supervisor..."
-          className="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
+          className="flex-1 min-w-[220px] px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
         />
         <select
           value={siteFilter}
           onChange={e => setSiteFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          className="px-3 py-2 border border-[var(--border)] rounded-md text-sm"
         >
           <option value="">All sites</option>
           {sites.map(s => <option key={s} value={s}>{s}</option>)}
@@ -381,7 +381,7 @@ export default function EmployeeDirectoryPage() {
         <select
           value={departmentFilter}
           onChange={e => setDepartmentFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          className="px-3 py-2 border border-[var(--border)] rounded-md text-sm"
         >
           <option value="">All departments</option>
           {departments.map(d => <option key={d} value={d}>{d}</option>)}
@@ -389,26 +389,26 @@ export default function EmployeeDirectoryPage() {
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+          className="px-3 py-2 border border-[var(--border)] rounded-md text-sm"
         >
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="all">All statuses</option>
         </select>
-        <label className="inline-flex items-center gap-2 text-sm px-3 py-2 border border-gray-300 rounded-md cursor-pointer">
+        <label className="inline-flex items-center gap-2 text-sm px-3 py-2 border border-[var(--border)] rounded-md cursor-pointer">
           <input type="checkbox" checked={expiringOnly} onChange={e => setExpiringOnly(e.target.checked)} />
           Expiring soon
         </label>
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-gray-500">Loading…</div>
+        <div className="text-center py-10 text-[var(--text-muted)]">Loading…</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden">
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-gray-600">
+            <table className="min-w-full divide-y divide-[var(--border)] text-sm">
+              <thead className="bg-[var(--surface-secondary)] text-[var(--text-secondary)]">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">Name</th>
                   <th className="px-3 py-2 text-left font-medium">Email</th>
@@ -424,7 +424,7 @@ export default function EmployeeDirectoryPage() {
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[var(--border)]">
                 {filtered.map(r => (
                   <tr
                     key={r.id}
@@ -436,25 +436,25 @@ export default function EmployeeDirectoryPage() {
                         {r.first_name} {r.surname}
                       </Link>
                       {r.employee_code && (
-                        <div className="text-[11px] text-gray-500">{r.employee_code}</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">{r.employee_code}</div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-700">{r.email}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.job_title ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.division?.name ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.department?.name ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{r.email}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{r.job_title ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{r.division?.name ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{r.department?.name ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">
                       {r.supervisor ? `${r.supervisor.first_name} ${r.supervisor.surname}` : '—'}
                     </td>
-                    <td className="px-3 py-2 text-gray-700">{r.site?.name ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700">{r.cell_number ?? '—'}</td>
-                    <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{r.site?.name ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)]">{r.cell_number ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--text-secondary)] whitespace-nowrap">
                       {r.details?.start_date
                         ? new Date(r.details.start_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
                         : '—'}
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-[var(--text-secondary)]'}`}>
                         {r.status}
                       </span>
                     </td>
@@ -480,23 +480,23 @@ export default function EmployeeDirectoryPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-500">No employees match the filters.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-8 text-center text-[var(--text-muted)]">No employees match the filters.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
           {/* Mobile cards */}
-          <div className="md:hidden divide-y divide-gray-100">
+          <div className="md:hidden divide-y divide-[var(--border)]">
             {filtered.map(r => (
               <Link key={r.id} to={`/employees/${r.id}`} className="block px-3 py-3 hover:bg-blue-50/40">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{r.first_name} {r.surname}</p>
-                    <p className="text-xs text-gray-500 truncate">{r.job_title ?? '—'} · {r.department?.name ?? '—'} · {r.site?.name ?? '—'}</p>
-                    <p className="text-xs text-gray-500 truncate">{r.email}</p>
+                    <p className="font-medium text-[var(--text-primary)] truncate">{r.first_name} {r.surname}</p>
+                    <p className="text-xs text-[var(--text-muted)] truncate">{r.job_title ?? '—'} · {r.department?.name ?? '—'} · {r.site?.name ?? '—'}</p>
+                    <p className="text-xs text-[var(--text-muted)] truncate">{r.email}</p>
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium ${r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium ${r.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-[var(--text-secondary)]'}`}>
                     {r.status}
                   </span>
                 </div>
@@ -512,7 +512,7 @@ export default function EmployeeDirectoryPage() {
               </Link>
             ))}
             {filtered.length === 0 && (
-              <div className="px-3 py-8 text-center text-gray-500">No employees match the filters.</div>
+              <div className="px-3 py-8 text-center text-[var(--text-muted)]">No employees match the filters.</div>
             )}
           </div>
         </div>

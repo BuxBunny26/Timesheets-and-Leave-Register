@@ -5,6 +5,19 @@
     <link rel="icon" type="image/png" href="/wearcheck-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WearCheck RS - Timesheet & Leave Management</title>
+    <!-- Apply theme BEFORE React renders: sets both data-theme (CSS vars) and dark class -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('wc-theme');
+          var sys = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = (stored === 'dark' || stored === 'light') ? stored : (sys ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+          if (theme === 'dark') document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />

@@ -115,9 +115,9 @@ export default function OvertimeReport() {
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         {!isPlainEmployee && (
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Employee (optional)</label>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Employee (optional)</label>
             <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+              className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
               <option value="">All employees</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.surname}</option>)}
             </select>
@@ -127,7 +127,7 @@ export default function OvertimeReport() {
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
           {(() => {
@@ -151,16 +151,16 @@ export default function OvertimeReport() {
             return (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left w-8" />
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Employee</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Code</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Date</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-center">OT Hours</th>
-                    <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Approval</th>
+                  <tr className="bg-[var(--surface-secondary)]">
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left w-8" />
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Employee</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Code</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Date</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-center">OT Hours</th>
+                    <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Approval</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[var(--border)]">
                   {groups.map(g => {
                     const isOpen = expanded.has(g.key)
                     return (
@@ -168,18 +168,18 @@ export default function OvertimeReport() {
                         <tr
                           key={g.key}
                           onClick={() => toggleEmployee(g.key)}
-                          className="hover:bg-gray-50 cursor-pointer bg-gray-50/50 font-medium"
+                          className="hover:bg-[var(--surface-secondary)] cursor-pointer bg-gray-50/50 font-medium"
                         >
-                          <td className="px-3 py-2 text-gray-500 select-none">
+                          <td className="px-3 py-2 text-[var(--text-muted)] select-none">
                             <span className={`inline-block transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
                           </td>
-                          <td className="px-3 py-2 text-gray-900">{g.name}</td>
-                          <td className="px-3 py-2 text-gray-500">{g.code}</td>
-                          <td className="px-3 py-2 text-xs text-gray-500">
+                          <td className="px-3 py-2 text-[var(--text-primary)]">{g.name}</td>
+                          <td className="px-3 py-2 text-[var(--text-muted)]">{g.code}</td>
+                          <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
                             {g.rows.length} {g.rows.length === 1 ? 'day' : 'days'}
                           </td>
-                          <td className="px-3 py-2 text-center font-semibold text-gray-900">{g.totalHours.toFixed(1)}</td>
-                          <td className="px-3 py-2 text-xs text-gray-400">
+                          <td className="px-3 py-2 text-center font-semibold text-[var(--text-primary)]">{g.totalHours.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
                             {isOpen ? 'Click to collapse' : 'Click to expand'}
                           </td>
                         </tr>
@@ -187,13 +187,13 @@ export default function OvertimeReport() {
                         {g.rows.map((r, i) => (
                           <tr
                             key={`${g.key}-${i}`}
-                            className={`hover:bg-gray-50 ${isOpen ? '' : 'hidden print:table-row'}`}
+                            className={`hover:bg-[var(--surface-secondary)] ${isOpen ? '' : 'hidden print:table-row'}`}
                           >
                             <td className="px-3 py-2" />
-                            <td className="px-3 py-2 text-gray-600 pl-8">↳</td>
-                            <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                            <td className="px-3 py-2 text-gray-700">{r.date}</td>
-                            <td className="px-3 py-2 text-center text-gray-800">{r.hours}</td>
+                            <td className="px-3 py-2 text-[var(--text-secondary)] pl-8">↳</td>
+                            <td className="px-3 py-2 text-[var(--text-muted)]">{r.employee_code}</td>
+                            <td className="px-3 py-2 text-[var(--text-secondary)]">{r.date}</td>
+                            <td className="px-3 py-2 text-center text-[var(--text-primary)]">{r.hours}</td>
                             <td className="px-3 py-2"><StatusBadge status={r.approval_status} /></td>
                           </tr>
                         ))}
@@ -203,8 +203,8 @@ export default function OvertimeReport() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-blue-50 font-semibold text-sm">
-                    <td colSpan={4} className="px-3 py-2 text-gray-700">Total</td>
-                    <td className="px-3 py-2 text-center text-gray-800">{grandTotal.toFixed(1)}</td>
+                    <td colSpan={4} className="px-3 py-2 text-[var(--text-secondary)]">Total</td>
+                    <td className="px-3 py-2 text-center text-[var(--text-primary)]">{grandTotal.toFixed(1)}</td>
                     <td />
                   </tr>
                 </tfoot>

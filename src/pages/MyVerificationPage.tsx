@@ -215,52 +215,52 @@ export default function MyVerificationPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My Monthly Verification</h1>
-        <p className="text-gray-500 mt-1 text-sm">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">My Monthly Verification</h1>
+        <p className="text-[var(--text-muted)] mt-1 text-sm">
           Review your overtime and approved leave for the month, then confirm the totals are correct.
         </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6">
-        <label className="block text-xs font-medium text-gray-600 mb-1">Period</label>
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-5 mb-6">
+        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Period</label>
         <select
           value={period}
           onChange={e => setPeriod(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
+          className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]"
         >
           {months.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Loading…</p>
       ) : summary ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Overtime hours</p>
-              <p className="text-3xl font-semibold text-gray-900 mt-1">{summary.ot_hours.toFixed(1)}</p>
+            <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-5">
+              <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide">Overtime hours</p>
+              <p className="text-3xl font-semibold text-[var(--text-primary)] mt-1">{summary.ot_hours.toFixed(1)}</p>
               {summary.ot_days.length > 0 && (
-                <ul className="mt-3 text-xs text-gray-600 space-y-1 max-h-40 overflow-auto">
+                <ul className="mt-3 text-xs text-[var(--text-secondary)] space-y-1 max-h-40 overflow-auto">
                   {summary.ot_days.map(d => (
                     <li key={d.date} className="flex justify-between">
                       <span>{d.date}</span>
-                      <span className="font-medium text-gray-800">{d.hours.toFixed(1)} h</span>
+                      <span className="font-medium text-[var(--text-primary)]">{d.hours.toFixed(1)} h</span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Approved leave days</p>
-              <p className="text-3xl font-semibold text-gray-900 mt-1">{summary.leave_days}</p>
+            <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-5">
+              <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide">Approved leave days</p>
+              <p className="text-3xl font-semibold text-[var(--text-primary)] mt-1">{summary.leave_days}</p>
               {summary.leaves.length > 0 && (
-                <ul className="mt-3 text-xs text-gray-600 space-y-1 max-h-40 overflow-auto">
+                <ul className="mt-3 text-xs text-[var(--text-secondary)] space-y-1 max-h-40 overflow-auto">
                   {summary.leaves.map((l, i) => (
                     <li key={i} className="flex justify-between gap-2">
                       <span className="capitalize">{l.leave_type}</span>
-                      <span className="text-gray-500">{l.start_date} → {l.end_date}</span>
-                      <span className="font-medium text-gray-800">{l.total_days} d</span>
+                      <span className="text-[var(--text-muted)]">{l.start_date} → {l.end_date}</span>
+                      <span className="font-medium text-[var(--text-primary)]">{l.total_days} d</span>
                     </li>
                   ))}
                 </ul>
@@ -268,27 +268,27 @@ export default function MyVerificationPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 p-5">
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-5">
             {alreadyVerified ? (
               <div className="flex items-start gap-3">
                 <span className="text-green-600 mt-0.5"><IconCheckCircle className="w-5 h-5" /></span>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Verified</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">Verified</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
                     {verification?.verified_at ? new Date(verification.verified_at).toLocaleString('en-ZA') : ''}
                   </p>
                   {verification?.notes && (
-                    <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{verification.notes}</p>
+                    <p className="text-sm text-[var(--text-secondary)] mt-2 whitespace-pre-wrap">{verification.notes}</p>
                   )}
                 </div>
               </div>
             ) : !canVerify ? (
               <div>
-                <p className="text-sm font-medium text-gray-900 mb-2">Cannot verify yet</p>
-                <p className="text-xs text-gray-600 mb-3">
+                <p className="text-sm font-medium text-[var(--text-primary)] mb-2">Cannot verify yet</p>
+                <p className="text-xs text-[var(--text-secondary)] mb-3">
                   All weeks in {period} must be submitted before you can verify the month.
                 </p>
-                <ul className="text-xs text-gray-700 space-y-1">
+                <ul className="text-xs text-[var(--text-secondary)] space-y-1">
                   {unsubmittedWeeks.map(w => (
                     <li key={w.week_start} className="flex justify-between">
                       <span>{w.week_start} → {w.week_end}</span>
@@ -302,21 +302,21 @@ export default function MyVerificationPage() {
               </div>
             ) : (
               <>
-                <p className="text-sm font-medium text-gray-900 mb-2">Confirm your monthly totals</p>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
+                <p className="text-sm font-medium text-[var(--text-primary)] mb-2">Confirm your monthly totals</p>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Notes (optional)</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   rows={3}
                   placeholder="Add any clarifications about your overtime or leave for this month."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] mb-3"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6] mb-3"
                 />
-                <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer select-none mb-3">
+                <label className="flex items-start gap-2 text-sm text-[var(--text-secondary)] cursor-pointer select-none mb-3">
                   <input
                     type="checkbox"
                     checked={confirm}
                     onChange={e => setConfirm(e.target.checked)}
-                    className="mt-1 rounded border-gray-300"
+                    className="mt-1 rounded border-[var(--border)]"
                   />
                   <span>I confirm the overtime hours and approved leave shown above for {period} are correct.</span>
                 </label>

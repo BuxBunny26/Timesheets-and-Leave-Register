@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { formatDateDisplay } from '../lib/dateUtils'
+import { formatDateDisplay, fyEndYearFor } from '../lib/dateUtils'
 import { IconCheckCircle } from '../components/Icons'
 import type { OTApprovalStatus, LeaveType, LeaveStatus } from '../types'
 
@@ -13,7 +13,7 @@ function formatTimestampDisplay(ts: string | null | undefined): string {
   return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-type Tab = 'ot' | 'leave' | 'final_ot' | 'final_leave' | 'denied_ot' | 'denied_leave' | 'my_ot' | 'my_leave'
+type Tab = 'ot' | 'leave' | 'final_ot' | 'final_leave' | 'denied_ot' | 'denied_leave' | 'reviews' | 'final_reviews' | 'my_ot' | 'my_leave'
 type Section = 'action' | 'mine'
 
 const MINE_TABS: Tab[] = ['my_ot', 'my_leave']
@@ -63,6 +63,7 @@ interface LeaveRequestRow {
   supervisor_comment: string | null
   submitted_at: string
   actioned_at: string | null
+  leave_year: number | null
   final_status?: 'pending' | 'approved' | 'denied'
   employee?: EmployeeSnippet
 }
@@ -80,7 +81,7 @@ export default function ApprovalsPage() {
     profile?.role === 'system_admin'
   const [searchParams, setSearchParams] = useSearchParams()
   const parseTab = (raw: string | null): Tab => {
-    if (raw === 'leave' || raw === 'final_ot' || raw === 'final_leave' || raw === 'denied_ot' || raw === 'denied_leave' || raw === 'my_ot' || raw === 'my_leave') return raw
+    if (raw === 'leave' || raw === 'final_ot' || raw === 'final_leave' || raw === 'denied_ot' || raw === 'denied_leave' || raw === 'my_ot' || raw === 'my_leave' || raw === 'reviews' || raw === 'final_reviews') return raw
     if (raw === 'ot') return 'ot'
     // Default — employees land on their own requests; supervisors on the action queue.
     return isSupervisorOrAbove ? 'ot' : 'my_ot'
@@ -120,6 +121,8 @@ export default function ApprovalsPage() {
   const [leaveActionId, setLeaveActionId] = useState<string | null>(null)
   const [leaveDenyComment, setLeaveDenyComment] = useState('')
   const [leaveDenyId, setLeaveDenyId] = useState<string | null>(null)
+  // Keyed by `employeeId-leaveType-year`; populated lazily when leave queues load
+  const [leaveBalanceMap, setLeaveBalanceMap] = useState<Map<string, { total: number; used: number }>>(new Map())
 
   // Final-approval state (manager-only second-stage queues)
   const [finalOt, setFinalOt] = useState<OTApprovalRow[]>([])
@@ -132,6 +135,32 @@ export default function ApprovalsPage() {
   const [deniedLeave, setDeniedLeave] = useState<LeaveRequestRow[]>([])
   const [loadingDeniedOt, setLoadingDeniedOt] = useState(false)
   const [loadingDeniedLeave, setLoadingDeniedLeave] = useState(false)
+
+  // Performance review approval queues
+  type PRApprovalRow = {
+    id: string
+    employee_id: string
+    reviewer_id: string | null
+    review_type: string
+    review_period: string
+    review_date: string
+    overall_rating: number | null
+    status: string
+    returned_comments: string | null
+    secondary_approver_id: string | null
+    final_approver_id: string | null
+    submitted_at: string | null
+    created_at: string
+    employee: { first_name: string; surname: string; employee_code: string | null } | null
+    reviewer:  { first_name: string; surname: string } | null
+  }
+  const [prReviews,      setPrReviews]      = useState<PRApprovalRow[]>([])
+  const [prFinalReviews, setPrFinalReviews] = useState<PRApprovalRow[]>([])
+  const [loadingPr,      setLoadingPr]      = useState(false)
+  const [prActionId,     setPrActionId]     = useState<string | null>(null)
+  const [prCommentId,    setPrCommentId]    = useState<string | null>(null)
+  const [prComment,      setPrComment]      = useState('')
+  const [prCommentMode,  setPrCommentMode]  = useState<'approve' | 'return' | null>(null)
   // My own OT / leave requests (visible to every role)
   const [myOt, setMyOt] = useState<OTApprovalRow[]>([])
   const [myLeave, setMyLeave] = useState<LeaveRequestRow[]>([])
@@ -182,6 +211,8 @@ export default function ApprovalsPage() {
         fetchDeniedOt()
         fetchDeniedLeave()
       }
+      if (isSupervisorOrAbove) fetchPrReviews()
+      if (isManager) fetchPrFinalReviews()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, isManager, isSupervisorOrAbove, managerScope])
@@ -258,13 +289,33 @@ export default function ApprovalsPage() {
         .neq('employee_id', profile!.id)
         .order('submitted_at', { ascending: true })
       if (error) throw error
-      setLeaveApprovals((data as LeaveRequestRow[]) ?? [])
+      const pendingLeave = (data as LeaveRequestRow[]) ?? []
+      setLeaveApprovals(pendingLeave)
+      fetchLeaveBalancesForApprovals(pendingLeave)
     } catch (err) {
       setLeaveError('Failed to load leave approvals.')
       console.error(err)
     } finally {
       setLoadingLeave(false)
     }
+  }
+
+  // Fetches leave_balances for every employee in `reqs` and merges into leaveBalanceMap.
+  async function fetchLeaveBalancesForApprovals(reqs: LeaveRequestRow[]) {
+    if (!reqs.length) return
+    const empIds = [...new Set(reqs.map(r => r.employee_id))]
+    const { data } = await supabase
+      .from('leave_balances')
+      .select('employee_id, leave_type, year, total_days, used_days')
+      .in('employee_id', empIds)
+    if (!data) return
+    setLeaveBalanceMap(prev => {
+      const next = new Map(prev)
+      for (const b of data as { employee_id: string; leave_type: string; year: number; total_days: number; used_days: number }[]) {
+        next.set(`${b.employee_id}-${b.leave_type}-${b.year}`, { total: b.total_days, used: b.used_days })
+      }
+      return next
+    })
   }
 
   async function fetchFinalOt() {
@@ -308,7 +359,9 @@ export default function ApprovalsPage() {
         .neq('employee_id', profile!.id)
         .order('actioned_at', { ascending: true })
       if (error) throw error
-      setFinalLeave((data as LeaveRequestRow[]) ?? [])
+      const finalLv = (data as LeaveRequestRow[]) ?? []
+      setFinalLeave(finalLv)
+      fetchLeaveBalancesForApprovals(finalLv)
     } catch (err) {
       console.error('Failed to load final leave queue:', err)
     } finally {
@@ -390,7 +443,9 @@ export default function ApprovalsPage() {
         .neq('employee_id', profile!.id)
         .order('actioned_at', { ascending: false })
       if (error) throw error
-      setDeniedLeave((data as LeaveRequestRow[]) ?? [])
+      const deniedLv = (data as LeaveRequestRow[]) ?? []
+      setDeniedLeave(deniedLv)
+      fetchLeaveBalancesForApprovals(deniedLv)
     } catch (err) {
       console.error('Failed to load denied leave queue:', err)
     } finally {
@@ -444,6 +499,73 @@ export default function ApprovalsPage() {
     } finally {
       setFinalActionId(null)
     }
+  }
+
+  // ── Performance Review approval fetches & actions ─────────────────────────
+
+  async function fetchPrReviews() {
+    if (!profile?.id) return
+    setLoadingPr(true)
+    try {
+      const { data } = await supabase
+        .from('performance_reviews')
+        .select(`id, employee_id, reviewer_id, review_type, review_period, review_date, overall_rating,
+          status, returned_comments, secondary_approver_id, final_approver_id, created_at,
+          employee:profiles!performance_reviews_employee_id_fkey(first_name, surname, employee_code),
+          reviewer:profiles!performance_reviews_reviewer_id_fkey(first_name, surname)`)
+        .eq('secondary_approver_id', profile.id)
+        .eq('status', 'submitted')
+        .order('created_at', { ascending: true })
+      setPrReviews((data as unknown as typeof prReviews) ?? [])
+    } catch (err) { console.error('Failed to load PR approvals:', err) }
+    finally { setLoadingPr(false) }
+  }
+
+  async function fetchPrFinalReviews() {
+    if (!profile?.id) return
+    try {
+      const { data } = await supabase
+        .from('performance_reviews')
+        .select(`id, employee_id, reviewer_id, review_type, review_period, review_date, overall_rating,
+          status, returned_comments, secondary_approver_id, final_approver_id, created_at,
+          employee:profiles!performance_reviews_employee_id_fkey(first_name, surname, employee_code),
+          reviewer:profiles!performance_reviews_reviewer_id_fkey(first_name, surname)`)
+        .eq('final_approver_id', profile.id)
+        .eq('status', 'secondary_approved')
+        .order('created_at', { ascending: true })
+      setPrFinalReviews((data as unknown as typeof prFinalReviews) ?? [])
+    } catch (err) { console.error('Failed to load final PR approvals:', err) }
+  }
+
+  async function approvePrSecondary(id: string, comments: string) {
+    setPrActionId(id)
+    const { error } = await supabase.from('performance_reviews')
+      .update({ status: 'secondary_approved', secondary_approved_at: new Date().toISOString(), secondary_approval_comments: comments || null })
+      .eq('id', id)
+    setPrActionId(null)
+    if (!error) { setPrReviews(prev => prev.filter(r => r.id !== id)); setPrCommentId(null); setPrComment('') }
+  }
+
+  async function returnPrReview(id: string, comments: string, fromFinal = false) {
+    setPrActionId(id)
+    const { error } = await supabase.from('performance_reviews')
+      .update({ status: 'returned', returned_by: profile?.id, returned_at: new Date().toISOString(), returned_comments: comments })
+      .eq('id', id)
+    setPrActionId(null)
+    if (!error) {
+      if (fromFinal) setPrFinalReviews(prev => prev.filter(r => r.id !== id))
+      else setPrReviews(prev => prev.filter(r => r.id !== id))
+      setPrCommentId(null); setPrComment('')
+    }
+  }
+
+  async function approvePrFinal(id: string, comments: string) {
+    setPrActionId(id)
+    const { error } = await supabase.from('performance_reviews')
+      .update({ status: 'final_approved', final_approved_at: new Date().toISOString(), final_approval_comments: comments || null })
+      .eq('id', id)
+    setPrActionId(null)
+    if (!error) { setPrFinalReviews(prev => prev.filter(r => r.id !== id)); setPrCommentId(null); setPrComment('') }
   }
 
   async function approveOt(approvalId: string) {
@@ -593,13 +715,38 @@ export default function ApprovalsPage() {
     }
   }
 
+  // Inline balance context pill shown on every leave card in the approval queues.
+  function getBalancePill(req: LeaveRequestRow) {
+    const d = new Date(req.start_date + 'T00:00:00')
+    const year = req.leave_year ?? (d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear())
+    const bal = leaveBalanceMap.get(`${req.employee_id}-${req.leave_type}-${year}`)
+    const defaults: Record<string, number> = { annual: 15, sick: 30, family: 3, study: 0 }
+    const entitlement = bal?.total ?? defaults[req.leave_type] ?? 0
+    if (entitlement === 0) return null
+    const available = Math.max(0, entitlement - (bal?.used ?? 0))
+    const willExceed = req.total_days > available
+    const isLow = available > 0 && available <= 3 && available < entitlement
+    return (
+      <p className={`text-xs mt-1.5 ${
+        willExceed ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-[var(--text-muted)]'
+      }`}>
+        {(willExceed || isLow) ? '\u26a0 ' : ''}
+        Balance: <strong>{available}</strong> / {entitlement} days remaining
+        {willExceed && <span className="font-medium"> — exceeds entitlement</span>}
+        {!willExceed && isLow && <span className="font-medium"> — low</span>}
+      </p>
+    )
+  }
+
   const otCount = otApprovals.length
   const leaveCount = leaveApprovals.length
   const finalOtCount = finalOt.length
   const finalLeaveCount = finalLeave.length
   const deniedOtCount = deniedOt.length
-  const deniedLeaveCount = deniedLeave.length
-  const totalActionCount = otCount + leaveCount + finalOtCount + finalLeaveCount + deniedOtCount + deniedLeaveCount
+  const deniedLeaveCount  = deniedLeave.length
+  const prReviewCount      = prReviews.length
+  const prFinalReviewCount = prFinalReviews.length
+  const totalActionCount = otCount + leaveCount + finalOtCount + finalLeaveCount + deniedOtCount + deniedLeaveCount + prReviewCount + prFinalReviewCount
   const myOtPendingCount = myOt.filter(r => r.status === 'pending').length
   const myLeavePendingCount = myLeave.filter(r => r.status === 'pending').length
   const totalMineCount = myOtPendingCount + myLeavePendingCount
@@ -637,19 +784,19 @@ export default function ApprovalsPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Approvals</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Review and action pending requests</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Approvals</h1>
+        <p className="text-[var(--text-muted)] text-sm mt-0.5">Review and action pending requests</p>
       </div>
 
       {/* Section toggle — visible to supervisors and above; employees only see "My requests" */}
       {isSupervisorOrAbove && (
-        <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
+        <div className="flex gap-1 mb-4 bg-[var(--surface-secondary)] rounded-lg p-1 w-fit">
           <button
             onClick={() => selectTab('ot')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeSection === 'action'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
+                ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
             }`}
           >
             To action
@@ -663,8 +810,8 @@ export default function ApprovalsPage() {
             onClick={() => selectTab('my_ot')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeSection === 'mine'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
+                ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
             }`}
           >
             My requests
@@ -679,13 +826,13 @@ export default function ApprovalsPage() {
 
       {/* Tabs */}
       {activeSection === 'action' && isSupervisorOrAbove && (
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
+      <div className="flex gap-1 mb-6 bg-[var(--surface-secondary)] rounded-lg p-1 w-fit flex-wrap">
         <button
           onClick={() => selectTab('ot')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'ot'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
+              ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+              : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
           }`}
         >
           OT Approvals
@@ -699,8 +846,8 @@ export default function ApprovalsPage() {
           onClick={() => selectTab('leave')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'leave'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
+              ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+              : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
           }`}
         >
           Leave Approvals
@@ -716,8 +863,8 @@ export default function ApprovalsPage() {
               onClick={() => selectTab('final_ot')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'final_ot'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                  : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
               }`}
             >
               Final OT Approval
@@ -731,8 +878,8 @@ export default function ApprovalsPage() {
               onClick={() => selectTab('final_leave')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'final_leave'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                  : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
               }`}
             >
               Final Leave Approval
@@ -746,8 +893,8 @@ export default function ApprovalsPage() {
               onClick={() => selectTab('denied_ot')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'denied_ot'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                  : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
               }`}
             >
               Denied OT
@@ -761,8 +908,8 @@ export default function ApprovalsPage() {
               onClick={() => selectTab('denied_leave')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'denied_leave'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                  : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
               }`}
             >
               Denied Leave
@@ -772,19 +919,50 @@ export default function ApprovalsPage() {
                 </span>
               )}
             </button>
+            {/* Performance Review approval tabs */}
+            <button
+              onClick={() => selectTab('reviews')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'reviews'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                  : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
+              }`}
+            >
+              Reviews
+              {prReviewCount > 0 && (
+                <span className="ml-1.5 bg-indigo-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {prReviewCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => selectTab('final_reviews')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'final_reviews'
+                  ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+                  : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
+              }`}
+            >
+              Final Reviews
+              {prFinalReviewCount > 0 && (
+                <span className="ml-1.5 bg-green-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                  {prFinalReviewCount}
+                </span>
+              )}
+            </button>
           </>
         )}
       </div>
       )}
 
       {activeSection === 'mine' && (
-      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
+      <div className="flex gap-1 mb-6 bg-[var(--surface-secondary)] rounded-lg p-1 w-fit flex-wrap">
         <button
           onClick={() => selectTab('my_ot')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'my_ot'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
+              ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+              : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
           }`}
         >
           My OT
@@ -798,8 +976,8 @@ export default function ApprovalsPage() {
           onClick={() => selectTab('my_leave')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'my_leave'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
+              ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)] shadow-sm'
+              : 'text-[var(--tab-inactive-text)] hover:text-[var(--tab-inactive-hover-text)]'
           }`}
         >
           My Leave
@@ -824,10 +1002,10 @@ export default function ApprovalsPage() {
               <p className="text-sm text-red-700">{otError}</p>
             </div>
           ) : otApprovals.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No pending OT approvals</p>
-              <p className="mt-1 text-sm text-gray-400">All caught up!</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No pending OT approvals</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">All caught up!</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -836,15 +1014,15 @@ export default function ApprovalsPage() {
                 const ids = group.rows.map(r => r.id)
                 const isBusy = groupActionKey === group.key
                 return (
-                  <div key={group.key} className="bg-white rounded-lg border border-gray-200">
+                  <div key={group.key} className="bg-[var(--surface)] rounded-lg border border-[var(--border)]">
                     {/* Group header */}
                     <div className="p-4 flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{group.employeeName}</p>
-                        <p className="text-sm text-gray-600 mt-0.5">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{group.employeeName}</p>
+                        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
                           Week: {formatDateDisplay(group.weekStart)} – {formatDateDisplay(group.weekEnd)}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-[var(--text-secondary)]">
                           {group.rows.length} day{group.rows.length !== 1 ? 's' : ''} · Total OT: <strong>{group.totalHours}</strong> hr{group.totalHours !== 1 ? 's' : ''}
                         </p>
                         <button
@@ -874,18 +1052,18 @@ export default function ApprovalsPage() {
 
                     {/* Week deny form */}
                     {groupDenyKey === group.key && (
-                      <div className="px-4 pb-4 -mt-2 border-t border-gray-100 pt-3">
+                      <div className="px-4 pb-4 -mt-2 border-t border-[var(--border)] pt-3">
                         <textarea
                           value={groupDenyComment}
                           onChange={e => setGroupDenyComment(e.target.value)}
                           rows={2}
                           placeholder="Reason for denying the whole week (optional)"
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
+                          className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
                         />
                         <div className="flex gap-2 justify-end">
                           <button
                             onClick={() => { setGroupDenyKey(null); setGroupDenyComment('') }}
-                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]"
                           >
                             Cancel
                           </button>
@@ -902,27 +1080,27 @@ export default function ApprovalsPage() {
 
                     {/* Per-day breakdown */}
                     {isExpanded && (
-                      <div className="border-t border-gray-100 divide-y divide-gray-100">
+                      <div className="border-t border-[var(--border)] divide-y divide-[var(--border)]">
                         {group.rows.map(approval => (
                           <div key={approval.id} className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 {approval.timesheet_day?.date && (
-                                  <p className="text-sm text-gray-900">
+                                  <p className="text-sm text-[var(--text-primary)]">
                                     {formatDateDisplay(approval.timesheet_day.date)}
                                     {approval.timesheet_day.overtime_hours != null && (
-                                      <span className="ml-2 text-gray-600">
+                                      <span className="ml-2 text-[var(--text-secondary)]">
                                         · <strong>{approval.timesheet_day.overtime_hours}</strong> hr{approval.timesheet_day.overtime_hours !== 1 ? 's' : ''}
                                       </span>
                                     )}
                                   </p>
                                 )}
                                 {approval.timesheet_day?.overtime_reason ? (
-                                  <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                                    <span className="text-gray-400">Reason: </span>{approval.timesheet_day.overtime_reason}
+                                  <p className="text-xs text-[var(--text-secondary)] mt-1 whitespace-pre-wrap">
+                                    <span className="text-[var(--text-muted)]">Reason: </span>{approval.timesheet_day.overtime_reason}
                                   </p>
                                 ) : (
-                                  <p className="text-xs text-gray-400 italic mt-1">No reason provided</p>
+                                  <p className="text-xs text-[var(--text-muted)] italic mt-1">No reason provided</p>
                                 )}
                               </div>
                               <div className="flex gap-2 shrink-0">
@@ -945,18 +1123,18 @@ export default function ApprovalsPage() {
 
                             {/* Per-day deny form */}
                             {otDenyId === approval.id && (
-                              <div className="mt-3 pt-3 border-t border-gray-100">
+                              <div className="mt-3 pt-3 border-t border-[var(--border)]">
                                 <textarea
                                   value={otDenyComment}
                                   onChange={e => setOtDenyComment(e.target.value)}
                                   rows={2}
                                   placeholder="Reason for denial (optional)"
-                                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
+                                  className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
                                 />
                                 <div className="flex gap-2 justify-end">
                                   <button
                                     onClick={() => { setOtDenyId(null); setOtDenyComment('') }}
-                                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                                    className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]"
                                   >
                                     Cancel
                                   </button>
@@ -994,40 +1172,41 @@ export default function ApprovalsPage() {
               <p className="text-sm text-red-700">{leaveError}</p>
             </div>
           ) : leaveApprovals.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No pending leave approvals</p>
-              <p className="mt-1 text-sm text-gray-400">All caught up!</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No pending leave approvals</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">All caught up!</p>
             </div>
           ) : (
             <div className="space-y-3">
               {leaveApprovals.map(req => (
                 <div
                   key={req.id}
-                  className="bg-white rounded-lg border border-gray-200 p-4"
+                  className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">
                           {req.employee?.first_name} {req.employee?.surname}
                         </p>
                         <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 capitalize">
                           {req.leave_type.replace('_', ' ')} Leave
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">
                         {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
-                        <span className="ml-2 text-gray-400">
+                        <span className="ml-2 text-[var(--text-muted)]">
                           ({req.total_days} day{req.total_days !== 1 ? 's' : ''})
                         </span>
                       </p>
                       {req.reason && (
-                        <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">{req.reason}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
                         Submitted: {formatTimestampDisplay(req.submitted_at)}
                       </p>
+                      {getBalancePill(req)}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -1049,18 +1228,18 @@ export default function ApprovalsPage() {
 
                   {/* Deny form */}
                   {leaveDenyId === req.id && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="mt-3 pt-3 border-t border-[var(--border)]">
                       <textarea
                         value={leaveDenyComment}
                         onChange={e => setLeaveDenyComment(e.target.value)}
                         rows={2}
                         placeholder="Reason for denial (optional)"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
+                        className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 placeholder:text-gray-300"
                       />
                       <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => { setLeaveDenyId(null); setLeaveDenyComment('') }}
-                          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                          className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]"
                         >
                           Cancel
                         </button>
@@ -1089,10 +1268,10 @@ export default function ApprovalsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : finalOt.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No OT awaiting final approval</p>
-              <p className="mt-1 text-sm text-gray-400">Items supervisors approve appear here for your sign-off.</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No OT awaiting final approval</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Items supervisors approve appear here for your sign-off.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1101,25 +1280,25 @@ export default function ApprovalsPage() {
                 const day = row.timesheet_day
                 const week = day?.timesheet_week
                 return (
-                  <div key={row.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div key={row.id} className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{employeeName}</p>
-                        <p className="text-sm text-gray-600 mt-0.5">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{employeeName}</p>
+                        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
                           {day?.date ? formatDateDisplay(day.date) : '—'}
                           {day?.overtime_hours != null && (
                             <span className="ml-2">· <strong>{day.overtime_hours}</strong> hr{day.overtime_hours !== 1 ? 's' : ''}</span>
                           )}
                         </p>
                         {week && (
-                          <p className="text-xs text-gray-500 mt-0.5">Week {formatDateDisplay(week.week_start)} – {formatDateDisplay(week.week_end)}</p>
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">Week {formatDateDisplay(week.week_start)} – {formatDateDisplay(week.week_end)}</p>
                         )}
                         {day?.overtime_reason && (
-                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Reason: </span>{day.overtime_reason}
+                          <p className="text-xs text-[var(--text-secondary)] mt-1 whitespace-pre-wrap">
+                            <span className="text-[var(--text-muted)]">Reason: </span>{day.overtime_reason}
                           </p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                           Supervisor approved: {formatTimestampDisplay(row.actioned_at)}
                         </p>
                       </div>
@@ -1156,37 +1335,38 @@ export default function ApprovalsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : finalLeave.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No leave awaiting final approval</p>
-              <p className="mt-1 text-sm text-gray-400">Items supervisors approve appear here for your sign-off.</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No leave awaiting final approval</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Items supervisors approve appear here for your sign-off.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {finalLeave.map(req => (
-                <div key={req.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div key={req.id} className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">
                           {req.employee?.first_name} {req.employee?.surname}
                         </p>
                         <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 capitalize">
                           {req.leave_type.replace('_', ' ')} Leave
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">
                         {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
-                        <span className="ml-2 text-gray-400">
+                        <span className="ml-2 text-[var(--text-muted)]">
                           ({req.total_days} day{req.total_days !== 1 ? 's' : ''})
                         </span>
                       </p>
                       {req.reason && (
-                        <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">{req.reason}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
                         Supervisor approved: {formatTimestampDisplay(req.actioned_at)}
                       </p>
+                      {getBalancePill(req)}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -1220,10 +1400,10 @@ export default function ApprovalsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : deniedOt.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No denied OT in your team</p>
-              <p className="mt-1 text-sm text-gray-400">Items a supervisor declines appear here so you can override.</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No denied OT in your team</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Items a supervisor declines appear here so you can override.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1232,30 +1412,30 @@ export default function ApprovalsPage() {
                 const day = row.timesheet_day
                 const week = day?.timesheet_week
                 return (
-                  <div key={row.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div key={row.id} className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{employeeName}</p>
-                        <p className="text-sm text-gray-600 mt-0.5">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{employeeName}</p>
+                        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
                           {day?.date ? formatDateDisplay(day.date) : '—'}
                           {day?.overtime_hours != null && (
                             <span className="ml-2">· <strong>{day.overtime_hours}</strong> hr{day.overtime_hours !== 1 ? 's' : ''}</span>
                           )}
                         </p>
                         {week && (
-                          <p className="text-xs text-gray-500 mt-0.5">Week {formatDateDisplay(week.week_start)} – {formatDateDisplay(week.week_end)}</p>
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">Week {formatDateDisplay(week.week_start)} – {formatDateDisplay(week.week_end)}</p>
                         )}
                         {day?.overtime_reason && (
-                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Reason: </span>{day.overtime_reason}
+                          <p className="text-xs text-[var(--text-secondary)] mt-1 whitespace-pre-wrap">
+                            <span className="text-[var(--text-muted)]">Reason: </span>{day.overtime_reason}
                           </p>
                         )}
                         {row.approver_comment && (
                           <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Supervisor denial: </span>{row.approver_comment}
+                            <span className="text-[var(--text-muted)]">Supervisor denial: </span>{row.approver_comment}
                           </p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                           Denied: {formatTimestampDisplay(row.actioned_at)}
                         </p>
                       </div>
@@ -1285,42 +1465,43 @@ export default function ApprovalsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : deniedLeave.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No denied leave in your team</p>
-              <p className="mt-1 text-sm text-gray-400">Items a supervisor declines appear here so you can override.</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No denied leave in your team</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Items a supervisor declines appear here so you can override.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {deniedLeave.map(req => (
-                <div key={req.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div key={req.id} className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">
                           {req.employee?.first_name} {req.employee?.surname}
                         </p>
                         <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 capitalize">
                           {req.leave_type.replace('_', ' ')} Leave
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">
                         {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
-                        <span className="ml-2 text-gray-400">
+                        <span className="ml-2 text-[var(--text-muted)]">
                           ({req.total_days} day{req.total_days !== 1 ? 's' : ''})
                         </span>
                       </p>
                       {req.reason && (
-                        <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">{req.reason}</p>
                       )}
                       {req.supervisor_comment && (
                         <p className="text-xs text-red-600 mt-1 whitespace-pre-wrap">
-                          <span className="text-gray-400">Supervisor denial: </span>{req.supervisor_comment}
+                          <span className="text-[var(--text-muted)]">Supervisor denial: </span>{req.supervisor_comment}
                         </p>
                       )}
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
                         Denied: {formatTimestampDisplay(req.actioned_at)}
                       </p>
+                      {getBalancePill(req)}
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -1339,6 +1520,144 @@ export default function ApprovalsPage() {
         </div>
       )}
 
+      {/* Performance Reviews — Secondary Approval Tab */}
+      {activeTab === 'reviews' && (
+        <div>
+          {loadingPr ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : prReviews.length === 0 ? (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg py-16 text-center">
+              <IconCheckCircle className="w-12 h-12 text-[var(--text-muted)] mx-auto" />
+              <p className="mt-3 text-[var(--text-primary)] font-medium">No performance reviews pending</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">All caught up!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {prReviews.map(r => {
+                const emp = r.employee; const rvr = r.reviewer
+                const isBusy = prActionId === r.id
+                const isReturning = prCommentId === r.id && prCommentMode === 'return'
+                const isApproving = prCommentId === r.id && prCommentMode === 'approve'
+                return (
+                  <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">
+                          {emp?.first_name} {emp?.surname}
+                          {emp?.employee_code && <span className="text-[var(--text-muted)] ml-1 text-xs">{emp.employee_code}</span>}
+                        </p>
+                        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                          {r.review_type.charAt(0).toUpperCase() + r.review_type.slice(1)} · {r.review_period}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                          Reviewed by {rvr ? `${rvr.first_name} ${rvr.surname}` : '—'}
+                        </p>
+                        {r.overall_rating !== null && (
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">Overall rating: {r.overall_rating}/5</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => { setPrCommentId(r.id); setPrCommentMode('approve'); setPrComment('') }} disabled={isBusy}
+                          className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                          Approve
+                        </button>
+                        <button onClick={() => { setPrCommentId(r.id); setPrCommentMode('return'); setPrComment('') }} disabled={isBusy}
+                          className="px-3 py-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50">
+                          Return
+                        </button>
+                      </div>
+                    </div>
+                    {(isApproving || isReturning) && (
+                      <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                        <textarea value={prComment} onChange={e => setPrComment(e.target.value)} rows={2}
+                          placeholder={isReturning ? 'Explain what needs to be corrected (required)…' : 'Optional comments…'}
+                          className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30" />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => { setPrCommentId(null); setPrComment('') }}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]">Cancel</button>
+                          <button disabled={isBusy || (isReturning && !prComment.trim())}
+                            onClick={() => isApproving ? approvePrSecondary(r.id, prComment) : returnPrReview(r.id, prComment)}
+                            className={`px-3 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 ${isApproving ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-500 hover:bg-amber-600'}`}>
+                            {isBusy ? '…' : isApproving ? 'Confirm Approve' : 'Confirm Return'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Performance Reviews — Final Approval Tab */}
+      {activeTab === 'final_reviews' && isManager && (
+        <div>
+          {prFinalReviews.length === 0 ? (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg py-16 text-center">
+              <IconCheckCircle className="w-12 h-12 text-[var(--text-muted)] mx-auto" />
+              <p className="mt-3 text-[var(--text-primary)] font-medium">No reviews awaiting final approval</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Items appear here once secondary approval is complete.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {prFinalReviews.map(r => {
+                const emp = r.employee; const rvr = r.reviewer
+                const isBusy = prActionId === r.id
+                const isReturning = prCommentId === r.id && prCommentMode === 'return'
+                const isApproving = prCommentId === r.id && prCommentMode === 'approve'
+                return (
+                  <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">
+                          {emp?.first_name} {emp?.surname}
+                          {emp?.employee_code && <span className="text-[var(--text-muted)] ml-1 text-xs">{emp.employee_code}</span>}
+                        </p>
+                        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                          {r.review_type.charAt(0).toUpperCase() + r.review_type.slice(1)} · {r.review_period}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">Reviewed by {rvr ? `${rvr.first_name} ${rvr.surname}` : '—'}</p>
+                        {r.overall_rating !== null && <p className="text-xs text-[var(--text-muted)] mt-0.5">Overall rating: {r.overall_rating}/5</p>}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => { setPrCommentId(r.id); setPrCommentMode('approve'); setPrComment('') }} disabled={isBusy}
+                          className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                          Final Approve
+                        </button>
+                        <button onClick={() => { setPrCommentId(r.id); setPrCommentMode('return'); setPrComment('') }} disabled={isBusy}
+                          className="px-3 py-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50">
+                          Return
+                        </button>
+                      </div>
+                    </div>
+                    {(isApproving || isReturning) && (
+                      <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                        <textarea value={prComment} onChange={e => setPrComment(e.target.value)} rows={2}
+                          placeholder={isReturning ? 'Explain what needs to be corrected (required)…' : 'Optional comments…'}
+                          className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]/30" />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => { setPrCommentId(null); setPrComment('') }}
+                            className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]">Cancel</button>
+                          <button disabled={isBusy || (isReturning && !prComment.trim())}
+                            onClick={() => isApproving ? approvePrFinal(r.id, prComment) : returnPrReview(r.id, prComment, true)}
+                            className={`px-3 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 ${isApproving ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'}`}>
+                            {isBusy ? '…' : isApproving ? 'Confirm Final Approve' : 'Confirm Return'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* My OT Tab */}
       {activeTab === 'my_ot' && (
         <div>
@@ -1347,10 +1666,10 @@ export default function ApprovalsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : myOt.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No overtime requests yet</p>
-              <p className="mt-1 text-sm text-gray-400">When you submit overtime on a timesheet it will appear here.</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No overtime requests yet</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">When you submit overtime on a timesheet it will appear here.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1362,13 +1681,13 @@ export default function ApprovalsPage() {
                 const finalColor =
                   row.final_status === 'approved' ? 'bg-green-100 text-green-700'
                   : row.final_status === 'denied' ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-100 text-gray-600'
+                  : 'bg-[var(--surface-secondary)] text-[var(--text-secondary)]'
                 return (
-                  <div key={row.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div key={row.id} className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-[var(--text-primary)]">
                             {row.timesheet_day?.date ? formatDateDisplay(row.timesheet_day.date) : '—'}
                           </p>
                           <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">
@@ -1384,16 +1703,16 @@ export default function ApprovalsPage() {
                           )}
                         </div>
                         {row.timesheet_day?.overtime_reason && (
-                          <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Reason: </span>{row.timesheet_day.overtime_reason}
+                          <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-wrap">
+                            <span className="text-[var(--text-muted)]">Reason: </span>{row.timesheet_day.overtime_reason}
                           </p>
                         )}
                         {row.approver_comment && (
-                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Approver note: </span>{row.approver_comment}
+                          <p className="text-xs text-[var(--text-secondary)] mt-1 whitespace-pre-wrap">
+                            <span className="text-[var(--text-muted)]">Approver note: </span>{row.approver_comment}
                           </p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                           Submitted: {formatTimestampDisplay(row.submitted_at)}
                           {row.actioned_at && (
                             <span className="ml-2">· Actioned: {formatTimestampDisplay(row.actioned_at)}</span>
@@ -1417,10 +1736,10 @@ export default function ApprovalsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : myLeave.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 py-16 text-center">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] py-16 text-center">
               <IconCheckCircle className="w-12 h-12 text-gray-300 mx-auto" />
-              <p className="mt-3 text-gray-600 font-medium">No leave requests yet</p>
-              <p className="mt-1 text-sm text-gray-400">When you apply for leave it will appear here.</p>
+              <p className="mt-3 text-[var(--text-secondary)] font-medium">No leave requests yet</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">When you apply for leave it will appear here.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1432,19 +1751,19 @@ export default function ApprovalsPage() {
                 const finalColor =
                   req.final_status === 'approved' ? 'bg-green-100 text-green-700'
                   : req.final_status === 'denied' ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-100 text-gray-600'
+                  : 'bg-[var(--surface-secondary)] text-[var(--text-secondary)]'
                 return (
-                  <div key={req.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div key={req.id} className="bg-[var(--surface)] rounded-lg border border-[var(--border)] p-4">
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-[var(--text-primary)]">
                             {formatDateDisplay(req.start_date)} – {formatDateDisplay(req.end_date)}
                           </p>
                           <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 capitalize">
                             {req.leave_type.replace('_', ' ')} Leave
                           </span>
-                          <span className="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+                          <span className="text-xs bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-full px-2 py-0.5">
                             {req.total_days} day{req.total_days !== 1 ? 's' : ''}
                           </span>
                           <span className={`text-xs rounded-full px-2 py-0.5 capitalize ${statusColor}`}>
@@ -1457,16 +1776,16 @@ export default function ApprovalsPage() {
                           )}
                         </div>
                         {req.reason && (
-                          <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Reason: </span>{req.reason}
+                          <p className="text-xs text-[var(--text-muted)] mt-1 whitespace-pre-wrap">
+                            <span className="text-[var(--text-muted)]">Reason: </span>{req.reason}
                           </p>
                         )}
                         {req.supervisor_comment && (
-                          <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                            <span className="text-gray-400">Supervisor note: </span>{req.supervisor_comment}
+                          <p className="text-xs text-[var(--text-secondary)] mt-1 whitespace-pre-wrap">
+                            <span className="text-[var(--text-muted)]">Supervisor note: </span>{req.supervisor_comment}
                           </p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                           Submitted: {formatTimestampDisplay(req.submitted_at)}
                           {req.actioned_at && (
                             <span className="ml-2">· Actioned: {formatTimestampDisplay(req.actioned_at)}</span>

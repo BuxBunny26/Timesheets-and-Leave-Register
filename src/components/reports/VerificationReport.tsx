@@ -124,11 +124,11 @@ export default function VerificationReport() {
       onPrint={rows.length ? () => printReport('verif-report') : undefined}
       loading={loading} reportId="verif-report"
     >
-      <div className="flex flex-wrap items-end gap-3 mb-5 pb-5 border-b border-gray-100">
+      <div className="flex flex-wrap items-end gap-3 mb-5 pb-5 border-b border-[var(--border)]">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Period Month</label>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Period Month</label>
           <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]" />
+            className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]" />
         </div>
         <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
         <button onClick={runReport} disabled={loading}
@@ -141,29 +141,29 @@ export default function VerificationReport() {
         <div className="flex gap-6 mb-4 text-sm">
           <span className="text-green-700 font-medium">{verified} verified</span>
           <span className="text-amber-700 font-medium">{pending} pending</span>
-          <span className="text-gray-500">{rows.length} total employees</span>
+          <span className="text-[var(--text-muted)]">{rows.length} total employees</span>
         </div>
       )}
 
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50">
+              <tr className="bg-[var(--surface-secondary)]">
                 {['Employee', 'Code', 'OT Hours', 'Leave Days', 'Verified', 'Verified At', 'Notes'].map(h => (
-                  <th key={h} className="px-3 py-2 text-xs font-medium text-gray-500 text-left">{h}</th>
+                  <th key={h} className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {rows.map(r => (
-                <tr key={r.employee_id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-800">{r.employee_name}</td>
-                  <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.ot_hours > 0 ? r.ot_hours.toFixed(1) : '—'}</td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.leave_days > 0 ? r.leave_days : '—'}</td>
+                <tr key={r.employee_id} className="hover:bg-[var(--surface-secondary)]">
+                  <td className="px-3 py-2 text-[var(--text-primary)]">{r.employee_name}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)]">{r.employee_code}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.ot_hours > 0 ? r.ot_hours.toFixed(1) : '—'}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.leave_days > 0 ? r.leave_days : '—'}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       r.verified ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
@@ -171,8 +171,8 @@ export default function VerificationReport() {
                       {r.verified ? 'Yes' : 'No'}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">{r.verified_at ? new Date(r.verified_at).toLocaleString('en-ZA') : '—'}</td>
-                  <td className="px-3 py-2 text-gray-500 text-xs max-w-xs truncate" title={r.notes}>{r.notes || '—'}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)] text-xs">{r.verified_at ? new Date(r.verified_at).toLocaleString('en-ZA') : '—'}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)] text-xs max-w-xs truncate" title={r.notes}>{r.notes || '—'}</td>
                 </tr>
               ))}
             </tbody>

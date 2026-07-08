@@ -20,6 +20,7 @@ import MyVerificationPage from './pages/MyVerificationPage'
 import Layout from './components/Layout'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth()
@@ -69,11 +70,13 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <NotificationsProvider>
-          <AppRoutes />
-        </NotificationsProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NotificationsProvider>
+            <AppRoutes />
+          </NotificationsProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   )
 }

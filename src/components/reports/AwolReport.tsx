@@ -74,7 +74,7 @@ export default function AwolReport() {
         <TeamScopeToggle show={isAdmin} myTeamOnly={myTeamOnly} onChange={setMyTeamOnly} />
       </DateRangeFilter>
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">No AWOL records in this period.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">No AWOL records in this period.</p>
       ) : (
         <div className="overflow-x-auto">
           {(() => {
@@ -93,48 +93,48 @@ export default function AwolReport() {
               <>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left w-8" />
-                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Employee</th>
-                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Code</th>
-                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Date</th>
-                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Day</th>
-                      <th className="px-3 py-2 text-xs font-medium text-gray-500 text-left">Site</th>
+                    <tr className="bg-[var(--surface-secondary)]">
+                      <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left w-8" />
+                      <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Employee</th>
+                      <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Code</th>
+                      <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Date</th>
+                      <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Day</th>
+                      <th className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">Site</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-[var(--border)]">
                     {groups.map(g => {
                       const isOpen = expanded.has(g.key)
                       return (
                         <Fragment key={g.key}>
                           <tr
                             onClick={() => toggleEmployee(g.key)}
-                            className="hover:bg-gray-50 cursor-pointer bg-gray-50/50 font-medium"
+                            className="hover:bg-[var(--surface-secondary)] cursor-pointer bg-gray-50/50 font-medium"
                           >
-                            <td className="px-3 py-2 text-gray-500 select-none">
+                            <td className="px-3 py-2 text-[var(--text-muted)] select-none">
                               <span className={`inline-block transition-transform ${isOpen ? 'rotate-90' : ''}`}>▸</span>
                             </td>
-                            <td className="px-3 py-2 text-gray-900">{g.name}</td>
-                            <td className="px-3 py-2 text-gray-500">{g.code}</td>
-                            <td className="px-3 py-2 text-xs text-gray-500">
+                            <td className="px-3 py-2 text-[var(--text-primary)]">{g.name}</td>
+                            <td className="px-3 py-2 text-[var(--text-muted)]">{g.code}</td>
+                            <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
                               {g.rows.length} AWOL {g.rows.length === 1 ? 'day' : 'days'}
                             </td>
                             <td className="px-3 py-2" />
-                            <td className="px-3 py-2 text-xs text-gray-400">
+                            <td className="px-3 py-2 text-xs text-[var(--text-muted)]">
                               {isOpen ? 'Click to collapse' : 'Click to expand'}
                             </td>
                           </tr>
                           {g.rows.map((r, i) => (
                             <tr
                               key={`${g.key}-${i}`}
-                              className={`hover:bg-gray-50 ${isOpen ? '' : 'hidden print:table-row'}`}
+                              className={`hover:bg-[var(--surface-secondary)] ${isOpen ? '' : 'hidden print:table-row'}`}
                             >
                               <td className="px-3 py-2" />
-                              <td className="px-3 py-2 text-gray-600 pl-8">↳</td>
-                              <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                              <td className="px-3 py-2 text-gray-700">{r.date}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.day}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.site}</td>
+                              <td className="px-3 py-2 text-[var(--text-secondary)] pl-8">↳</td>
+                              <td className="px-3 py-2 text-[var(--text-muted)]">{r.employee_code}</td>
+                              <td className="px-3 py-2 text-[var(--text-secondary)]">{r.date}</td>
+                              <td className="px-3 py-2 text-[var(--text-secondary)]">{r.day}</td>
+                              <td className="px-3 py-2 text-[var(--text-secondary)]">{r.site}</td>
                             </tr>
                           ))}
                         </Fragment>
@@ -142,7 +142,7 @@ export default function AwolReport() {
                     })}
                   </tbody>
                 </table>
-                <p className="text-xs text-gray-400 mt-3">{rows.length} AWOL record{rows.length !== 1 ? 's' : ''} found across {groups.length} employee{groups.length !== 1 ? 's' : ''}.</p>
+                <p className="text-xs text-[var(--text-muted)] mt-3">{rows.length} AWOL record{rows.length !== 1 ? 's' : ''} found across {groups.length} employee{groups.length !== 1 ? 's' : ''}.</p>
               </>
             )
           })()}

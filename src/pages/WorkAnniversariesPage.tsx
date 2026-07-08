@@ -37,7 +37,7 @@ function AnniversaryBadge({ iso }: { iso: string }) {
   if (d === 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">Today!</span>
   if (d === 1) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">Tomorrow</span>
   if (d > 0 && d <= 7) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700">In {d} days</span>
-  if (d > 0 && d <= 30) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600">In {d} days</span>
+  if (d > 0 && d <= 30) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--surface-secondary)] text-[var(--text-secondary)]">In {d} days</span>
   return null
 }
 
@@ -182,7 +182,7 @@ export default function WorkAnniversariesPage() {
 
   if (!isManager && !isSupervisor) {
     return (
-      <div className="text-center py-10 text-gray-500 text-sm">
+      <div className="text-center py-10 text-[var(--text-muted)] text-sm">
         You don't have access to view team work anniversaries.
       </div>
     )
@@ -192,14 +192,14 @@ export default function WorkAnniversariesPage() {
     <>
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Work Anniversaries</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Based on start dates in employee profiles — active employees only.</p>
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Work Anniversaries</h1>
+        <p className="text-sm text-[var(--text-muted)] mt-0.5">Based on start dates in employee profiles — active employees only.</p>
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-gray-400 text-sm">Loading…</div>
+        <div className="text-center py-10 text-[var(--text-muted)] text-sm">Loading…</div>
       ) : rows.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 text-center text-sm text-gray-500">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 text-center text-sm text-[var(--text-muted)]">
           No anniversary data yet. Add start dates to employee profiles.
         </div>
       ) : (
@@ -212,7 +212,7 @@ export default function WorkAnniversariesPage() {
                   <Link
                     key={r.employee_id}
                     to={`/employees/${r.employee_id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 rounded-full text-sm font-medium text-amber-900 hover:bg-amber-100"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface)] border border-amber-300 rounded-full text-sm font-medium text-amber-900 hover:bg-amber-100"
                   >
                     <IconTrophy className="w-4 h-4 text-amber-600" />
                     {r.first_name} {r.surname}
@@ -231,7 +231,7 @@ export default function WorkAnniversariesPage() {
                   <Link
                     key={r.employee_id}
                     to={`/employees/${r.employee_id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 rounded-full text-sm text-blue-900 hover:bg-blue-100"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface)] border border-blue-200 rounded-full text-sm text-blue-900 hover:bg-blue-100"
                   >
                     {r.first_name} {r.surname}
                     <span className="text-xs text-blue-500">
@@ -252,12 +252,12 @@ export default function WorkAnniversariesPage() {
                 className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                   selectedMonth === i
                     ? 'bg-[#1B5EA6] text-white border-[#1B5EA6]'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#1B5EA6] hover:text-[#1B5EA6]'
+                    : 'bg-[var(--surface)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[#1B5EA6] hover:text-[#1B5EA6]'
                 }`}
               >
                 {name.slice(0, 3)}
                 {byMonth[i].length > 0 && (
-                  <span className={`ml-1 ${selectedMonth === i ? 'text-blue-200' : 'text-gray-400'}`}>
+                  <span className={`ml-1 ${selectedMonth === i ? 'text-blue-200' : 'text-[var(--text-muted)]'}`}>
                     {byMonth[i].length}
                   </span>
                 )}
@@ -266,37 +266,37 @@ export default function WorkAnniversariesPage() {
           </div>
 
           {/* Month detail */}
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-800">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-secondary)]">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
                 {MONTHS[selectedMonth]} — {monthRows.length} {monthRows.length === 1 ? 'employee' : 'employees'}
               </h2>
             </div>
             {monthRows.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-gray-500 text-center">No anniversaries in {MONTHS[selectedMonth]}.</p>
+              <p className="px-4 py-6 text-sm text-[var(--text-muted)] text-center">No anniversaries in {MONTHS[selectedMonth]}.</p>
             ) : (
-              <ul className="divide-y divide-gray-50">
+              <ul className="divide-y divide-[var(--border)]">
                 {monthRows.map(r => {
                   const anniv = new Date(r.anniversary_this_year + 'T00:00:00')
                   return (
-                    <li key={r.employee_id} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
+                    <li key={r.employee_id} className="flex items-center gap-4 px-4 py-3 hover:bg-[var(--surface-secondary)]">
                       <div className="w-12 text-center flex-shrink-0">
-                        <p className="text-lg font-bold text-gray-800 leading-none">{anniv.getDate()}</p>
-                        <p className="text-[11px] text-gray-400 uppercase tracking-wide">{MONTHS[anniv.getMonth()].slice(0, 3)}</p>
+                        <p className="text-lg font-bold text-[var(--text-primary)] leading-none">{anniv.getDate()}</p>
+                        <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide">{MONTHS[anniv.getMonth()].slice(0, 3)}</p>
                       </div>
                       <div className="flex-1 min-w-0">
                         <Link
                           to={`/employees/${r.employee_id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-[#1B5EA6]"
+                          className="text-sm font-medium text-[var(--text-primary)] hover:text-[#1B5EA6]"
                         >
                           {r.first_name} {r.surname}
                         </Link>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
                           Started {new Date(r.start_date + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-sm font-semibold text-gray-700">
+                        <span className="text-sm font-semibold text-[var(--text-secondary)]">
                           {r.years_of_service} yr{r.years_of_service !== 1 ? 's' : ''}
                         </span>
                         <MilestoneBadge years={r.years_of_service} />

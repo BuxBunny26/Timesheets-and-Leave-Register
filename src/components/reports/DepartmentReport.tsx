@@ -94,9 +94,9 @@ export default function DepartmentReport() {
     >
       <DateRangeFilter startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} onRun={runReport} loading={loading}>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Division</label>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Division</label>
           <select value={divisionFilter} onChange={e => setDivisionFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
+            className="px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B5EA6]">
             <option value="">All divisions</option>
             {divisions.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -105,27 +105,27 @@ export default function DepartmentReport() {
       </DateRangeFilter>
 
       {rows.length === 0 && !loading ? (
-        <p className="text-sm text-gray-400 text-center py-8">Run the report to see results.</p>
+        <p className="text-sm text-[var(--text-muted)] text-center py-8">Run the report to see results.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50">
+              <tr className="bg-[var(--surface-secondary)]">
                 {['Division', 'Department', 'Employee', 'Code', 'Week Start', 'Status', 'OT Hours'].map(h => (
-                  <th key={h} className="px-3 py-2 text-xs font-medium text-gray-500 text-left">{h}</th>
+                  <th key={h} className="px-3 py-2 text-xs font-medium text-[var(--text-muted)] text-left">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--border)]">
               {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 text-gray-700">{r.division}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.department}</td>
-                  <td className="px-3 py-2 text-gray-800">{r.employee_name}</td>
-                  <td className="px-3 py-2 text-gray-500">{r.employee_code}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.week_start}</td>
+                <tr key={i} className="hover:bg-[var(--surface-secondary)]">
+                  <td className="px-3 py-2 text-[var(--text-secondary)]">{r.division}</td>
+                  <td className="px-3 py-2 text-[var(--text-secondary)]">{r.department}</td>
+                  <td className="px-3 py-2 text-[var(--text-primary)]">{r.employee_name}</td>
+                  <td className="px-3 py-2 text-[var(--text-muted)]">{r.employee_code}</td>
+                  <td className="px-3 py-2 text-[var(--text-secondary)]">{r.week_start}</td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
-                  <td className="px-3 py-2 text-center text-gray-700">{r.ot_hours > 0 ? r.ot_hours.toFixed(1) : '—'}</td>
+                  <td className="px-3 py-2 text-center text-[var(--text-secondary)]">{r.ot_hours > 0 ? r.ot_hours.toFixed(1) : '—'}</td>
                 </tr>
               ))}
             </tbody>
