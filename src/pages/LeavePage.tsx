@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
@@ -157,6 +158,7 @@ function getSickLeaveCycle(engagementDateStr: string, refDate = new Date()): { n
 
 export default function LeavePage() {
   const { profile } = useAuth()
+  const location = useLocation()
   const [showForm, setShowForm] = useState(false)
 
   // Form state
@@ -167,6 +169,22 @@ export default function LeavePage() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [formSuccess, setFormSuccess] = useState(false)
+
+  // Prefill from timesheet leave-conflict navigation (state.openForm)
+  useEffect(() => {
+    const state = location.state as {
+      openForm?: boolean; startDate?: string; endDate?: string; leaveType?: string
+    } | null
+    if (state?.openForm) {
+      if (state.leaveType && ['annual','sick','family','study','unpaid','other'].includes(state.leaveType))
+        setLeaveType(state.leaveType as LeaveType)
+      if (state.startDate) setStartDate(state.startDate)
+      if (state.endDate)   setEndDate(state.endDate)
+      setShowForm(true)
+    }
+  // Only run on mount — location.state is set once by navigate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // List state
   const [requests, setRequests] = useState<LeaveRequest[]>([])
