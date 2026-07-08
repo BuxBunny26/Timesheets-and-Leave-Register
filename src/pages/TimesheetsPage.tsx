@@ -188,7 +188,7 @@ export default function TimesheetsPage() {
       ])
       setCtxBalances((balData ?? []) as {leave_type: string; total_days: number; used_days: number}[])
       let prevApproved = 0, currApproved = 0, prevPending = 0, currPending = 0
-      for (const row of (otData ?? []) as {status: string; final_status: string | null; timesheet_day: {date: string; overtime_hours: number | null} | null}[]) {
+      for (const row of (otData ?? []) as unknown as {status: string; final_status: string | null; timesheet_day: {date: string; overtime_hours: number | null} | null}[]) {
         const dateStr = row.timesheet_day?.date
         if (!dateStr) continue
         const d = new Date(dateStr + 'T00:00:00')

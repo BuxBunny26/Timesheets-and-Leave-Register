@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { formatDateDisplay, fyEndYearFor } from '../lib/dateUtils'
+import { formatDateDisplay } from '../lib/dateUtils'
 import { IconCheckCircle } from '../components/Icons'
 import type { OTApprovalStatus, LeaveType, LeaveStatus } from '../types'
 
