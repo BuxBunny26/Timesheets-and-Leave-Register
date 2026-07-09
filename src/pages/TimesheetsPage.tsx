@@ -63,6 +63,21 @@ const LOI_COUNTRIES = [
   'Yemen','Zambia','Zimbabwe',
 ]
 
+// ---------------------------------------------------------------------------
+// Centralised flag-visibility rules
+// Returns which additive flags are permitted for a given primary status.
+// ---------------------------------------------------------------------------
+function getAllowedFlagsForStatus(status: DayStatus | '') {
+  const fullAccess = status === 'present' || status === 'public_holiday' || status === ''
+  return {
+    ot:          fullAccess || status === 'leave',   // OT also allowed on leave
+    standby:     fullAccess,
+    underground: fullAccess,
+    lol:         fullAccess,
+    loi:         fullAccess,
+  }
+}
+
 // ── Leave conflict validation types ───────────────────────────────────────────
 type ActiveLeaveEntry = { id: string; leave_type: string; status: 'pending' | 'approved' }
 
@@ -1481,23 +1496,14 @@ export default function TimesheetsPage() {
                     disabled={locked || day.is_public_holiday}
                     onChange={e => {
                       const newStatus = e.target.value as DayStatus | ''
-                      const isSickOrAwol  = newStatus === 'sick'  || newStatus === 'awol'
-                      const isLeave       = newStatus === 'leave'
+                      const a = getAllowedFlagsForStatus(newStatus)
                       handleDayChange(idx, {
                         primary_status: newStatus,
-                        // Sick & AWOL: clear OT, Standby, Underground, LOL, LOI
-                        ...(isSickOrAwol && {
-                          overtime_flag: false, overtime_hours: 0, overtime_reason: '',
-                          standby_flag: false,
-                          underground_flag: false, underground_hours: 0,
-                          lol_flag: false, lol_province: '', loi_flag: false, loi_country: '',
-                        }),
-                        // Leave: clear Standby, Underground, LOL, LOI (OT stays available)
-                        ...(isLeave && {
-                          standby_flag: false,
-                          underground_flag: false, underground_hours: 0,
-                          lol_flag: false, lol_province: '', loi_flag: false, loi_country: '',
-                        }),
+                        ...(!a.ot          && { overtime_flag: false, overtime_hours: 0, overtime_reason: '' }),
+                        ...(!a.standby     && { standby_flag: false }),
+                        ...(!a.underground && { underground_flag: false, underground_hours: 0 }),
+                        ...(!a.lol         && { lol_flag: false, lol_province: '' }),
+                        ...(!a.loi         && { loi_flag: false, loi_country: '' }),
                       })
                     }}
                     className={`w-full text-xs border border-[var(--border)] rounded px-2 py-1.5 mb-1 bg-[var(--surface)] ${
@@ -1574,189 +1580,141 @@ export default function TimesheetsPage() {
                     )
                   )}
 
-                  {/* OT — hidden on sick and AWOL */}
-                  {day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
-                  <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={day.overtime_flag}
-                      disabled={locked}
-                      onChange={e => handleDayChange(idx, { overtime_flag: e.target.checked, overtime_reason: '' })}
-                      className="rounded border-[var(--border)]"
-                    />
-                    <span className="text-xs text-[var(--text-secondary)]">OT</span>
-                  </label>
-                  )}
-                  {day.overtime_flag && (
-                    <div className="mb-2 space-y-1">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={otHourDrafts[idx] ?? (day.overtime_hours > 0 ? String(day.overtime_hours) : '')}
-                        disabled={locked}
-                        onChange={e => {
-                          const raw = e.target.value
-                          setOtHourDrafts(prev => ({ ...prev, [idx]: raw }))
-                          if (raw.includes(',')) {
-                            setOtHourErrors(prev => ({ ...prev, [idx]: 'Use a point (.) for decimals — e.g. 5.5' }))
-                            return
-                          }
-                          if (raw === '' || raw === '.') {
-                            setOtHourErrors(prev => ({ ...prev, [idx]: '' }))
-                            return
-                          }
-                          if (!/^\d+(\.\d+)?$/.test(raw)) {
-                            setOtHourErrors(prev => ({ ...prev, [idx]: 'Enter a valid number (e.g. 5 or 5.5)' }))
-                            return
-                          }
-                          setOtHourErrors(prev => ({ ...prev, [idx]: '' }))
-                          handleDayChange(idx, { overtime_hours: parseFloat(raw) })
-                        }}
-                        onBlur={() => {
-                          setOtHourDrafts(prev => {
-                            const next = { ...prev }
-                            delete next[idx]
-                            return next
-                          })
-                        }}
-                        className="w-full text-xs border border-[var(--border)] rounded px-2 py-1"
-                        placeholder="Hours (e.g. 5 or 5.5)"
-                      />
-                      {otHourErrors[idx] && (
-                        <p className="text-xs text-red-500">{otHourErrors[idx]}</p>
-                      )}
-                      {!otHourErrors[idx] && day.overtime_flag && (day.overtime_hours ?? 0) <= 0 && (
-                        <p className="text-xs text-red-500">Must be &gt; 0</p>
-                      )}
-                      <textarea
-                        value={day.overtime_reason}
-                        disabled={locked}
-                        onChange={e => handleDayChange(idx, { overtime_reason: e.target.value })}
-                        rows={2}
-                        placeholder="OT reason (required)…"
-                        className={`w-full text-xs border rounded px-2 py-1 resize-none placeholder:text-gray-300 ${
-                          !day.overtime_reason.trim() && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
-                        }`}
-                      />
-                      {!day.overtime_reason.trim() && !locked && (
-                        <p className="text-xs text-red-500">Reason required</p>
-                      )}
-                    </div>
-                  )}
+                  {/* ── Additive flags — visibility driven by getAllowedFlagsForStatus ── */}
+                  {(() => {
+                    const a = getAllowedFlagsForStatus(day.primary_status)
+                    return (
+                      <>
+                        {/* OT */}
+                        {a.ot && (
+                          <>
+                            <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
+                              <input type="checkbox" checked={day.overtime_flag} disabled={locked}
+                                onChange={e => handleDayChange(idx, { overtime_flag: e.target.checked, overtime_reason: '' })}
+                                className="rounded border-[var(--border)]" />
+                              <span className="text-xs text-[var(--text-secondary)]">OT</span>
+                            </label>
+                            {day.overtime_flag && (
+                              <div className="mb-2 space-y-1">
+                                <input type="text" inputMode="decimal"
+                                  value={otHourDrafts[idx] ?? (day.overtime_hours > 0 ? String(day.overtime_hours) : '')}
+                                  disabled={locked}
+                                  onChange={e => {
+                                    const raw = e.target.value
+                                    setOtHourDrafts(prev => ({ ...prev, [idx]: raw }))
+                                    if (raw.includes(',')) { setOtHourErrors(prev => ({ ...prev, [idx]: 'Use a point (.) for decimals — e.g. 5.5' })); return }
+                                    if (raw === '' || raw === '.') { setOtHourErrors(prev => ({ ...prev, [idx]: '' })); return }
+                                    if (!/^\d+(\.\d+)?$/.test(raw)) { setOtHourErrors(prev => ({ ...prev, [idx]: 'Enter a valid number (e.g. 5 or 5.5)' })); return }
+                                    setOtHourErrors(prev => ({ ...prev, [idx]: '' }))
+                                    handleDayChange(idx, { overtime_hours: parseFloat(raw) })
+                                  }}
+                                  onBlur={() => setOtHourDrafts(prev => { const n = { ...prev }; delete n[idx]; return n })}
+                                  className="w-full text-xs border border-[var(--border)] rounded px-2 py-1"
+                                  placeholder="Hours (e.g. 5 or 5.5)" />
+                                {otHourErrors[idx] && <p className="text-xs text-red-500">{otHourErrors[idx]}</p>}
+                                {!otHourErrors[idx] && day.overtime_flag && (day.overtime_hours ?? 0) <= 0 && (
+                                  <p className="text-xs text-red-500">Must be &gt; 0</p>
+                                )}
+                                <textarea value={day.overtime_reason} disabled={locked} rows={2}
+                                  onChange={e => handleDayChange(idx, { overtime_reason: e.target.value })}
+                                  placeholder="OT reason (required)…"
+                                  className={`w-full text-xs border rounded px-2 py-1 resize-none placeholder:text-gray-300 ${
+                                    !day.overtime_reason.trim() && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                                  }`} />
+                                {!day.overtime_reason.trim() && !locked && <p className="text-xs text-red-500">Reason required</p>}
+                              </div>
+                            )}
+                          </>
+                        )}
 
-                  {/* Standby — hidden on leave, sick, AWOL */}
-                  {day.primary_status !== 'leave' && day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
-                  <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={day.standby_flag}
-                      disabled={locked}
-                      onChange={e => handleDayChange(idx, { standby_flag: e.target.checked })}
-                      className="rounded border-[var(--border)]"
-                    />
-                    <span className="text-xs text-[var(--text-secondary)]">Standby</span>
-                  </label>
-                  )}
+                        {/* Standby */}
+                        {a.standby && (
+                          <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
+                            <input type="checkbox" checked={day.standby_flag} disabled={locked}
+                              onChange={e => handleDayChange(idx, { standby_flag: e.target.checked })}
+                              className="rounded border-[var(--border)]" />
+                            <span className="text-xs text-[var(--text-secondary)]">Standby</span>
+                          </label>
+                        )}
 
-                  {/* Underground — hidden on leave, sick, AWOL */}
-                  {day.primary_status !== 'leave' && day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
-                  <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={day.underground_flag}
-                      disabled={locked}
-                      onChange={e => handleDayChange(idx, { underground_flag: e.target.checked, underground_hours: 0 })}
-                      className="rounded border-[var(--border)]"
-                    />
-                    <span className="text-xs text-[var(--text-secondary)]">Underground</span>
-                  </label>
-                  )}
-                  {day.underground_flag && (
-                    <div className="mb-1 pl-5">
-                      <input
-                        type="number"
-                        min="0.5"
-                        max="24"
-                        step="0.5"
-                        value={day.underground_hours || ''}
-                        disabled={locked}
-                        onChange={e => handleDayChange(idx, { underground_hours: parseFloat(e.target.value) || 0 })}
-                        placeholder="Hours"
-                        className={`w-full text-xs border rounded px-2 py-1 ${
-                          (day.underground_hours ?? 0) <= 0 && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
-                        }`}
-                      />
-                      {(day.underground_hours ?? 0) <= 0 && !locked && (
-                        <p className="text-xs text-red-500">Hours required</p>
-                      )}
-                    </div>
-                  )}
+                        {/* Underground */}
+                        {a.underground && (
+                          <>
+                            <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
+                              <input type="checkbox" checked={day.underground_flag} disabled={locked}
+                                onChange={e => handleDayChange(idx, { underground_flag: e.target.checked, underground_hours: 0 })}
+                                className="rounded border-[var(--border)]" />
+                              <span className="text-xs text-[var(--text-secondary)]">Underground</span>
+                            </label>
+                            {day.underground_flag && (
+                              <div className="mb-1 pl-5">
+                                <input type="number" min="0.5" max="24" step="0.5"
+                                  value={day.underground_hours || ''} disabled={locked}
+                                  onChange={e => handleDayChange(idx, { underground_hours: parseFloat(e.target.value) || 0 })}
+                                  placeholder="Hours"
+                                  className={`w-full text-xs border rounded px-2 py-1 ${
+                                    (day.underground_hours ?? 0) <= 0 && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                                  }`} />
+                                {(day.underground_hours ?? 0) <= 0 && !locked && <p className="text-xs text-red-500">Hours required</p>}
+                              </div>
+                            )}
+                          </>
+                        )}
 
-                  {/* LOL */}
-                  <>
-                  <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={day.lol_flag}
-                      disabled={locked}
-                      onChange={e => handleDayChange(idx, { lol_flag: e.target.checked, lol_province: '', ...(e.target.checked && { loi_flag: false, loi_country: '' }) })}
-                      className="rounded border-[var(--border)]"
-                    />
-                    <span className="text-xs text-[var(--text-secondary)]">LOL</span>
-                  </label>
-                  {day.lol_flag && (
-                    <div className="mb-1 pl-5">
-                      <select
-                        value={day.lol_province}
-                        disabled={locked}
-                        onChange={e => handleDayChange(idx, { lol_province: e.target.value })}
-                        className={`w-full text-xs border rounded px-2 py-1 ${
-                          !day.lol_province && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
-                        }`}
-                      >
-                        <option value="">— Province —</option>
-                        {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                      {!day.lol_province && !locked && (
-                        <p className="text-xs text-red-500">Province required</p>
-                      )}
-                    </div>
-                  )}
+                        {/* LOL — mutually exclusive with LOI */}
+                        {a.lol && (
+                          <>
+                            <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
+                              <input type="checkbox" checked={day.lol_flag} disabled={locked}
+                                onChange={e => handleDayChange(idx, { lol_flag: e.target.checked, lol_province: '', ...(e.target.checked && { loi_flag: false, loi_country: '' }) })}
+                                className="rounded border-[var(--border)]" />
+                              <span className="text-xs text-[var(--text-secondary)]">LOL</span>
+                            </label>
+                            {day.lol_flag && (
+                              <div className="mb-1 pl-5">
+                                <select value={day.lol_province} disabled={locked}
+                                  onChange={e => handleDayChange(idx, { lol_province: e.target.value })}
+                                  className={`w-full text-xs border rounded px-2 py-1 ${
+                                    !day.lol_province && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                                  }`}>
+                                  <option value="">— Province —</option>
+                                  {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                {!day.lol_province && !locked && <p className="text-xs text-red-500">Province required</p>}
+                              </div>
+                            )}
+                          </>
+                        )}
 
-                  {/* LOI */}
-                  <label className="flex items-center gap-1.5 mb-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={day.loi_flag}
-                      disabled={locked}
-                      onChange={e => handleDayChange(idx, { loi_flag: e.target.checked, loi_country: '', ...(e.target.checked && { lol_flag: false, lol_province: '' }) })}
-                      className="rounded border-[var(--border)]"
-                    />
-                    <span className="text-xs text-[var(--text-secondary)]">LOI</span>
-                  </label>
-                  {day.loi_flag && (
-                    <div className="mb-2 pl-5">
-                      <input
-                        type="text"
-                        list={`loi-countries-${idx}`}
-                        value={day.loi_country}
-                        disabled={locked}
-                        onChange={e => handleDayChange(idx, { loi_country: e.target.value })}
-                        placeholder="Search country…"
-                        autoComplete="off"
-                        className={`w-full text-xs border rounded px-2 py-1 ${
-                          !day.loi_country && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
-                        }`}
-                      />
-                      <datalist id={`loi-countries-${idx}`}>
-                        {LOI_COUNTRIES.map(c => <option key={c} value={c} />)}
-                      </datalist>
-                      {!day.loi_country && !locked && (
-                        <p className="text-xs text-red-500">Country required</p>
-                      )}
-                    </div>
-                  )}
-                  </>
+                        {/* LOI — mutually exclusive with LOL */}
+                        {a.loi && (
+                          <>
+                            <label className="flex items-center gap-1.5 mb-2 cursor-pointer">
+                              <input type="checkbox" checked={day.loi_flag} disabled={locked}
+                                onChange={e => handleDayChange(idx, { loi_flag: e.target.checked, loi_country: '', ...(e.target.checked && { lol_flag: false, lol_province: '' }) })}
+                                className="rounded border-[var(--border)]" />
+                              <span className="text-xs text-[var(--text-secondary)]">LOI</span>
+                            </label>
+                            {day.loi_flag && (
+                              <div className="mb-2 pl-5">
+                                <input type="text" list={`loi-countries-${idx}`}
+                                  value={day.loi_country} disabled={locked} autoComplete="off"
+                                  onChange={e => handleDayChange(idx, { loi_country: e.target.value })}
+                                  placeholder="Search country…"
+                                  className={`w-full text-xs border rounded px-2 py-1 ${
+                                    !day.loi_country && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                                  }`} />
+                                <datalist id={`loi-countries-${idx}`}>
+                                  {LOI_COUNTRIES.map(c => <option key={c} value={c} />)}
+                                </datalist>
+                                {!day.loi_country && !locked && <p className="text-xs text-red-500">Country required</p>}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )
+                  })()}
 
                   {/* Notes */}
                   <textarea
