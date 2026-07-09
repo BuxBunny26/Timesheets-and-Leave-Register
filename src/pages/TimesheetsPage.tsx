@@ -1453,7 +1453,24 @@ export default function TimesheetsPage() {
                     disabled={locked || day.is_public_holiday}
                     onChange={e => {
                       const newStatus = e.target.value as DayStatus | ''
-                      handleDayChange(idx, { primary_status: newStatus })
+                      const isSickOrAwol  = newStatus === 'sick'  || newStatus === 'awol'
+                      const isLeave       = newStatus === 'leave'
+                      handleDayChange(idx, {
+                        primary_status: newStatus,
+                        // Sick & AWOL: clear OT, Standby, Underground, LOL, LOI
+                        ...(isSickOrAwol && {
+                          overtime_flag: false, overtime_hours: 0, overtime_reason: '',
+                          standby_flag: false,
+                          underground_flag: false, underground_hours: 0,
+                          lol_flag: false, lol_province: '', loi_flag: false, loi_country: '',
+                        }),
+                        // Leave: clear Standby, Underground, LOL, LOI (OT stays available)
+                        ...(isLeave && {
+                          standby_flag: false,
+                          underground_flag: false, underground_hours: 0,
+                          lol_flag: false, lol_province: '', loi_flag: false, loi_country: '',
+                        }),
+                      })
                     }}
                     className={`w-full text-xs border border-[var(--border)] rounded px-2 py-1.5 mb-1 bg-[var(--surface)] ${
                       locked || day.is_public_holiday ? 'text-[var(--text-muted)] cursor-not-allowed' : 'text-[var(--text-secondary)]'
@@ -1529,7 +1546,8 @@ export default function TimesheetsPage() {
                     )
                   )}
 
-                  {/* OT */}
+                  {/* OT — hidden on sick and AWOL */}
+                  {day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1540,6 +1558,7 @@ export default function TimesheetsPage() {
                     />
                     <span className="text-xs text-[var(--text-secondary)]">OT</span>
                   </label>
+                  )}
                   {day.overtime_flag && (
                     <div className="mb-2 space-y-1">
                       <input
@@ -1597,7 +1616,8 @@ export default function TimesheetsPage() {
                     </div>
                   )}
 
-                  {/* Standby */}
+                  {/* Standby — hidden on leave, sick, AWOL */}
+                  {day.primary_status !== 'leave' && day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1608,8 +1628,10 @@ export default function TimesheetsPage() {
                     />
                     <span className="text-xs text-[var(--text-secondary)]">Standby</span>
                   </label>
+                  )}
 
-                  {/* Underground */}
+                  {/* Underground — hidden on leave, sick, AWOL */}
+                  {day.primary_status !== 'leave' && day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1620,6 +1642,7 @@ export default function TimesheetsPage() {
                     />
                     <span className="text-xs text-[var(--text-secondary)]">Underground</span>
                   </label>
+                  )}
                   {day.underground_flag && (
                     <div className="mb-1 pl-5">
                       <input
