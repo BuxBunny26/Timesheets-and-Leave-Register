@@ -50,6 +50,7 @@ export interface Profile {
   role: Role
   country_code: CountryCode
   status: 'active' | 'inactive'
+  decision_level: string | null
   preferred_name: string | null
   phone: string | null
   emergency_contact_name: string | null

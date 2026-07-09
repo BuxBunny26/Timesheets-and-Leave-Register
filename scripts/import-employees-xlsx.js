@@ -80,7 +80,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // ---------------------------------------------------------------------------
-// Column indexes (0-based)
+// Column indexes (0-based)  — updated 09.07.2026 format
 // ---------------------------------------------------------------------------
 const C = {
   empCode:       0,
@@ -93,9 +93,25 @@ const C = {
   gender:        7,
   race:          8,
   province:      9,
-  site:         10,
-  manager:      11,
-  legalEmployer:12,
+  department:   10,   // NEW
+  decisionLevel:11,   // NEW
+  site:         12,
+  manager:      13,
+  legalEmployer:14,
+};
+
+// ---------------------------------------------------------------------------
+// Department name → code  (matches 069 migration)
+// ---------------------------------------------------------------------------
+const DEPT_NAME_MAP = {
+  'reliability services':            'ORG-RS',
+  'non destructive testing (ndt)':   'ORG-NDT',
+  'administration':                  'ORG-ADMIN',
+  'sales':                           'ORG-SALES',
+  'digital':                         'ORG-DIGIT',
+  'remote centre':                   'ORG-RC',
+  'rope condition assessment (rca)': 'ORG-RCA',
+  'technical compliance (tc)':       'ORG-TC',
 };
 
 // ---------------------------------------------------------------------------
@@ -238,6 +254,8 @@ function parseRows(ws) {
         gender:         clean(r[C.gender]).replace(/^(m\s*-\s*|f\s*-\s*)/i, '').trim(),
         race:           clean(r[C.race]).replace(/^([a-z]\s*-\s*)/i, '').trim(),
         province:       clean(r[C.province]),
+        department:     clean(r[C.department]),
+        decisionLevel:  clean(r[C.decisionLevel]),
         site:           clean(r[C.site]),
         manager:        clean(r[C.manager]),
         legalEmployer:  clean(r[C.legalEmployer]),
@@ -327,16 +345,19 @@ async function main() {
     { data: divisions,      error: e1 },
     { data: paymentCentres, error: e2 },
     { data: sites,          error: e3 },
+    { data: departments,    error: e4 },
   ] = await Promise.all([
     supabase.from('divisions').select('id, code'),
     supabase.from('payment_centres').select('id, code'),
     supabase.from('sites').select('id, code'),
+    supabase.from('departments').select('id, code'),
   ]);
-  if (e1 || e2 || e3) { console.error('Lookup table fetch error:', e1 ?? e2 ?? e3); process.exit(1); }
+  if (e1 || e2 || e3 || e4) { console.error('Lookup table fetch error:', e1 ?? e2 ?? e3 ?? e4); process.exit(1); }
 
   const divMap  = Object.fromEntries((divisions      ?? []).map(r => [r.code, r.id]));
   const pcMap   = Object.fromEntries((paymentCentres ?? []).map(r => [r.code, r.id]));
   const siteMap = Object.fromEntries((sites          ?? []).map(r => [r.code, r.id]));
+  const deptMap = Object.fromEntries((departments    ?? []).map(r => [r.code, r.id]));
 
   // -- Existing auth users --------------------------------------------------
   console.log('\nFetching existing auth users...');
@@ -354,7 +375,7 @@ async function main() {
   const emailToId = {};
 
   for (const emp of employees) {
-    const { email, empCode, preferred, surname, firstNames, jobTitle, site, legalEmployer } = emp;
+    const { email, empCode, preferred, surname, firstNames, jobTitle, site, legalEmployer, department, decisionLevel } = emp;
 
     const displayFirst = preferred || firstNames.split(/\s+/)[0];
     const label = `${empCode} | ${displayFirst} ${surname} <${email}>`;
@@ -393,6 +414,9 @@ async function main() {
     const siteCode = SITE_NAME_MAP[siteKey] ?? null;
     if (site && !siteCode) console.warn(`         [WARN] Unmapped site: "${site}"`);
 
+    const deptCode = DEPT_NAME_MAP[department.toLowerCase().trim()] ?? null;
+    if (department && !deptCode) console.warn(`         [WARN] Unmapped department: "${department}"`);
+
     const role = deriveRole(jobTitle);
 
     // -- Upsert profile -----------------------------------------------------
@@ -400,15 +424,17 @@ async function main() {
       const { error: profileErr } = await supabase.from('profiles').upsert(
         {
           id:                userId,
-          employee_code:     empCode   || null,
+          employee_code:     empCode        || null,
           first_name:        displayFirst,
           surname,
           email,
-          job_title:         jobTitle  || null,
+          job_title:         jobTitle       || null,
+          decision_level:    decisionLevel  || null,
           role,
           division_id:       orgCodes.divCode ? (divMap[orgCodes.divCode] ?? null) : null,
-          payment_centre_id: orgCodes.pcCode  ? (pcMap[orgCodes.pcCode]  ?? null) : null,
-          site_id:           siteCode  ? (siteMap[siteCode] ?? null)              : null,
+          department_id:     deptCode        ? (deptMap[deptCode]          ?? null) : null,
+          payment_centre_id: orgCodes.pcCode  ? (pcMap[orgCodes.pcCode]   ?? null) : null,
+          site_id:           siteCode         ? (siteMap[siteCode]         ?? null) : null,
           supervisor_id:     null,
         },
         { onConflict: 'id' }

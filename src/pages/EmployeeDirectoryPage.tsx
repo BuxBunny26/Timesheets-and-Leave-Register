@@ -15,6 +15,7 @@ interface Row {
   email: string
   job_title: string | null
   cell_number: string | null
+  decision_level: string | null
   status: 'active' | 'inactive'
   division?: { name: string } | null
   site?: { name: string } | null
@@ -84,6 +85,9 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
         {node.job_title && (
           <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
         )}
+        {node.decision_level && (
+          <p className="text-[9px] mt-0.5 font-medium" style={{ color: node.decision_level === 'Executive' ? '#7c3aed' : node.decision_level === 'Manager' ? '#1B5EA6' : node.decision_level === 'Supervisor' ? '#0d9488' : '#6b7280' }}>{node.decision_level}</p>
+        )}
         {node.employee_code && (
           <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{node.employee_code}</p>
         )}
@@ -121,14 +125,32 @@ function OrgTreeNode({ node, depth = 0, isRoot = false }: { node: OrgNode; depth
 
 function OrgChart({ rows }: { rows: Row[] }) {
   const [orgSiteFilter, setOrgSiteFilter] = useState('')
+  const [orgDeptFilter, setOrgDeptFilter] = useState('')
+  const [orgLevelFilter, setOrgLevelFilter] = useState('')
+
   const sites = useMemo(() => {
     const s = new Set<string>()
     for (const r of rows) if (r.site?.name) s.add(r.site.name)
     return Array.from(s).sort()
   }, [rows])
+  const departments = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of rows) if (r.department?.name) s.add(r.department.name)
+    return Array.from(s).sort()
+  }, [rows])
+  const levels = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of rows) if (r.decision_level) s.add(r.decision_level)
+    return Array.from(s).sort()
+  }, [rows])
+
   const filtered = useMemo(
-    () => orgSiteFilter ? rows.filter(r => r.site?.name === orgSiteFilter) : rows,
-    [rows, orgSiteFilter]
+    () => rows.filter(r =>
+      (!orgSiteFilter  || r.site?.name       === orgSiteFilter) &&
+      (!orgDeptFilter  || r.department?.name === orgDeptFilter) &&
+      (!orgLevelFilter || r.decision_level   === orgLevelFilter)
+    ),
+    [rows, orgSiteFilter, orgDeptFilter, orgLevelFilter]
   )
   const roots = useMemo(() => buildOrgTree(filtered), [filtered])
   return (
@@ -153,6 +175,22 @@ function OrgChart({ rows }: { rows: Row[] }) {
         >
           <option value="">All sites</option>
           {sites.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={orgDeptFilter}
+          onChange={e => setOrgDeptFilter(e.target.value)}
+          className="px-3 py-2 border border-[var(--border)] rounded-md text-sm"
+        >
+          <option value="">All departments</option>
+          {departments.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select
+          value={orgLevelFilter}
+          onChange={e => setOrgLevelFilter(e.target.value)}
+          className="px-3 py-2 border border-[var(--border)] rounded-md text-sm"
+        >
+          <option value="">All levels</option>
+          {levels.map(l => <option key={l} value={l}>{l}</option>)}
         </select>
         <span className="text-xs text-[var(--text-muted)]">{filtered.length} employees shown</span>
         <span className="text-xs text-[var(--text-muted)] hidden sm:inline">Blue card = has direct reports · Click card to view profile · ▸/▾ to expand/collapse</span>
@@ -196,7 +234,7 @@ export default function EmployeeDirectoryPage() {
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select(`
-          id, employee_code, first_name, surname, email, job_title, cell_number, status, supervisor_id,
+          id, employee_code, first_name, surname, email, job_title, cell_number, status, supervisor_id, decision_level,
           division:divisions(name),
           site:sites(name),
           department:departments(name)
@@ -274,6 +312,7 @@ export default function EmployeeDirectoryPage() {
           email: p.email as string,
           job_title: (p.job_title as string) ?? null,
           cell_number: (p.cell_number as string) ?? null,
+          decision_level: (p.decision_level as string) ?? null,
           status: p.status as 'active' | 'inactive',
           division: (Array.isArray(p.division) ? p.division[0] : p.division) as Row['division'],
           site: (Array.isArray(p.site) ? p.site[0] : p.site) as Row['site'],
