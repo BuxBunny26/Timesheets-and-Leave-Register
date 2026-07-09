@@ -41,6 +41,7 @@ const supervisorFixes = [
   { employee: 'lesego@wearcheckrs.com',        supervisor: 'andrew@wearcheckrs.com' },     // Lesego → Andrew Robb
   { employee: 'rogerh@wearcheckrs.com',        supervisor: 'philip@wearcheckrs.com' },     // Roger → Philip Schutte
   { employee: 'louis@wearcheckrs.com',         supervisor: 'annemie@wearcheckrs.com' },    // Louis → Annemie Willer
+  { employee: 'jaco@wearcheckrs.com',          supervisor: 'philip@wearcheckrs.com' },     // Jaco Willer → Philip Schutte
   { employee: 'gustav@wearcheckrs.com',        supervisor: 'epieterse@wearcheckrs.com' },  // Gustav → Eddie Snr
   { employee: 'hannest@wearcheckrs.com',       supervisor: 'epieterse@wearcheckrs.com' },  // Hannest → Eddie Snr
   { employee: 'mariette@wearcheckrs.com',      supervisor: 'epieterse@wearcheckrs.com' },  // Mariette → Eddie Snr
