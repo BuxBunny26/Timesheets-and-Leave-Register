@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -129,11 +129,30 @@ function OrgChart({ rows }: { rows: Row[] }) {
   const [orgDeptFilter, setOrgDeptFilter] = useState('')
   const [orgLevelFilter, setOrgLevelFilter] = useState('')
   const [printMode, setPrintMode] = useState(false)
+  const printAreaRef = useRef<HTMLDivElement>(null)
 
   function handlePrint() {
     setPrintMode(true)
     setTimeout(() => {
+      const el = printAreaRef.current
+      if (el) {
+        // Measure the full scrollable width of the tree
+        const contentWidth = el.scrollWidth
+        // A4 landscape at 96 dpi minus 16 mm margins ≈ 1062 px
+        const pageWidth = 1062
+        const scale = contentWidth > pageWidth ? pageWidth / contentWidth : 1
+        el.style.transform = `scale(${scale})`
+        el.style.transformOrigin = 'top left'
+        el.style.width = `${contentWidth}px`
+        el.style.overflow = 'visible'
+      }
       window.print()
+      if (el) {
+        el.style.transform = ''
+        el.style.transformOrigin = ''
+        el.style.width = ''
+        el.style.overflow = ''
+      }
       setPrintMode(false)
     }, 300)
   }
@@ -177,9 +196,11 @@ function OrgChart({ rows }: { rows: Row[] }) {
         .org-li:only-child::before { border: none; }
         .org-li:only-child::after { display: none; }
         @media print {
+          @page { size: landscape; margin: 8mm; }
+          body * { overflow: visible !important; }
           * { visibility: hidden !important; }
           .org-print-area, .org-print-area * { visibility: visible !important; }
-          .org-print-area { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; overflow: visible !important; background: white !important; }
+          .org-print-area { position: absolute !important; top: 0 !important; left: 0 !important; }
           .org-no-print { display: none !important; }
         }
       `}</style>
@@ -218,7 +239,7 @@ function OrgChart({ rows }: { rows: Row[] }) {
           Export PDF
         </button>
       </div>
-      <div className="overflow-x-auto pb-6 org-print-area">
+      <div ref={printAreaRef} className="overflow-x-auto pb-6 org-print-area">
         <ul className="flex gap-16 list-none pl-6 m-0">
           {roots.map(root => (
             <OrgTreeNode key={root.id} node={root} depth={0} isRoot={true} forceExpand={printMode} />
