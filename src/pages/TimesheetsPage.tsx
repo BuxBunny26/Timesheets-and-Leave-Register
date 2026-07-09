@@ -23,6 +23,18 @@ const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public
 const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday']
 const MEDICAL_CATEGORIES: DocumentCategory[] = ['sick_note', 'doctors_certificate', 'medical_report']
 
+const SA_PROVINCES = [
+  'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal',
+  'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West', 'Western Cape',
+]
+
+const LOI_COUNTRIES = [
+  'Angola', 'Botswana', 'DRC (Congo)', 'Eswatini', 'Ethiopia',
+  'Ghana', 'Kenya', 'Lesotho', 'Madagascar', 'Malawi',
+  'Mozambique', 'Namibia', 'Nigeria', 'Tanzania', 'Uganda',
+  'Zambia', 'Zimbabwe', 'Other',
+]
+
 // ── Leave conflict validation types ───────────────────────────────────────────
 type ActiveLeaveEntry = { id: string; leave_type: string; status: 'pending' | 'approved' }
 
@@ -48,8 +60,12 @@ interface DayState {
   overtime_hours: number
   overtime_reason: string
   standby_flag: boolean
+  underground_flag: boolean
+  underground_hours: number
   lol_flag: boolean
+  lol_province: string
   loi_flag: boolean
+  loi_country: string
   notes: string
   is_public_holiday: boolean
   holiday_name: string
@@ -63,8 +79,12 @@ function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false):
     overtime_hours: 0,
     overtime_reason: '',
     standby_flag: false,
+    underground_flag: false,
+    underground_hours: 0,
     lol_flag: false,
+    lol_province: '',
     loi_flag: false,
+    loi_country: '',
     notes: '',
     is_public_holiday: isHoliday,
     holiday_name: holidayName,
@@ -264,8 +284,12 @@ export default function TimesheetsPage() {
         overtime_hours: db.overtime_hours ?? 0,
         overtime_reason: db.overtime_reason ?? '',
         standby_flag: db.standby_flag ?? false,
+        underground_flag: db.underground_flag ?? false,
+        underground_hours: db.underground_hours ?? 0,
         lol_flag: db.lol_flag,
+        lol_province: db.lol_province ?? '',
         loi_flag: db.loi_flag,
+        loi_country: db.loi_country ?? '',
         notes: db.notes ?? '',
         is_public_holiday: base.is_public_holiday,
         holiday_name: base.holiday_name,
@@ -452,7 +476,7 @@ export default function TimesheetsPage() {
         const dayUpserts = updatedDays
           .map((day, idx) => ({ day, idx }))
           // Include any day that has a status OR an additive flag set
-          .filter(({ day }) => day.primary_status !== '' || day.standby_flag || day.overtime_flag || day.lol_flag || day.loi_flag)
+          .filter(({ day }) => day.primary_status !== '' || day.standby_flag || day.overtime_flag || day.underground_flag || day.lol_flag || day.loi_flag)
           .map(({ day, idx }) => ({
             timesheet_week_id: currentWeekId,
             date: formatDateISO(dateArr[idx]),
@@ -463,8 +487,12 @@ export default function TimesheetsPage() {
             overtime_hours: day.overtime_flag ? day.overtime_hours : null,
             overtime_reason: day.overtime_flag ? (day.overtime_reason || null) : null,
             standby_flag: day.standby_flag,
+            underground_flag: day.underground_flag,
+            underground_hours: day.underground_flag ? (day.underground_hours || null) : null,
             lol_flag: day.lol_flag,
+            lol_province: day.lol_flag ? (day.lol_province || null) : null,
             loi_flag: day.loi_flag,
+            loi_country: day.loi_flag ? (day.loi_country || null) : null,
             notes: day.notes || null,
           }))
 
@@ -895,6 +923,9 @@ export default function TimesheetsPage() {
   const hasOtWithoutReason = days.some(d => d.overtime_flag && !d.overtime_reason.trim())
   const hasOtHourError = Object.values(otHourErrors).some(e => !!e)
   const hasOtZeroHours = days.some(d => d.overtime_flag && (d.overtime_hours ?? 0) <= 0)
+  const hasUndergroundZeroHours = days.some(d => d.underground_flag && (d.underground_hours ?? 0) <= 0)
+  const hasLolWithoutProvince = days.some(d => d.lol_flag && !d.lol_province)
+  const hasLoiWithoutCountry = days.some(d => d.loi_flag && !d.loi_country)
   const weekStartStr = formatDateISO(weekStart)
   const dateArr = getDaysOfWeek(weekStart)
 
@@ -1578,17 +1609,67 @@ export default function TimesheetsPage() {
                     <span className="text-xs text-[var(--text-secondary)]">Standby</span>
                   </label>
 
+                  {/* Underground */}
+                  <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={day.underground_flag}
+                      disabled={locked}
+                      onChange={e => handleDayChange(idx, { underground_flag: e.target.checked, underground_hours: 0 })}
+                      className="rounded border-[var(--border)]"
+                    />
+                    <span className="text-xs text-[var(--text-secondary)]">Underground</span>
+                  </label>
+                  {day.underground_flag && (
+                    <div className="mb-1 pl-5">
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="24"
+                        step="0.5"
+                        value={day.underground_hours || ''}
+                        disabled={locked}
+                        onChange={e => handleDayChange(idx, { underground_hours: parseFloat(e.target.value) || 0 })}
+                        placeholder="Hours"
+                        className={`w-full text-xs border rounded px-2 py-1 ${
+                          (day.underground_hours ?? 0) <= 0 && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                        }`}
+                      />
+                      {(day.underground_hours ?? 0) <= 0 && !locked && (
+                        <p className="text-xs text-red-500">Hours required</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* LOL */}
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={day.lol_flag}
                       disabled={locked}
-                      onChange={e => handleDayChange(idx, { lol_flag: e.target.checked })}
+                      onChange={e => handleDayChange(idx, { lol_flag: e.target.checked, lol_province: '' })}
                       className="rounded border-[var(--border)]"
                     />
                     <span className="text-xs text-[var(--text-secondary)]">LOL</span>
                   </label>
+                  {day.lol_flag && (
+                    <div className="mb-1 pl-5">
+                      <select
+                        value={day.lol_province}
+                        disabled={locked}
+                        onChange={e => handleDayChange(idx, { lol_province: e.target.value })}
+                        className={`w-full text-xs border rounded px-2 py-1 ${
+                          !day.lol_province && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                        }`}
+                      >
+                        <option value="">— Province —</option>
+                        {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      {!day.lol_province && !locked && (
+                        <p className="text-xs text-red-500">Province required</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* LOI */}
                   <label className="flex items-center gap-1.5 mb-2 cursor-pointer">
@@ -1596,11 +1677,29 @@ export default function TimesheetsPage() {
                       type="checkbox"
                       checked={day.loi_flag}
                       disabled={locked}
-                      onChange={e => handleDayChange(idx, { loi_flag: e.target.checked })}
+                      onChange={e => handleDayChange(idx, { loi_flag: e.target.checked, loi_country: '' })}
                       className="rounded border-[var(--border)]"
                     />
                     <span className="text-xs text-[var(--text-secondary)]">LOI</span>
                   </label>
+                  {day.loi_flag && (
+                    <div className="mb-2 pl-5">
+                      <select
+                        value={day.loi_country}
+                        disabled={locked}
+                        onChange={e => handleDayChange(idx, { loi_country: e.target.value })}
+                        className={`w-full text-xs border rounded px-2 py-1 ${
+                          !day.loi_country && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
+                        }`}
+                      >
+                        <option value="">— Country —</option>
+                        {LOI_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      {!day.loi_country && !locked && (
+                        <p className="text-xs text-red-500">Country required</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Notes */}
                   <textarea
@@ -1770,7 +1869,7 @@ export default function TimesheetsPage() {
                     setShowConfirm(true)
                   }
                 }}
-                disabled={saving || hasOtWithoutReason || hasOtHourError || hasOtZeroHours}
+                disabled={saving || hasOtWithoutReason || hasOtHourError || hasOtZeroHours || hasUndergroundZeroHours || hasLolWithoutProvince || hasLoiWithoutCountry}
                 className="px-5 py-2 bg-[#1B5EA6] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Submit timesheet

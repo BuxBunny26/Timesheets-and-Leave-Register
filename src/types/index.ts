@@ -95,8 +95,12 @@ export interface TimesheetDay {
   overtime_hours: number | null
   overtime_reason: string | null
   standby_flag: boolean
+  underground_flag: boolean
+  underground_hours: number | null
   lol_flag: boolean
+  lol_province: string | null
   loi_flag: boolean
+  loi_country: string | null
   notes: string | null
   is_locked: boolean
 }
