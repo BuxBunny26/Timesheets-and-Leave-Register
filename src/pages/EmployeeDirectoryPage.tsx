@@ -85,7 +85,7 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
         {node.job_title && (
           <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
         )}
-        {node.decision_level && (
+        {node.decision_level && !(node.job_title ?? '').toLowerCase().includes(node.decision_level.toLowerCase()) && (
           <p className="text-[9px] mt-0.5 font-medium" style={{ color: node.decision_level === 'Executive' ? '#7c3aed' : node.decision_level === 'Manager' ? '#1B5EA6' : node.decision_level === 'Supervisor' ? '#0d9488' : '#6b7280' }}>{node.decision_level}</p>
         )}
         {node.employee_code && (
@@ -99,23 +99,24 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
   )
 }
 
-function OrgTreeNode({ node, depth = 0, isRoot = false }: { node: OrgNode; depth?: number; isRoot?: boolean }) {
+function OrgTreeNode({ node, depth = 0, isRoot = false, forceExpand = false }: { node: OrgNode; depth?: number; isRoot?: boolean; forceExpand?: boolean }) {
   const [expanded, setExpanded] = useState(depth < 2)
+  const isExpanded = forceExpand || expanded
   return (
     <li className={isRoot ? 'flex flex-col items-center' : 'org-li'}>
       <OrgNodeCard node={node} />
-      {node.children.length > 0 && (
+      {node.children.length > 0 && !forceExpand && (
         <button
           onClick={e => { e.preventDefault(); setExpanded(x => !x) }}
-          className="mt-1 text-[10px] text-[var(--text-muted)] hover:text-[#1B5EA6] transition-colors"
+          className="mt-1 text-[10px] text-[var(--text-muted)] hover:text-[#1B5EA6] transition-colors org-no-print"
         >
           {expanded ? '▾ collapse' : `▸ ${node.children.length} report${node.children.length !== 1 ? 's' : ''}`}
         </button>
       )}
-      {expanded && node.children.length > 0 && (
+      {isExpanded && node.children.length > 0 && (
         <ul className="org-ul">
           {node.children.map(child => (
-            <OrgTreeNode key={child.id} node={child} depth={depth + 1} />
+            <OrgTreeNode key={child.id} node={child} depth={depth + 1} forceExpand={forceExpand} />
           ))}
         </ul>
       )}
@@ -127,6 +128,15 @@ function OrgChart({ rows }: { rows: Row[] }) {
   const [orgSiteFilter, setOrgSiteFilter] = useState('')
   const [orgDeptFilter, setOrgDeptFilter] = useState('')
   const [orgLevelFilter, setOrgLevelFilter] = useState('')
+  const [printMode, setPrintMode] = useState(false)
+
+  function handlePrint() {
+    setPrintMode(true)
+    setTimeout(() => {
+      window.print()
+      setPrintMode(false)
+    }, 300)
+  }
 
   const sites = useMemo(() => {
     const s = new Set<string>()
@@ -166,8 +176,14 @@ function OrgChart({ rows }: { rows: Row[] }) {
         .org-li:last-child::after { border-top: none; }
         .org-li:only-child::before { border: none; }
         .org-li:only-child::after { display: none; }
+        @media print {
+          * { visibility: hidden !important; }
+          .org-print-area, .org-print-area * { visibility: visible !important; }
+          .org-print-area { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; overflow: visible !important; background: white !important; }
+          .org-no-print { display: none !important; }
+        }
       `}</style>
-      <div className="flex gap-3 items-center mb-4 p-3 bg-[var(--surface-secondary)] rounded-lg border border-[var(--border)] flex-wrap">
+      <div className="flex gap-3 items-center mb-4 p-3 bg-[var(--surface-secondary)] rounded-lg border border-[var(--border)] flex-wrap org-no-print">
         <select
           value={orgSiteFilter}
           onChange={e => setOrgSiteFilter(e.target.value)}
@@ -194,11 +210,18 @@ function OrgChart({ rows }: { rows: Row[] }) {
         </select>
         <span className="text-xs text-[var(--text-muted)]">{filtered.length} employees shown</span>
         <span className="text-xs text-[var(--text-muted)] hidden sm:inline">Blue card = has direct reports · Click card to view profile · ▸/▾ to expand/collapse</span>
+        <button
+          onClick={handlePrint}
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#1B5EA6] hover:bg-[#174f8c] text-white text-xs font-medium transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Export PDF
+        </button>
       </div>
-      <div className="overflow-x-auto pb-6">
+      <div className="overflow-x-auto pb-6 org-print-area">
         <ul className="flex gap-16 list-none pl-6 m-0">
           {roots.map(root => (
-            <OrgTreeNode key={root.id} node={root} depth={0} isRoot={true} />
+            <OrgTreeNode key={root.id} node={root} depth={0} isRoot={true} forceExpand={printMode} />
           ))}
         </ul>
       </div>
