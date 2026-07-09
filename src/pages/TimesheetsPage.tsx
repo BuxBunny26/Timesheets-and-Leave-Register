@@ -28,11 +28,39 @@ const SA_PROVINCES = [
   'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West', 'Western Cape',
 ]
 
+// All UN-recognised countries (ISO 3166-1) — used with datalist for LOI search
 const LOI_COUNTRIES = [
-  'Angola', 'Botswana', 'DRC (Congo)', 'Eswatini', 'Ethiopia',
-  'Ghana', 'Kenya', 'Lesotho', 'Madagascar', 'Malawi',
-  'Mozambique', 'Namibia', 'Nigeria', 'Tanzania', 'Uganda',
-  'Zambia', 'Zimbabwe', 'Other',
+  'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda',
+  'Argentina','Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain',
+  'Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan',
+  'Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria',
+  'Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon','Canada',
+  'Central African Republic','Chad','Chile','China','Colombia','Comoros',
+  'Congo (Brazzaville)','Congo (Kinshasa / DRC)','Costa Rica','Croatia','Cuba',
+  'Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic',
+  'Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia',
+  'Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia',
+  'Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau',
+  'Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran',
+  'Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan',
+  'Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho',
+  'Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar',
+  'Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania',
+  'Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro',
+  'Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands',
+  'New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia',
+  'Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea',
+  'Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania',
+  'Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia',
+  'Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe',
+  'Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore',
+  'Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea',
+  'South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland',
+  'Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo',
+  'Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu',
+  'Uganda','Ukraine','United Arab Emirates','United Kingdom','United States',
+  'Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam',
+  'Yemen','Zambia','Zimbabwe',
 ]
 
 // ── Leave conflict validation types ───────────────────────────────────────────
@@ -1708,17 +1736,21 @@ export default function TimesheetsPage() {
                   </label>
                   {day.loi_flag && (
                     <div className="mb-2 pl-5">
-                      <select
+                      <input
+                        type="text"
+                        list={`loi-countries-${idx}`}
                         value={day.loi_country}
                         disabled={locked}
                         onChange={e => handleDayChange(idx, { loi_country: e.target.value })}
+                        placeholder="Search country…"
+                        autoComplete="off"
                         className={`w-full text-xs border rounded px-2 py-1 ${
                           !day.loi_country && !locked ? 'border-red-300 bg-red-50' : 'border-[var(--border)]'
                         }`}
-                      >
-                        <option value="">— Country —</option>
-                        {LOI_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      />
+                      <datalist id={`loi-countries-${idx}`}>
+                        {LOI_COUNTRIES.map(c => <option key={c} value={c} />)}
+                      </datalist>
                       {!day.loi_country && !locked && (
                         <p className="text-xs text-red-500">Country required</p>
                       )}
