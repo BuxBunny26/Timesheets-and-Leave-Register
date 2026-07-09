@@ -264,6 +264,28 @@ function parseRows(ws) {
 }
 
 // ---------------------------------------------------------------------------
+// Clean ID number for storage
+//   - SA ID (13 digits after stripping non-digits) → strip to digits only
+//   - Passport / foreign ID → alphanumeric only, uppercase
+//   - N/A / blank → null
+// ---------------------------------------------------------------------------
+function cleanIdNumber(raw) {
+  if (!raw) return null;
+  const s = raw.trim();
+  if (!s || /^n\/a$/i.test(s) || /^pass:/i.test(s.replace(/\s/g, ''))) {
+    // Passport format like "PASS:AE611856 (Zimbabwe)" — extract alphanumeric after PASS:
+    const passMatch = s.match(/PASS:\s*([A-Za-z0-9]+)/i);
+    if (passMatch) return passMatch[1].toUpperCase();
+    if (/^n\/a$/i.test(s)) return null;
+  }
+  const digitsOnly = s.replace(/\D/g, '');
+  if (digitsOnly.length === 13) return digitsOnly;  // clean SA ID
+  // Fallback: alphanumeric only
+  const alphaNum = s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return alphaNum || null;
+}
+
+// ---------------------------------------------------------------------------
 // Build supervisor name → email lookup
 // Three strategies per employee:
 //   1. preferred + " " + surname
@@ -440,6 +462,16 @@ async function main() {
         { onConflict: 'id' }
       );
       if (profileErr) console.error(`         Profile error: ${profileErr.message}`);
+
+      // -- Upsert employee_details with id_number (drives birthday system) --
+      const cleanedId = cleanIdNumber(emp.idNumber);
+      if (cleanedId) {
+        const { error: detailErr } = await supabase.from('employee_details').upsert(
+          { employee_id: userId, id_number: cleanedId },
+          { onConflict: 'employee_id' }
+        );
+        if (detailErr) console.error(`         Details error: ${detailErr.message}`);
+      }
     }
   }
 
