@@ -1453,7 +1453,11 @@ export default function TimesheetsPage() {
                     disabled={locked || day.is_public_holiday}
                     onChange={e => {
                       const newStatus = e.target.value as DayStatus | ''
-                      handleDayChange(idx, { primary_status: newStatus })
+                      const isLeaveType = newStatus === 'leave' || newStatus === 'sick' || newStatus === 'awol'
+                      handleDayChange(idx, {
+                        primary_status: newStatus,
+                        ...(isLeaveType && { lol_flag: false, lol_province: '', loi_flag: false, loi_country: '' }),
+                      })
                     }}
                     className={`w-full text-xs border border-[var(--border)] rounded px-2 py-1.5 mb-1 bg-[var(--surface)] ${
                       locked || day.is_public_holiday ? 'text-[var(--text-muted)] cursor-not-allowed' : 'text-[var(--text-secondary)]'
@@ -1642,12 +1646,14 @@ export default function TimesheetsPage() {
                   )}
 
                   {/* LOL */}
+                  {day.primary_status !== 'leave' && day.primary_status !== 'sick' && day.primary_status !== 'awol' && (
+                  <>
                   <label className="flex items-center gap-1.5 mb-1 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={day.lol_flag}
                       disabled={locked}
-                      onChange={e => handleDayChange(idx, { lol_flag: e.target.checked, lol_province: '' })}
+                      onChange={e => handleDayChange(idx, { lol_flag: e.target.checked, lol_province: '', ...(e.target.checked && { loi_flag: false, loi_country: '' }) })}
                       className="rounded border-[var(--border)]"
                     />
                     <span className="text-xs text-[var(--text-secondary)]">LOL</span>
@@ -1677,7 +1683,7 @@ export default function TimesheetsPage() {
                       type="checkbox"
                       checked={day.loi_flag}
                       disabled={locked}
-                      onChange={e => handleDayChange(idx, { loi_flag: e.target.checked, loi_country: '' })}
+                      onChange={e => handleDayChange(idx, { loi_flag: e.target.checked, loi_country: '', ...(e.target.checked && { lol_flag: false, lol_province: '' }) })}
                       className="rounded border-[var(--border)]"
                     />
                     <span className="text-xs text-[var(--text-secondary)]">LOI</span>
@@ -1699,6 +1705,8 @@ export default function TimesheetsPage() {
                         <p className="text-xs text-red-500">Country required</p>
                       )}
                     </div>
+                  )}
+                  </>
                   )}
 
                   {/* Notes */}
