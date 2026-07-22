@@ -130,40 +130,42 @@ export default function DashboardPage() {
       }
 
       async function fetchLeaveBalance() {
-        try {
-          const fy = fyEndYearFor(new Date())
-          const { data } = await supabase
-            .from('leave_balances')
-            .select('total_days, used_days')
-            .eq('employee_id', profile!.id)
-            .eq('leave_type', 'annual')
-            .eq('year', fy)
-            .maybeSingle()
-          const row = data as { total_days: number; used_days: number } | null
-          setAnnualLeaveRemaining(row ? Math.max(0, row.total_days - row.used_days) : null)
-        } catch {
+        const fy = fyEndYearFor(new Date())
+        const { data, error } = await supabase
+          .from('leave_balances')
+          .select('total_days, used_days')
+          .eq('employee_id', profile!.id)
+          .eq('leave_type', 'annual')
+          .eq('year', fy)
+          .limit(1)
+        if (error) {
+          console.error('[fetchLeaveBalance]', error)
           setAnnualLeaveRemaining(null)
+          return
         }
+        const row = (data?.[0] as { total_days: number; used_days: number }) ?? null
+        setAnnualLeaveRemaining(row ? Math.max(0, row.total_days - row.used_days) : null)
       }
 
       async function fetchOtThisMonth() {
-        try {
-          const now = new Date()
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-          const { data } = await supabase
-            .from('ot_approvals')
-            .select('status, final_status, timesheet_day:timesheet_days(date, overtime_hours)')
-            .eq('employee_id', profile!.id)
-            .gte('submitted_at', monthStart.toISOString())
-          let total = 0
-          for (const row of (data ?? []) as unknown as { status: string; final_status: string | null; timesheet_day: { date: string; overtime_hours: number | null } | null }[]) {
-            const approved = row.final_status === 'approved' || (row.status === 'approved' && !row.final_status)
-            if (approved) total += row.timesheet_day?.overtime_hours ?? 0
-          }
-          setOtHoursThisMonth(total)
-        } catch {
-          setOtHoursThisMonth(null)
+        const now = new Date()
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const { data, error } = await supabase
+          .from('ot_approvals')
+          .select('status, final_status, timesheet_day_id, timesheet_days(date, overtime_hours)')
+          .eq('employee_id', profile!.id)
+          .gte('submitted_at', monthStart.toISOString())
+        if (error) {
+          console.error('[fetchOtThisMonth]', error)
+          setOtHoursThisMonth(0)
+          return
         }
+        let total = 0
+        for (const row of (data ?? []) as unknown as { status: string; final_status: string | null; timesheet_days: { overtime_hours: number | null } | null }[]) {
+          const approved = row.final_status === 'approved' || (row.status === 'approved' && !row.final_status)
+          if (approved) total += row.timesheet_days?.overtime_hours ?? 0
+        }
+        setOtHoursThisMonth(total)
       }
 
       const tasks: Promise<void>[] = [fetchWeekStatus(), fetchUnread()]
