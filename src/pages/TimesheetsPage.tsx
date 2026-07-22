@@ -20,7 +20,7 @@ type ViewMode = 'my' | 'team' | 'history'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const STATUS_OPTIONS: DayStatus[] = ['present', 'leave', 'sick', 'awol', 'public_holiday']
-const WEEKEND_STATUS_OPTIONS: DayStatus[] = ['leave', 'sick', 'awol', 'public_holiday']
+// WEEKEND_STATUS_OPTIONS removed — weekends use OT/standby/underground/LOL/LOI only
 const MEDICAL_CATEGORIES: DocumentCategory[] = ['sick_note', 'doctors_certificate', 'medical_report']
 
 const SA_PROVINCES = [
