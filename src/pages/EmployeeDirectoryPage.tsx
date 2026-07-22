@@ -72,39 +72,39 @@ function buildOrgTree(employees: Row[]): OrgNode[] {
   return roots
 }
 
-function OrgNodeCard({ node }: { node: OrgNode }) {
+function OrgNodeCard({ node, canClick }: { node: OrgNode; canClick: boolean }) {
   const hasReports = node.children.length > 0
-  return (
-    <Link to={`/employees/${node.id}`}>
-      <div className={`rounded-lg px-3 py-2.5 w-44 text-center cursor-pointer hover:shadow-md transition-all select-none ${
-        hasReports
-          ? 'bg-blue-50 border border-blue-200 hover:border-[#1B5EA6]'
-          : 'bg-[var(--surface)] border border-[var(--border)] hover:border-gray-300'
-      }`}>
-        <p className="text-[11px] font-semibold text-[var(--text-primary)] leading-tight">{node.first_name} {node.surname}</p>
-        {node.job_title && (
-          <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
-        )}
-        {node.decision_level && !(node.job_title ?? '').toLowerCase().includes(node.decision_level.toLowerCase()) && (
-          <p className="text-[9px] mt-0.5 font-medium" style={{ color: node.decision_level === 'Executive' ? '#7c3aed' : node.decision_level === 'Manager' ? '#1B5EA6' : node.decision_level === 'Supervisor' ? '#0d9488' : '#6b7280' }}>{node.decision_level}</p>
-        )}
-        {node.employee_code && (
-          <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{node.employee_code}</p>
-        )}
-        {node.site?.name && (
-          <p className="text-[9px] text-[var(--text-muted)]">{node.site.name}</p>
-        )}
-      </div>
-    </Link>
+  const cardClass = `rounded-lg px-3 py-2.5 w-44 text-center transition-all select-none ${
+    hasReports
+      ? 'bg-blue-50 border border-blue-200' + (canClick ? ' cursor-pointer hover:shadow-md hover:border-[#1B5EA6]' : '')
+      : 'bg-[var(--surface)] border border-[var(--border)]' + (canClick ? ' cursor-pointer hover:border-gray-300 hover:shadow-md' : '')
+  }`
+  const inner = (
+    <div className={cardClass}>
+      <p className="text-[11px] font-semibold text-[var(--text-primary)] leading-tight">{node.first_name} {node.surname}</p>
+      {node.job_title && (
+        <p className="text-[10px] text-[#1B5EA6] mt-0.5 leading-tight line-clamp-2">{node.job_title}</p>
+      )}
+      {node.decision_level && !(node.job_title ?? '').toLowerCase().includes(node.decision_level.toLowerCase()) && (
+        <p className="text-[9px] mt-0.5 font-medium" style={{ color: node.decision_level === 'Executive' ? '#7c3aed' : node.decision_level === 'Manager' ? '#1B5EA6' : node.decision_level === 'Supervisor' ? '#0d9488' : '#6b7280' }}>{node.decision_level}</p>
+      )}
+      {node.employee_code && (
+        <p className="text-[9px] text-[var(--text-muted)] mt-0.5">{node.employee_code}</p>
+      )}
+      {node.site?.name && (
+        <p className="text-[9px] text-[var(--text-muted)]">{node.site.name}</p>
+      )}
+    </div>
   )
+  return canClick ? <Link to={`/employees/${node.id}`}>{inner}</Link> : inner
 }
 
-function OrgTreeNode({ node, depth = 0, isRoot = false, forceExpand = false }: { node: OrgNode; depth?: number; isRoot?: boolean; forceExpand?: boolean }) {
+function OrgTreeNode({ node, depth = 0, isRoot = false, forceExpand = false, canClick = true }: { node: OrgNode; depth?: number; isRoot?: boolean; forceExpand?: boolean; canClick?: boolean }) {
   const [expanded, setExpanded] = useState(depth < 2)
   const isExpanded = forceExpand || expanded
   return (
     <li className={isRoot ? 'flex flex-col items-center' : 'org-li'}>
-      <OrgNodeCard node={node} />
+      <OrgNodeCard node={node} canClick={canClick} />
       {node.children.length > 0 && !forceExpand && (
         <button
           onClick={e => { e.preventDefault(); setExpanded(x => !x) }}
@@ -116,7 +116,7 @@ function OrgTreeNode({ node, depth = 0, isRoot = false, forceExpand = false }: {
       {isExpanded && node.children.length > 0 && (
         <ul className="org-ul">
           {node.children.map(child => (
-            <OrgTreeNode key={child.id} node={child} depth={depth + 1} forceExpand={forceExpand} />
+            <OrgTreeNode key={child.id} node={child} depth={depth + 1} forceExpand={forceExpand} canClick={canClick} />
           ))}
         </ul>
       )}
@@ -124,7 +124,7 @@ function OrgTreeNode({ node, depth = 0, isRoot = false, forceExpand = false }: {
   )
 }
 
-function OrgChart({ rows }: { rows: Row[] }) {
+function OrgChart({ rows, canClick = true }: { rows: Row[]; canClick?: boolean }) {
   const [orgSiteFilter, setOrgSiteFilter] = useState('')
   const [orgDeptFilter, setOrgDeptFilter] = useState('')
   const [orgLevelFilter, setOrgLevelFilter] = useState('')
@@ -157,9 +157,13 @@ function OrgChart({ rows }: { rows: Row[] }) {
 
   const filtered = useMemo(
     () => rows.filter(r =>
-      (!orgSiteFilter  || r.site?.name       === orgSiteFilter) &&
-      (!orgDeptFilter  || r.department?.name === orgDeptFilter) &&
-      (!orgLevelFilter || r.decision_level   === orgLevelFilter)
+      (!orgSiteFilter  || r.site?.name === orgSiteFilter) &&
+      (!orgDeptFilter  || (
+        orgDeptFilter === 'Executives'
+          ? (r.decision_level === 'Executive' || r.department?.name === 'Executives')
+          : r.department?.name === orgDeptFilter
+      )) &&
+      (!orgLevelFilter || r.decision_level === orgLevelFilter)
     ),
     [rows, orgSiteFilter, orgDeptFilter, orgLevelFilter]
   )
@@ -216,7 +220,9 @@ function OrgChart({ rows }: { rows: Row[] }) {
           {levels.map(l => <option key={l} value={l}>{l}</option>)}
         </select>
         <span className="text-xs text-[var(--text-muted)]">{filtered.length} employees shown</span>
-        <span className="text-xs text-[var(--text-muted)] hidden sm:inline">Blue card = has direct reports · Click card to view profile · ▸/▾ to expand/collapse</span>
+        <span className="text-xs text-[var(--text-muted)] hidden sm:inline">
+          Blue card = has direct reports{canClick ? ' · Click card to view profile' : ''} · ▸/▾ to expand/collapse
+        </span>
         <button
           onClick={handlePrint}
           className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#1B5EA6] hover:bg-[#174f8c] text-white text-xs font-medium transition-colors"
@@ -228,7 +234,7 @@ function OrgChart({ rows }: { rows: Row[] }) {
       <div ref={printAreaRef} className="overflow-x-auto pb-6 org-print-area">
         <ul className="flex gap-16 list-none pl-6 m-0">
           {roots.map(root => (
-            <OrgTreeNode key={root.id} node={root} depth={0} isRoot={true} forceExpand={printMode} />
+            <OrgTreeNode key={root.id} node={root} depth={0} isRoot={true} forceExpand={printMode} canClick={canClick} />
           ))}
         </ul>
       </div>
@@ -252,7 +258,8 @@ export default function EmployeeDirectoryPage() {
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active')
   const [expiringOnly, setExpiringOnly] = useState(false)
-  const [activeTab, setActiveTab] = useState<'directory' | 'organogram'>('directory')
+  // Employees only see the organogram tab; managers default to directory
+  const [activeTab, setActiveTab] = useState<'directory' | 'organogram'>(() => isAllowed ? 'directory' : 'organogram')
 
   useEffect(() => {
     if (!isAllowed) return
@@ -363,6 +370,51 @@ export default function EmployeeDirectoryPage() {
     return () => { cancelled = true }
   }, [isAllowed])
 
+  // Lightweight fetch for regular employees — only org chart data, no sensitive fields.
+  // Uses the org_chart_view which bypasses RLS and exposes non-sensitive fields only.
+  useEffect(() => {
+    if (isAllowed) return   // managers use the full fetch above
+    if (!profile) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setLoadError(null)
+      const { data, error } = await supabase
+        .from('org_chart_view')
+        .select('id, first_name, surname, job_title, decision_level, employee_code, status, supervisor_id, site_name, department_name')
+      if (!cancelled) {
+        if (error) {
+          console.error('Org chart fetch failed:', error)
+          setLoadError('Could not load organogram. Please ensure migration 086_org_chart_view.sql has been applied to the database.')
+        } else if (data) {
+          const mapped: Row[] = (data as {
+            id: string; first_name: string; surname: string; job_title: string | null
+            decision_level: string | null; employee_code: string | null; status: 'active' | 'inactive'
+            supervisor_id: string | null; site_name: string | null; department_name: string | null
+          }[]).map(p => ({
+            id: p.id,
+            first_name: p.first_name,
+            surname: p.surname,
+            job_title: p.job_title,
+            decision_level: p.decision_level,
+            employee_code: p.employee_code,
+            status: p.status,
+            email: '',
+            cell_number: null,
+            supervisor: p.supervisor_id ? { id: p.supervisor_id, first_name: '', surname: '' } : null,
+            site: p.site_name ? { name: p.site_name } : null,
+            department: p.department_name ? { name: p.department_name } : null,
+            details: null,
+            expiring_count: 0,
+          }))
+          setRows(mapped)
+        }
+        setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [isAllowed, profile])
+
   const sites = useMemo(() => {
     const s = new Set<string>()
     for (const r of rows) if (r.site?.name) s.add(r.site.name)
@@ -394,18 +446,23 @@ export default function EmployeeDirectoryPage() {
   }, [rows, search, siteFilter, departmentFilter, statusFilter, expiringOnly])
 
   if (!profile) return null
-  if (!isAllowed) return <Navigate to="/" replace />
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Employee Directory</h1>
-          <p className="text-sm text-[var(--text-muted)]">Personal, contact, qualifications and certification details for all staff.</p>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">{isAllowed ? 'Employee Directory' : 'Organogram'}</h1>
+          <p className="text-sm text-[var(--text-muted)]">
+            {isAllowed
+              ? 'Personal, contact, qualifications and certification details for all staff.'
+              : 'Company organisational structure.'}
+          </p>
         </div>
-        <div className="text-xs text-[var(--text-muted)]">
-          {loading ? 'Loading…' : `${filtered.length} of ${rows.length}`}
-        </div>
+        {isAllowed && (
+          <div className="text-xs text-[var(--text-muted)]">
+            {loading ? 'Loading…' : `${filtered.length} of ${rows.length}`}
+          </div>
+        )}
       </div>
 
       {loadError && (
@@ -414,6 +471,8 @@ export default function EmployeeDirectoryPage() {
         </div>
       )}
 
+      {/* Tabs — only show Directory tab to managers/supervisors */}
+      {isAllowed && (
       <div className="flex border-b border-[var(--border)]">
         {(['directory', 'organogram'] as const).map(tab => (
           <button
@@ -429,6 +488,7 @@ export default function EmployeeDirectoryPage() {
           </button>
         ))}
       </div>
+      )}
 
       {activeTab === 'directory' && (<>
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 flex flex-wrap gap-2">
@@ -594,7 +654,7 @@ export default function EmployeeDirectoryPage() {
             <div className="w-5 h-5 border-2 border-[#1B5EA6] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <OrgChart rows={rows.filter(r => r.status === 'active')} />
+          <OrgChart rows={rows.filter(r => r.status === 'active')} canClick={isAllowed} />
         )
       )}
     </div>

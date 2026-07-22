@@ -2,7 +2,7 @@ export type Role = 'employee' | 'supervisor' | 'manager' | 'admin_manager' | 'sy
 export type DayStatus = 'present' | 'leave' | 'sick' | 'awol' | 'public_holiday' | 'standby'
 export type TimesheetStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
 export type LeaveType = 'annual' | 'sick' | 'family' | 'study' | 'unpaid' | 'other'
-export type LeaveStatus = 'pending' | 'approved' | 'denied' | 'cancelled'
+export type LeaveStatus = 'pending' | 'approved' | 'denied' | 'cancelled' | 'returned'
 export type OTApprovalStatus = 'pending' | 'approved' | 'denied'
 export type CountryCode = 'ZA' | 'MZ' | 'NA'
 
@@ -91,6 +91,8 @@ export interface TimesheetDay {
   date: string
   day_of_week: string
   primary_status: DayStatus
+  // leave_type_detail intentionally omitted — DB column does not exist.
+  // TODO: add leave_type_id UUID and leave_request_id UUID after migration 073.
   overtime_flag: boolean
   overtime_hours: number | null
   overtime_reason: string | null

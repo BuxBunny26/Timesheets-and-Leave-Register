@@ -39,10 +39,6 @@ export default function BirthdaysPage() {
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth()) // 0-based
 
-  const isManager = ['manager', 'admin_manager', 'system_admin'].includes(profile?.role ?? '')
-  const isSupervisor = profile?.role === 'supervisor'
-  const canSeeTeam = isManager || isSupervisor
-
   const [cardTarget, setCardTarget] = useState<BirthdayRow | null>(null)
   const currentYear = new Date().getFullYear()
 
@@ -95,7 +91,7 @@ export default function BirthdaysPage() {
   }, [profile?.id, currentYear])
 
   useEffect(() => {
-    if (!profile || !canSeeTeam) return
+    if (!profile) return
     let cancelled = false
     ;(async () => {
       setLoading(true)
@@ -110,7 +106,7 @@ export default function BirthdaysPage() {
       if (!cancelled) refreshWishedSet()
     })()
     return () => { cancelled = true }
-  }, [profile, canSeeTeam])
+  }, [profile])
 
   // Group by month (0-based from birthday_this_year)
   const byMonth = useMemo(() => {
@@ -238,8 +234,7 @@ export default function BirthdaysPage() {
       {/* Every user sees their own birthday card */}
       <MyCardBanner />
 
-      {/* Team list — supervisors and managers only */}
-      {!canSeeTeam ? null : loading ? (
+      {loading ? (
         <div className="text-center py-10 text-[var(--text-muted)] text-sm">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-6 text-center text-sm text-[var(--text-muted)]">

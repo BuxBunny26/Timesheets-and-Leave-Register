@@ -7,8 +7,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+const APP_ORIGIN = Deno.env.get('APP_URL') ?? 'https://wearcheck-timesheets.netlify.app'
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -133,6 +134,14 @@ serve(async (req) => {
   }
 
   try {
+    // Verify the caller is an authenticated Supabase user before using service_role.
+    const authHeader = req.headers.get('Authorization') ?? ''
+    const callerToken = authHeader.replace('Bearer ', '').trim()
+    if (!callerToken) return jsonResponse({ error: 'Unauthorized' }, 401)
+    const authCheck = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    const { data: { user }, error: authErr } = await authCheck.auth.getUser(callerToken)
+    if (authErr || !user) return jsonResponse({ error: 'Unauthorized' }, 401)
+
     const { attachmentId } = await req.json()
     if (!attachmentId) return jsonResponse({ error: 'attachmentId is required' }, 400)
 

@@ -104,10 +104,12 @@ export default function MyVerificationPage() {
     const todayDow = (today.getDay() + 6) % 7 // 0 = Monday
     todayMonday.setDate(today.getDate() - todayDow)
     const expectedEnd = endD < todayMonday ? endD : todayMonday
-    // Walk Mondays from the first Monday on/after the period start
+    // Walk Mondays from the Monday of the week that *contains* the 1st of the month.
+    // This includes partial weeks at the start of the month (e.g. if the 1st is a
+    // Wednesday, the Monday two days earlier is the first required week).
     const firstMon = new Date(startD)
     const dayShift = (firstMon.getDay() + 6) % 7 // 0 = Monday
-    if (dayShift !== 0) firstMon.setDate(firstMon.getDate() + (7 - dayShift))
+    firstMon.setDate(firstMon.getDate() - dayShift) // Monday on or before the 1st
     let expected = 0
     for (let d = new Date(firstMon); d <= expectedEnd; d.setDate(d.getDate() + 7)) expected++
     setExpectedWeeks(expected)
@@ -128,7 +130,14 @@ export default function MyVerificationPage() {
     const byMonday = new Map<string, WeekStatus>()
     for (const w of (weekRows ?? []) as WeekStatus[]) {
       const monday = trueMondayISO(w.week_start)
-      if (monday < start || monday > end) continue
+      // Keep the week if it overlaps with this period — i.e. the week ends on or
+      // after the first day of the month AND starts on or before the last day.
+      // This captures partial weeks at the start/end of the month.
+      const mondayDate = new Date(monday + 'T00:00:00')
+      const weekEndDate = new Date(mondayDate)
+      weekEndDate.setDate(weekEndDate.getDate() + 6)
+      const weekEndISO = `${weekEndDate.getFullYear()}-${String(weekEndDate.getMonth() + 1).padStart(2, '0')}-${String(weekEndDate.getDate()).padStart(2, '0')}`
+      if (monday > end || weekEndISO < start) continue
       const existing = byMonday.get(monday)
       if (!existing || STATUS_RANK[w.status] > STATUS_RANK[existing.status]) {
         // Normalise week_start to the true Monday so the UI/badge shows the right date.
@@ -286,7 +295,7 @@ export default function MyVerificationPage() {
               <div>
                 <p className="text-sm font-medium text-[var(--text-primary)] mb-2">Cannot verify yet</p>
                 <p className="text-xs text-[var(--text-secondary)] mb-3">
-                  All weeks in {period} must be submitted before you can verify the month.
+                  All weeks that include days in {period} must be submitted before you can verify the month.
                 </p>
                 <ul className="text-xs text-[var(--text-secondary)] space-y-1">
                   {unsubmittedWeeks.map(w => (

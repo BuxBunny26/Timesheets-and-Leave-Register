@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
-import { formatDateISO } from '../lib/dateUtils'
+import { formatDateISO, getWeekBounds, fyEndYearFor } from '../lib/dateUtils'
 import { IconCalendar, IconChevronLeft, IconChevronRight, IconXMark } from './Icons'
 import birthdayCakeUrl from '../assets/birthday-cake.svg'
 import birthdayCakeWhiteUrl from '../../assets/birthday-cake-white.svg'
@@ -87,6 +88,7 @@ export default function LeaveCalendar({
 }) {
   const { profile } = useAuth()
   const { theme } = useTheme()
+  const navigate = useNavigate()
   const isDark = theme === 'dark'
   const cakeIcon  = isDark ? birthdayCakeWhiteUrl  : birthdayCakeUrl
   const medalIcon = isDark ? medalWhiteUrl          : medalUrl
@@ -99,6 +101,8 @@ export default function LeaveCalendar({
   const [teamOnly, setTeamOnly] = useState(false)
   const [bdayPopover, setBdayPopover] = useState<{ x: number; y: number; entries: BirthdayMarker[] } | null>(null)
   const [annivPopover, setAnnivPopover] = useState<{ x: number; y: number; entries: AnniversaryMarker[] } | null>(null)
+  const [tsPopover, setTsPopover] = useState<{ x: number; y: number } | null>(null)
+  const [outstandingWeeks, setOutstandingWeeks] = useState<Set<string>>(new Set())
 
   const isSupervisor = !!(profile?.role && SUPERVISOR_ROLES.includes(profile.role))
 
@@ -119,6 +123,42 @@ export default function LeaveCalendar({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.site_id])
+
+  // Fetch outstanding timesheet weeks for the current user (current FY, past weeks only)
+  useEffect(() => {
+    if (!profile?.id) return
+    let cancelled = false
+    ;(async () => {
+      const today = new Date()
+      const fyEndYear = fyEndYearFor(today)
+      const fyStart = new Date(fyEndYear - 1, 6, 1) // July 1 of FY start year
+      const fyFirstMonday = getWeekBounds(fyStart).start
+      const currentWeekStart = getWeekBounds(today).start
+
+      // Build every expected Monday from FY start up to (not including) current week
+      const expectedISOs: string[] = []
+      const d = new Date(fyFirstMonday)
+      while (d < currentWeekStart) {
+        expectedISOs.push(formatDateISO(d))
+        d.setDate(d.getDate() + 7)
+      }
+      if (expectedISOs.length === 0) return
+
+      const { data } = await supabase
+        .from('timesheet_weeks')
+        .select('week_start, status')
+        .eq('employee_id', profile.id)
+        .gte('week_start', expectedISOs[0])
+        .lt('week_start', formatDateISO(currentWeekStart))
+
+      if (cancelled) return
+      const doneSet = new Set(
+        (data ?? []).filter(w => w.status === 'submitted' || w.status === 'approved').map(w => w.week_start)
+      )
+      setOutstandingWeeks(new Set(expectedISOs.filter(iso => !doneSet.has(iso))))
+    })()
+    return () => { cancelled = true }
+  }, [profile?.id])
 
   // Load approved leave overlapping the visible grid
   useEffect(() => {
@@ -285,6 +325,8 @@ export default function LeaveCalendar({
             const isWeekend = d.getDay() === 0 || d.getDay() === 6
             const hasBirthdays = bdayEntries.length > 0
             const hasAnniversaries = annivEntries.length > 0
+            const isMonday = d.getDay() === 1
+            const isOutstanding = isMonday && inMonth && !isWeekend && outstandingWeeks.has(iso)
             return (
               <button
                 key={iso}
@@ -305,6 +347,22 @@ export default function LeaveCalendar({
                     {d.getDate()}
                   </span>
                   <span className="flex items-center gap-0.5">
+                    {isOutstanding && (
+                      <span
+                        onClick={e => {
+                          e.stopPropagation()
+                          setTsPopover(null)
+                          navigate('/timesheets', { state: { weekStart: iso } })
+                        }}
+                        onMouseEnter={e => {
+                          const r = e.currentTarget.getBoundingClientRect()
+                          setTsPopover({ x: r.left + r.width / 2, y: r.bottom })
+                        }}
+                        onMouseLeave={() => setTsPopover(null)}
+                        className="inline-block w-2 h-2 rounded-full bg-amber-400 ring-1 ring-amber-600/30 cursor-pointer flex-shrink-0"
+                        aria-label="Timesheet outstanding — click to open"
+                      />
+                    )}
                     {hasBirthdays && (
                       <span
                         onMouseEnter={e => {
@@ -383,6 +441,20 @@ export default function LeaveCalendar({
           <p className="text-xs text-[var(--text-muted)] mt-2">No approved leave in this view.</p>
         )}
       </div>
+
+      {/* Timesheet outstanding popover */}
+      {tsPopover && (
+        <div
+          className="fixed z-[999] pointer-events-none"
+          style={{ top: tsPopover.y + 6, left: tsPopover.x, transform: 'translateX(-50%)' }}
+        >
+          <div className="bg-[var(--surface-elevated)] border border-amber-300 text-[var(--text-primary)] text-[11px] rounded-md px-2.5 py-1.5 shadow-lg min-w-max relative">
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[var(--surface-elevated)]" />
+            <span className="font-semibold text-amber-700">⚠️ Timesheet outstanding</span>
+            <span className="block text-[var(--text-muted)] mt-0.5">Click to open and fill in this week.</span>
+          </div>
+        </div>
+      )}
 
       {/* Birthday popover */}
       {bdayPopover && (

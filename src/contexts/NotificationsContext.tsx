@@ -28,7 +28,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       .select('*')
       .eq('recipient_id', profile.id)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(200)
     if (data) {
       setNotifications(data)
       setUnreadCount(data.filter((n: Notification) => !n.is_read).length)

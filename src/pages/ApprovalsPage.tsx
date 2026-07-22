@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatDateDisplay } from '../lib/dateUtils'
 import { IconCheckCircle } from '../components/Icons'
+import OutOfOfficeModal from '../components/OutOfOfficeModal'
 import type { OTApprovalStatus, LeaveType, LeaveStatus } from '../types'
 
 function formatTimestampDisplay(ts: string | null | undefined): string {
@@ -50,6 +51,12 @@ interface OTGroup {
   rows: OTApprovalRow[]
 }
 
+interface SupervisorSnippet {
+  first_name: string
+  surname: string
+  email: string | null
+}
+
 interface LeaveRequestRow {
   id: string
   employee_id: string
@@ -66,6 +73,7 @@ interface LeaveRequestRow {
   leave_year: number | null
   final_status?: 'pending' | 'approved' | 'denied'
   employee?: EmployeeSnippet
+  supervisor?: SupervisorSnippet | null
 }
 
 export default function ApprovalsPage() {
@@ -166,6 +174,8 @@ export default function ApprovalsPage() {
   const [myLeave, setMyLeave] = useState<LeaveRequestRow[]>([])
   const [loadingMyOt, setLoadingMyOt] = useState(true)
   const [loadingMyLeave, setLoadingMyLeave] = useState(true)
+  // Out-of-office reminder modal
+  const [oooLeave, setOooLeave] = useState<LeaveRequestRow | null>(null)
   // Reporting tree for managers: direct reports + reports-of-reports.
   // Used to scope the Final Approval queues so a manager only sees items for
   // employees who roll up to them (not other managers' people).
@@ -265,7 +275,7 @@ export default function ApprovalsPage() {
     try {
       const { data, error } = await supabase
         .from('leave_requests')
-        .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname)')
+        .select('*, employee:profiles!leave_requests_employee_id_fkey(first_name, surname), supervisor:profiles!leave_requests_supervisor_id_fkey(first_name, surname, email)')
         .eq('employee_id', profile.id)
         .order('submitted_at', { ascending: false })
       if (error) throw error
@@ -276,6 +286,25 @@ export default function ApprovalsPage() {
       setLoadingMyLeave(false)
     }
   }
+
+  // Auto-show OOO reminder for newly approved upcoming leave (once per leave request)
+  useEffect(() => {
+    if (loadingMyLeave || myLeave.length === 0) return
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const candidate = myLeave
+      .filter(req => {
+        if (req.final_status !== 'approved') return false
+        if (localStorage.getItem(`ooo_shown_${req.id}`)) return false
+        const start = new Date(req.start_date + 'T00:00:00')
+        return start >= today
+      })
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
+    if (candidate) {
+      setOooLeave(candidate)
+      localStorage.setItem(`ooo_shown_${candidate.id}`, '1')
+    }
+  }, [loadingMyLeave, myLeave])
 
   async function fetchLeaveApprovals() {
     setLoadingLeave(true)
@@ -1792,6 +1821,18 @@ export default function ApprovalsPage() {
                           )}
                         </p>
                       </div>
+                      {req.final_status === 'approved' && (() => {
+                        const today = new Date(); today.setHours(0, 0, 0, 0)
+                        const start = new Date(req.start_date + 'T00:00:00')
+                        return start >= today ? (
+                          <button
+                            onClick={() => setOooLeave(req)}
+                            className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                          >
+                            ✉ Out of Office template
+                          </button>
+                        ) : null
+                      })()}
                     </div>
                   </div>
                 )
@@ -1799,6 +1840,21 @@ export default function ApprovalsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Out-of-Office reminder modal */}
+      {oooLeave && (
+        <OutOfOfficeModal
+          startDate={oooLeave.start_date}
+          endDate={oooLeave.end_date}
+          supervisorName={
+            oooLeave.supervisor
+              ? `${oooLeave.supervisor.first_name} ${oooLeave.supervisor.surname}`
+              : 'your supervisor'
+          }
+          supervisorEmail={oooLeave.supervisor?.email ?? null}
+          onClose={() => setOooLeave(null)}
+        />
       )}
     </div>
   )

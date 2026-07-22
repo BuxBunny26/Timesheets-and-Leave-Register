@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import StatusBadge from '../components/StatusBadge'
 import LeaveCalendar from '../components/LeaveCalendar'
 import type { BirthdayMarker, AnniversaryMarker } from '../components/LeaveCalendar'
-import { getWeekBounds, formatDateISO } from '../lib/dateUtils'
+import { getWeekBounds, formatDateISO, fyEndYearFor } from '../lib/dateUtils'
 import { IconClipboard, IconCalendar, IconBell, IconCheckCircle, IconArrowRight } from '../components/Icons'
 import type { TimesheetStatus, Role } from '../types'
 
@@ -58,6 +58,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [birthdays, setBirthdays] = useState<BirthdayMarker[]>([])
   const [anniversaries, setAnniversaries] = useState<AnniversaryMarker[]>([])
+  const [annualLeaveRemaining, setAnnualLeaveRemaining] = useState<number | null>(null)
+  const [otHoursThisMonth, setOtHoursThisMonth] = useState<number | null>(null)
 
   const isSupervisor = profile?.role && SUPERVISOR_ROLES.includes(profile.role)
   const displayRole = profile?.role?.replace(/_/g, ' ') ?? 'Employee'
@@ -127,19 +129,58 @@ export default function DashboardPage() {
         }
       }
 
+      async function fetchLeaveBalance() {
+        try {
+          const fy = fyEndYearFor(new Date())
+          const { data } = await supabase
+            .from('leave_balances')
+            .select('total_days, used_days')
+            .eq('employee_id', profile!.id)
+            .eq('leave_type', 'annual')
+            .eq('year', fy)
+            .maybeSingle()
+          const row = data as { total_days: number; used_days: number } | null
+          setAnnualLeaveRemaining(row ? Math.max(0, row.total_days - row.used_days) : null)
+        } catch {
+          setAnnualLeaveRemaining(null)
+        }
+      }
+
+      async function fetchOtThisMonth() {
+        try {
+          const now = new Date()
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+          const { data } = await supabase
+            .from('ot_approvals')
+            .select('status, final_status, timesheet_day:timesheet_days(date, overtime_hours)')
+            .eq('employee_id', profile!.id)
+            .gte('submitted_at', monthStart.toISOString())
+          let total = 0
+          for (const row of (data ?? []) as unknown as { status: string; final_status: string | null; timesheet_day: { date: string; overtime_hours: number | null } | null }[]) {
+            const approved = row.final_status === 'approved' || (row.status === 'approved' && !row.final_status)
+            if (approved) total += row.timesheet_day?.overtime_hours ?? 0
+          }
+          setOtHoursThisMonth(total)
+        } catch {
+          setOtHoursThisMonth(null)
+        }
+      }
+
       const tasks: Promise<void>[] = [fetchWeekStatus(), fetchUnread()]
       if (isSupervisor) {
         tasks.push(fetchPendingOt(), fetchPendingLeave())
+      } else {
+        tasks.push(fetchLeaveBalance(), fetchOtThisMonth())
       }
 
-      // Load birthdays for the calendar (managers/supervisors only)
-      if (isSupervisor) {
-        supabase
-          .from('birthdays_this_year')
-          .select('employee_id, first_name, surname, birthday_this_year')
-          .then(({ data }) => { if (data) setBirthdays(data as BirthdayMarker[]) })
+      // Load birthdays for the calendar (all users)
+      supabase
+        .from('birthdays_this_year')
+        .select('employee_id, first_name, surname, birthday_this_year')
+        .then(({ data }) => { if (data) setBirthdays(data as BirthdayMarker[]) })
 
-        // Load work anniversaries
+      // Load work anniversaries (supervisors and above)
+      if (isSupervisor) {
         supabase
           .from('profiles')
           .select('id, first_name, surname, employee_details!employee_details_employee_id_fkey(start_date)')
@@ -242,8 +283,17 @@ export default function DashboardPage() {
         )}
         {!isSupervisor && (
           <>
-            <StatCard label="Leave days" value="—" sub="Annual leave balance" />
-            <StatCard label="OT hours" value="—" sub="This month" />
+            <StatCard
+              label="Leave days"
+              value={loading ? '…' : (annualLeaveRemaining !== null ? annualLeaveRemaining : '—')}
+              sub="Annual leave remaining"
+              onClick={() => navigate('/leave')}
+            />
+            <StatCard
+              label="OT hours"
+              value={loading ? '…' : (otHoursThisMonth !== null ? otHoursThisMonth : '—')}
+              sub="Approved this month"
+            />
           </>
         )}
       </div>

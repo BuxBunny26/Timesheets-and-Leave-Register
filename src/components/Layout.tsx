@@ -35,6 +35,8 @@ const navItems: NavItem[] = [
   { to: '/reports', label: 'Reports', icon: <IconChartBar />, exact: false, roles: null },
   { to: '/my-verification', label: 'Verify Month', icon: <IconCheckCircle />, roles: null },
   { to: '/documents', label: 'Documents', icon: <IconFolder />, exact: false, roles: null },
+  { to: '/employees/birthdays', label: 'Birthdays', icon: <IconCake />, roles: ['employee'] },
+  { to: '/employees', label: 'Organogram', icon: <IconUsers />, exact: true, roles: ['employee'] },
   { to: '/employees', label: 'Employees', icon: <IconUsers />, exact: false, roles: ['supervisor', 'manager', 'admin_manager', 'system_admin'], children: [
     { to: '/employees', label: 'Directory', icon: <IconUsers />, exact: true },
     { to: '/employees/birthdays', label: 'Birthdays', icon: <IconCake /> },

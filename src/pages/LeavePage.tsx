@@ -196,6 +196,7 @@ export default function LeavePage() {
   // Leave balances for current FY
   const [balances, setBalances] = useState<LeaveBalance[]>([])
   const [loadingBalances, setLoadingBalances] = useState(true)
+  const [prevFyBalances, setPrevFyBalances] = useState<LeaveBalance[]>([])
   const [showBceaDetail, setShowBceaDetail] = useState(false)
   const [engagementDate, setEngagementDate] = useState<string | null>(null)
   const [selectedFY, setSelectedFY] = useState(fyEndYearFor(new Date()))
@@ -314,7 +315,7 @@ export default function LeavePage() {
     if (!profile?.id) return
     setLoadingBalances(true)
     try {
-      const [{ data: balData }, { data: detailsData }] = await Promise.all([
+      const [{ data: balData }, { data: detailsData }, { data: prevBalData }] = await Promise.all([
         supabase
           .from('leave_balances')
           .select('*')
@@ -325,9 +326,15 @@ export default function LeavePage() {
           .select('engagement_date')
           .eq('employee_id', profile.id)
           .maybeSingle(),
+        supabase
+          .from('leave_balances')
+          .select('*')
+          .eq('employee_id', profile.id)
+          .eq('year', year - 1),
       ])
       setBalances((balData as LeaveBalance[]) ?? [])
       setEngagementDate((detailsData as { engagement_date: string | null } | null)?.engagement_date ?? null)
+      setPrevFyBalances((prevBalData as LeaveBalance[]) ?? [])
     } finally {
       setLoadingBalances(false)
     }
@@ -757,15 +764,88 @@ export default function LeavePage() {
                   {breakdown.weekends > 0 && <> &middot; {breakdown.weekends} weekend day{breakdown.weekends !== 1 ? 's' : ''} excluded</>}
                   {breakdown.holidaysOnWeekdays > 0 && <> &middot; {breakdown.holidaysOnWeekdays} public holiday{breakdown.holidaysOnWeekdays !== 1 ? 's' : ''} excluded</>}
                 </p>
-                {holidays.size > 0 && (
-                  <ul className="text-[11px] text-blue-600/70 list-disc list-inside">
-                    {Array.from(holidays.entries()).map(([d, n]) => (
-                      <li key={d}>{formatDateDisplay(d)} — {n}</li>
-                    ))}
-                  </ul>
-                )}
               </div>
             )}
+
+            {/* Public holiday warning — shown whenever the date range overlaps any public holidays */}
+            {startDate && endDate && breakdown && breakdown.holidaysOnWeekdays > 0 && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2.5 text-sm space-y-1.5">
+                <p className="font-semibold text-amber-800">
+                  ⚠️ Public holiday{breakdown.holidaysOnWeekdays !== 1 ? 's' : ''} in your selected dates
+                </p>
+                <ul className="text-xs text-amber-700 list-disc list-inside space-y-0.5">
+                  {Array.from(holidays.entries()).map(([d, n]) => (
+                    <li key={d}><strong>{formatDateDisplay(d)}</strong> — {n}</li>
+                  ))}
+                </ul>
+                <p className="text-xs text-amber-700">
+                  Public holidays are not deducted from your leave balance.
+                  Your leave will be charged <strong>{totalDays} day{totalDays !== 1 ? 's' : ''}</strong>, not {totalDays + breakdown.holidaysOnWeekdays}.
+                </p>
+              </div>
+            )}
+
+            {/* BCEA s20(4) rollover callout — shown for balance-tracked types when the
+                employee's previous leave cycle still has remaining days within the
+                6-month grace period (cycle computed from individual start date). */}
+            {(() => {
+              const BALANCE_TYPES = ['annual', 'family', 'study']
+              if (!BALANCE_TYPES.includes(leaveType)) return null
+              // Need engagement date to compute the BCEA anniversary cycle
+              if (!engagementDate) return null
+
+              // Derive previous cycle: find the current cycle, then step back one year
+              const currentCycle = getAnnualLeaveCycleDates(engagementDate, new Date())
+              const prevCycleEnd = new Date(currentCycle.start)
+              prevCycleEnd.setDate(prevCycleEnd.getDate() - 1)
+              const engDate = new Date(engagementDate + 'T00:00:00')
+              // No previous cycle if employee hasn't completed 12 months yet
+              if (prevCycleEnd < engDate) return null
+
+              // Grace period: 6 months after the previous cycle ended (BCEA s20(4))
+              const graceExpiry = new Date(prevCycleEnd)
+              graceExpiry.setMonth(graceExpiry.getMonth() + 6)
+              // If the grace period has already passed, nothing to show
+              if (new Date() > graceExpiry) return null
+
+              // Look up remaining days: use the FY bucket that contains the prev cycle end
+              const prevCycleFY = fyEndYearFor(prevCycleEnd)
+              const prevBal = prevFyBalances.find(b => b.leave_type === leaveType && (b.year === prevCycleFY || b.year === currentFY - 1))
+              const remaining = prevBal ? Math.max(0, prevBal.total_days - prevBal.used_days) : 0
+              if (remaining <= 0) return null
+
+              const prevCycleStart = new Date(currentCycle.start)
+              prevCycleStart.setFullYear(prevCycleStart.getFullYear() - 1)
+              const fmt = (d: Date) => d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+              const leaveLabel = leaveType.charAt(0).toUpperCase() + leaveType.slice(1)
+              const expiryStr = graceExpiry.toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+
+              return (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                  <p className="font-medium text-amber-800 mb-1">
+                    ⚠ You have {remaining} unused {leaveLabel} Leave day{remaining !== 1 ? 's' : ''} from your previous cycle
+                  </p>
+                  <p className="text-amber-700 text-xs mb-1">
+                    Cycle: {fmt(prevCycleStart)} – {fmt(prevCycleEnd)}
+                  </p>
+                  <p className="text-amber-700 text-xs mb-2">
+                    BCEA grace period expires <strong>{expiryStr}</strong> — your employer cannot refuse leave from this cycle before then.
+                  </p>
+                  {leaveYear !== prevCycleFY && (
+                    <button
+                      type="button"
+                      onClick={() => { setLeaveYear(prevCycleFY); setLeaveYearTouched(true) }}
+                      className="text-xs font-medium text-amber-800 underline hover:text-amber-900"
+                    >
+                      Use previous cycle days for this request
+                    </button>
+                  )}
+                  {leaveYear === prevCycleFY && (
+                    <span className="text-xs font-medium text-amber-800">✓ Charging against previous cycle bucket</span>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Leave bucket (financial year) */}
             {startDate && bucketOptions.length > 0 && (

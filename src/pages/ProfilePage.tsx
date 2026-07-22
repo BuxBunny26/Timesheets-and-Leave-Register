@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { IconUser, IconCheck, IconXMark } from '../components/Icons'
+import { formatDateDisplay } from '../lib/dateUtils'
 
 function ReadOnlyField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -63,6 +64,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [engagementDate, setEngagementDate] = useState<string | null>(null)
 
   const isAdmin =
     profile?.role === 'admin_manager' || profile?.role === 'system_admin'
@@ -80,6 +82,16 @@ export default function ProfilePage() {
       setAvatarPreview(profile.avatar_url ?? null)
     }
   }, [profile])
+
+  useEffect(() => {
+    if (!profile?.id) return
+    supabase
+      .from('employee_details')
+      .select('engagement_date')
+      .eq('employee_id', profile.id)
+      .maybeSingle()
+      .then(({ data }) => setEngagementDate((data as { engagement_date: string | null } | null)?.engagement_date ?? null))
+  }, [profile?.id])
 
   function showToast(type: 'success' | 'error', message: string) {
     setToast({ type, message })
@@ -239,6 +251,7 @@ export default function ProfilePage() {
         </h2>
         <dl className="divide-y divide-[var(--border)]">
           <ReadOnlyField label="Employee code" value={profile.employee_code} />
+          <ReadOnlyField label="Start date" value={engagementDate ? formatDateDisplay(engagementDate) : null} />
           <ReadOnlyField label="Division" value={profile.division?.name} />
           <ReadOnlyField label="Department" value={profile.department?.name} />
           <ReadOnlyField label="Site" value={profile.site?.name} />
@@ -296,6 +309,11 @@ export default function ProfilePage() {
               <option value="male">Male</option>
               <option value="other">Other</option>
             </select>
+            {sex !== (profile.sex ?? '') && (
+              <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+                ⚠️ Changing your sex affects parental leave naming and allocation (e.g. maternity vs. paternity). Please notify HR if this change affects any active or pending leave.
+              </p>
+            )}
           </div>
           <FormField
             label="Phone number"

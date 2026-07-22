@@ -107,6 +107,18 @@ function MultiSelect({
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg min-w-[200px] max-h-60 overflow-y-auto py-1">
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 border-b border-[var(--border)] mb-1"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear selection
+            </button>
+          )}
           {options.map(opt => (
             <label
               key={opt}
@@ -408,14 +420,20 @@ export default function TeamOverview() {
           <option value="verified">Verified</option>
           <option value="not_verified">Not verified</option>
         </select>
-        {hasFilter && (
-          <button
-            onClick={() => setFilter({ search: '', departments: [], sites: [], divisions: [], jobTitles: [], approval: '', verification: '' })}
-            className="text-sm text-[var(--text-muted)] hover:text-gray-600 px-2 py-1.5"
-          >
-            Clear
-          </button>
-        )}
+        <button
+          onClick={() => setFilter({ search: '', departments: [], sites: [], divisions: [], jobTitles: [], approval: '', verification: '' })}
+          disabled={!hasFilter}
+          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            hasFilter
+              ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+              : 'text-[var(--text-muted)] border border-[var(--border)] opacity-40 cursor-not-allowed'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Clear all filters
+        </button>
       </div>
 
       {/* Grid */}

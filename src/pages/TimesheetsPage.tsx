@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import Holidays from 'date-holidays'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -79,7 +79,22 @@ function getAllowedFlagsForStatus(status: DayStatus | '') {
 }
 
 // ── Leave conflict validation types ───────────────────────────────────────────
-type ActiveLeaveEntry = { id: string; leave_type: string; status: 'pending' | 'approved' }
+type ActiveLeaveEntry   = { id: string; leave_type: string; status: 'pending' | 'approved' }
+type InactiveLeaveEntry = { id: string; leave_type: string; status: 'denied' | 'cancelled' | 'returned' }
+
+/** Full leave resolution for a single calendar date, computed by resolveLeaveStateForDate. */
+type LeaveResolution = {
+  activeRequest:    ActiveLeaveEntry | null
+  inactiveRequest:  InactiveLeaveEntry | null
+  leaveType:        string         // human-readable leave type label
+  requestStatus:    'pending' | 'approved' | 'denied' | 'cancelled' | 'returned' | null
+  shouldSetLeave:   boolean        // draft only: auto-set day → 'leave'
+  shouldSetPresent: boolean        // draft only: revert day → 'present'
+  badge:            { text: string; colour: 'green' | 'amber' | 'red' | 'grey' } | null
+  infoMessage:      string | null  // informational text for denied/cancelled/returned
+  blockingConflict: boolean
+  pendingOverlap:   boolean
+}
 
 type LeaveConflict = {
   dateISO:          string
@@ -99,6 +114,11 @@ type PresentConflict = {
 
 interface DayState {
   primary_status: DayStatus | ''
+  // Transitional UI-only field — NOT persisted to the database.
+  // The DB column (leave_type_detail) does not exist; this is kept in React state
+  // only to drive the sub-dropdown display until migration 073 adds
+  // timesheet_days.leave_type_id and timesheet_days.leave_request_id.
+  leave_type_detail: string
   overtime_flag: boolean
   overtime_hours: number
   overtime_reason: string
@@ -118,6 +138,7 @@ interface DayState {
 function defaultDay(isHoliday: boolean, holidayName: string, isWeekend = false): DayState {
   return {
     primary_status: isHoliday ? 'public_holiday' : isWeekend ? '' : 'present',
+    leave_type_detail: '',
     overtime_flag: false,
     overtime_hours: 0,
     overtime_reason: '',
@@ -162,14 +183,185 @@ function formatDayHeading(d: Date, idx: number): string {
   return `${dayName} ${d.getDate()} ${d.toLocaleDateString('en-ZA', { month: 'short' })}`
 }
 
+// ── Leave reconciliation helpers ─────────────────────────────────────────────
+// These are the single source of truth for leave auto-population logic.
+// Used both at initial timesheet load (post DB-merge) and in the status-change
+// handler so the two paths cannot diverge.
+
+/**
+ * Given a leave_request.leave_type code, returns the leave_type_detail value
+ * to store on the timesheet day. Returns '' for unknown / unmapped codes.
+ * TODO: replace with leave_type_id UUID lookup after migration 073 is applied.
+ */
+function leaveDetailFromRequest(leaveType: string): string {
+  const valid = [
+    'annual', 'sick',
+    'family', 'family_responsibility',  // 'family' = legacy code pre-mig 073
+    'study', 'maternity', 'adoption', 'parental', 'unpaid', 'other',
+  ]
+  return valid.includes(leaveType) ? leaveType : ''
+}
+
+/**
+ * Human-readable label for a leave_type code.
+ * TODO: remove after migration 073 — replace with leave_types.name from DB join.
+ */
+const LEAVE_TYPE_NAMES: Record<string, string> = {
+  annual:                'Annual Leave',
+  sick:                  'Sick Leave',
+  family:                'Family Responsibility Leave',
+  family_responsibility: 'Family Responsibility Leave',
+  study:                 'Study Leave',
+  maternity:             'Maternity Leave',
+  adoption:              'Adoption Leave',
+  parental:              'Parental Leave',
+  unpaid:                'Unpaid Leave',
+  other:                 'Other Leave',
+}
+function leaveTypeName(code: string): string {
+  // TODO: remove after migration 073 — replace with leave_types.name from DB join.
+  return LEAVE_TYPE_NAMES[code] ?? code
+}
+
+/**
+ * Pure function — given a dateISO and the leave maps, computes the full leave
+ * resolution for that day: badge, auto-fill direction, conflict flags, etc.
+ *
+ * This is the single source of truth for leave state.  Call it from
+ * reconcileLeave, JSX rendering, and any refresh path so logic cannot diverge.
+ *
+ * Status precedence:
+ *   Exactly one approved                  → use it (green badge)
+ *   Exactly one pending, no approved      → use it (amber badge)
+ *   Approved + pending                    → use approved; pendingOverlap = true
+ *   Multiple approved, OR multi-pending   → blockingConflict = true
+ *   denied / cancelled / returned         → inactive only; revert draft day
+ */
+function resolveLeaveStateForDate(
+  dateISO: string,
+  activeLeaveMap:   Record<string, ActiveLeaveEntry>,
+  inactiveLeaveMap: Record<string, InactiveLeaveEntry>,
+  blockingConflicts: Set<string>,
+  pendingOverlaps:   Set<string>,
+): LeaveResolution {
+  const active   = activeLeaveMap[dateISO]   ?? null
+  const inactive = inactiveLeaveMap[dateISO] ?? null
+  const blocking = blockingConflicts.has(dateISO)
+  const overlap  = pendingOverlaps.has(dateISO)
+
+  const lt     = active?.leave_type ?? inactive?.leave_type ?? ''
+  const ltName = lt ? leaveTypeName(lt) : ''
+  const status = (active?.status ?? inactive?.status ?? null) as LeaveResolution['requestStatus']
+
+  let badge:            LeaveResolution['badge'] = null
+  let shouldSetLeave   = false
+  let shouldSetPresent = false
+  let infoMessage:     string | null = null
+
+  if (!blocking) {
+    if (active?.status === 'approved') {
+      badge = { text: 'Approved', colour: 'green' }
+      shouldSetLeave = true
+    } else if (active?.status === 'pending') {
+      badge = { text: 'Pending', colour: 'amber' }
+      shouldSetLeave = true
+    } else if (inactive?.status === 'denied') {
+      badge = { text: 'Leave Denied', colour: 'red' }
+      shouldSetPresent = true
+      infoMessage = ltName ? `${ltName} Denied` : 'Leave Denied'
+    } else if (inactive?.status === 'cancelled') {
+      badge = { text: 'Leave Cancelled', colour: 'grey' }
+      shouldSetPresent = true
+      infoMessage = ltName ? `${ltName} Cancelled` : 'Leave Cancelled'
+    } else if (inactive?.status === 'returned') {
+      badge = { text: 'Leave Returned', colour: 'amber' }
+      shouldSetPresent = true
+      infoMessage = ltName ? `${ltName} Returned — revision required` : 'Leave Returned — revision required'
+    }
+  }
+
+  return {
+    activeRequest:    active,
+    inactiveRequest:  inactive,
+    leaveType:        ltName,
+    requestStatus:    status,
+    shouldSetLeave,
+    shouldSetPresent,
+    badge,
+    infoMessage,
+    blockingConflict: blocking,
+    pendingOverlap:   overlap,
+  }
+}
+
+/**
+ * Applies a LeaveResolution to a DayState for DRAFT weeks only.
+ * Submitted / approved weeks are never modified automatically.
+ *
+ * Rules:
+ *   shouldSetLeave:   auto-fill blank/present → leave (approved or pending request)
+ *   shouldSetPresent: revert leave → present  (denied, cancelled, or returned request)
+ *   blockingConflict: leave unchanged; JSX shows the error
+ *   locked / public-holiday: always leave unchanged
+ */
+function reconcileLeave(
+  day: DayState,
+  resolution: LeaveResolution,
+  weekStatus: TimesheetStatus | 'draft',
+): DayState {
+  if (weekStatus === 'submitted' || weekStatus === 'approved') return day
+  if (day.is_locked) return day
+  if (day.is_public_holiday) return day
+  if (resolution.blockingConflict) return day
+
+  if (resolution.shouldSetPresent && day.primary_status === 'leave') {
+    // Denied, cancelled, or returned — revert to present on draft weeks
+    return { ...day, primary_status: 'present', leave_type_detail: '' }
+  }
+
+  if (resolution.shouldSetLeave && resolution.activeRequest) {
+    if (day.primary_status === 'leave') {
+      // Already leave — fill in the type detail if missing
+      if (!day.leave_type_detail) {
+        return { ...day, leave_type_detail: leaveDetailFromRequest(resolution.activeRequest.leave_type) }
+      }
+      return day
+    }
+    if (day.primary_status === 'present' || day.primary_status === '') {
+      // Default status — auto-fill with the leave request
+      return {
+        ...day,
+        primary_status:    'leave',
+        leave_type_detail: leaveDetailFromRequest(resolution.activeRequest.leave_type),
+      }
+    }
+    // Non-default, non-leave status (sick, awol…) while an active request exists.
+    // Leave unchanged; JSX mismatch warning handles this.
+  }
+
+  return day
+}
+
 export default function TimesheetsPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [viewMode, setViewMode] = useState<ViewMode>('my')
   const canSeeTeam = profile?.role && MANAGER_ROLES.includes(profile.role)
-  const [weekOffset, setWeekOffset] = useState(0)
-  const [weekStart, setWeekStart] = useState<Date>(new Date())
-  const [weekEnd, setWeekEnd] = useState<Date>(new Date())
+  const [weekOffset, setWeekOffset] = useState<number>(() => {
+    const navWeek = (location.state as { weekStart?: string } | null)?.weekStart
+    if (navWeek) {
+      const d = new Date(navWeek + 'T00:00:00')
+      if (!isNaN(d.getTime())) {
+        const targetMonday = getWeekBounds(d).start
+        const currentMonday = getWeekBounds(new Date()).start
+        return Math.round((targetMonday.getTime() - currentMonday.getTime()) / (7 * 24 * 60 * 60 * 1000))
+      }
+    }
+    return 0
+  })
+  const [weekStart, setWeekStart] = useState<Date>(() => getWeekBounds(new Date()).start)
+  const [weekEnd, setWeekEnd] = useState<Date>(() => getWeekBounds(new Date()).end)
   const [days, setDays] = useState<DayState[]>([])
   const [weekId, setWeekId] = useState<string | null>(null)
   const [weekStatus, setWeekStatus] = useState<TimesheetStatus>('draft')
@@ -177,6 +369,9 @@ export default function TimesheetsPage() {
   const [reviewerComment, setReviewerComment] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // Autosave indicator state: 'idle' | 'saving' | 'saved' | 'error'
+  // Separate from `saving` so the submit-button disable and autosave display are independent.
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
@@ -203,6 +398,16 @@ export default function TimesheetsPage() {
   const [leaveByDate, setLeaveByDate] = useState<Record<string, { id: string; leave_type: string }>>({})
   // Pending + approved leave — used for leave/sick validation on the day cards
   const [activeLeaveByDate, setActiveLeaveByDate] = useState<Record<string, ActiveLeaveEntry>>({})
+  // Blocking conflict dates: multiple approved, OR multiple pending with no approved.
+  // Reconciliation is blocked; submission is blocked until resolved.
+  const [blockingConflictDates, setBlockingConflictDates] = useState<Set<string>>(new Set())
+  // Non-blocking overlap dates: one approved + one or more additional pending requests.
+  // Auto-populate from the approved request; show a warning about the pending overlap.
+  const [pendingOverlapDates, setPendingOverlapDates] = useState<Set<string>>(new Set())
+  // Denied / cancelled / returned leave requests overlapping this week — dateISO → InactiveLeaveEntry.
+  // Only populated when no active (pending/approved) request exists for the same date.
+  // Used for informational badges (red/grey/amber) and "revert to present" on draft weeks.
+  const [inactiveLeaveByDate, setInactiveLeaveByDate] = useState<Record<string, InactiveLeaveEntry>>({})
   // Leave conflict modal state (null = no modal)
   const [leaveConflicts, setLeaveConflicts] = useState<{
     missingRequests: LeaveConflict[]
@@ -213,6 +418,7 @@ export default function TimesheetsPage() {
   // Context snapshot panel: leave balances + OT
   const [showContextPanel, setShowContextPanel] = useState(true)
   const [ctxBalances, setCtxBalances] = useState<{leave_type: string; total_days: number; used_days: number}[]>([])
+  const [ctxPendingLeave, setCtxPendingLeave] = useState<Record<string, number>>({})
   const [ctxOtPrev, setCtxOtPrev] = useState(0)
   const [ctxOtCurr, setCtxOtCurr] = useState(0)
   const [ctxOtPrevPending, setCtxOtPrevPending] = useState(0)
@@ -222,6 +428,8 @@ export default function TimesheetsPage() {
   const notifiedMismatchesRef = useRef<Set<string>>(new Set())
   // Set of dateISO strings auto-filled from leave that still need persisting via autosave
   const pendingLeaveAutofillRef = useRef<Set<string>>(new Set())
+  // Timer ref for auto-clearing the 'saved' indicator (avoids setState-after-unmount)
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Init holidays based on country code
   useEffect(() => {
@@ -249,6 +457,30 @@ export default function TimesheetsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, profile?.id])
 
+  // Real-time: reload the current week whenever one of this employee's leave
+  // requests changes status (e.g. approved by supervisor while the page is open).
+  useEffect(() => {
+    if (!profile?.id) return
+    const channel = supabase
+      .channel(`leave_status_${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leave_requests',
+          filter: `employee_id=eq.${profile.id}`,
+        },
+        () => {
+          // Re-run loadWeek so reconciliation picks up the new status
+          loadWeek()
+        }
+      )
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id])
+
   // Load leave balances + OT summary for the context snapshot panel
   useEffect(() => {
     if (profile?.id) fetchContextData()
@@ -265,7 +497,7 @@ export default function TimesheetsPage() {
       const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
       const currMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
       const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1)
-      const [{ data: balData }, { data: otData }] = await Promise.all([
+      const [{ data: balData }, { data: otData }, { data: pendingLeaveData }] = await Promise.all([
         supabase
           .from('leave_balances')
           .select('leave_type, total_days, used_days')
@@ -276,8 +508,19 @@ export default function TimesheetsPage() {
           .select('status, final_status, timesheet_day:timesheet_days(date, overtime_hours)')
           .eq('employee_id', profile.id)
           .gte('submitted_at', cutoff.toISOString()),
+        supabase
+          .from('leave_requests')
+          .select('leave_type, total_days')
+          .eq('employee_id', profile.id)
+          .eq('leave_year', fy)
+          .in('status', ['pending', 'secondary_approved']),
       ])
       setCtxBalances((balData ?? []) as {leave_type: string; total_days: number; used_days: number}[])
+      const pendingByType: Record<string, number> = {}
+      for (const r of (pendingLeaveData ?? []) as { leave_type: string; total_days: number }[]) {
+        pendingByType[r.leave_type] = (pendingByType[r.leave_type] ?? 0) + r.total_days
+      }
+      setCtxPendingLeave(pendingByType)
       let prevApproved = 0, currApproved = 0, prevPending = 0, currPending = 0
       for (const row of (otData ?? []) as unknown as {status: string; final_status: string | null; timesheet_day: {date: string; overtime_hours: number | null} | null}[]) {
         const dateStr = row.timesheet_day?.date
@@ -323,6 +566,10 @@ export default function TimesheetsPage() {
       if (!db) return base
       return {
         primary_status: db.primary_status,
+        // leave_type_detail not read from DB — column does not exist yet.
+        // It is reconciled from the active leave request in the post-merge step.
+        // TODO: read leave_type_id and leave_request_id here after migration 073.
+        leave_type_detail: '',
         overtime_flag: db.overtime_flag,
         overtime_hours: db.overtime_hours ?? 0,
         overtime_reason: db.overtime_reason ?? '',
@@ -357,42 +604,74 @@ export default function TimesheetsPage() {
       const draftKey = `timesheet_draft_${profile!.id}_${weekStartStr}`
       const localDraft = localStorage.getItem(draftKey)
 
-      // Fetch pending + approved leave overlapping this week
-      // Approved leave → auto-fill (leaveByDate)
-      // Pending + approved → validation (activeLeaveByDate)
-      const { data: allActiveLeaves } = await supabase
+      // Fetch all leave requests overlapping this week: active (pending/approved) and
+      // inactive (denied/cancelled/returned).  Active → auto-fill; inactive → badge only.
+      // NOTE: no status filter here — fetch all statuses and classify in JS so that
+      // non-standard status values (e.g. 'returned', future workflow states) are still
+      // surfaced. Errors are logged so silent failures don't hide leave data.
+      const { data: allLeaves, error: leaveFetchError } = await supabase
         .from('leave_requests')
         .select('id, leave_type, start_date, end_date, status')
         .eq('employee_id', profile!.id)
-        .in('status', ['pending', 'approved'])
         .lte('start_date', weekEndStr)
         .gte('end_date', weekStartStr)
+      if (leaveFetchError) {
+        console.error('[loadWeek] leave_requests fetch failed:', leaveFetchError)
+      }
 
       const leaveMap: Record<string, { id: string; leave_type: string }> = {}
       const activeLeaveMap: Record<string, ActiveLeaveEntry> = {}
-      if (allActiveLeaves && allActiveLeaves.length > 0) {
+      const inactiveLeaveMap: Record<string, InactiveLeaveEntry> = {}
+      const blockingConflicts = new Set<string>()
+      const pendingOverlaps = new Set<string>()
+      if (allLeaves && allLeaves.length > 0) {
         for (const d of dateArr) {
           const ds = formatDateISO(d)
-          // Approved only → auto-fill
-          const approved = allActiveLeaves.find(
-            l => l.status === 'approved' && l.start_date <= ds && l.end_date >= ds
-          )
-          if (approved) leaveMap[ds] = { id: approved.id, leave_type: approved.leave_type }
-          // Pending or approved → validation
-          const active = allActiveLeaves.find(l => l.start_date <= ds && l.end_date >= ds)
-          if (active) activeLeaveMap[ds] = { id: active.id, leave_type: active.leave_type, status: active.status as 'pending' | 'approved' }
+          const onDate  = allLeaves.filter(l => l.start_date <= ds && l.end_date >= ds)
+          // Treat 'approved', 'secondary_approved', 'final_approved' all as approved for auto-fill.
+          const ACTIVE_APPROVED = new Set(['approved', 'secondary_approved', 'final_approved'])
+          const INACTIVE = new Set(['denied', 'cancelled', 'returned'])
+          const approved = onDate.filter(l => ACTIVE_APPROVED.has(l.status))
+          const pending  = onDate.filter(l => l.status === 'pending')
+          const inactive = onDate.filter(l => INACTIVE.has(l.status))
+
+          // Blocking: multiple approved, OR multiple pending with no approved request
+          if (approved.length > 1 || (approved.length === 0 && pending.length > 1)) {
+            blockingConflicts.add(ds)
+          }
+          // Non-blocking overlap: one approved + additional pending — use approved, warn about pending
+          if (approved.length === 1 && pending.length > 0) {
+            pendingOverlaps.add(ds)
+          }
+
+          // Preferred active request for auto-population: first approved, else first pending
+          const preferred = approved[0] ?? pending[0]
+          if (preferred) {
+            // Normalise any variant of "approved" to 'approved' for the UI badge
+            const normStatus: 'pending' | 'approved' = ACTIVE_APPROVED.has(preferred.status) ? 'approved' : 'pending'
+            activeLeaveMap[ds] = { id: preferred.id, leave_type: preferred.leave_type, status: normStatus }
+            if (normStatus === 'approved') {
+              leaveMap[ds] = { id: preferred.id, leave_type: preferred.leave_type }
+            }
+          }
+
+          // Inactive (denied/cancelled/returned) — only when no active request exists for this date.
+          // Prefer 'denied' over 'cancelled'/'returned' to surface the most actionable status.
+          if (!preferred && inactive.length > 0) {
+            const denied = inactive.find(l => l.status === 'denied')
+            const chosen = denied ?? inactive[0]
+            const inactiveStatus = chosen.status === 'denied' ? 'denied' : chosen.status === 'returned' ? 'returned' : 'cancelled'
+            inactiveLeaveMap[ds] = { id: chosen.id, leave_type: chosen.leave_type, status: inactiveStatus as 'denied' | 'cancelled' | 'returned' }
+          }
         }
       }
       setLeaveByDate(leaveMap)
       setActiveLeaveByDate(activeLeaveMap)
-
-      // Pre-fill base days for any covered by approved leave (only if not already 'leave')
-      for (let i = 0; i < baseDays.length; i++) {
-        const ds = formatDateISO(dateArr[i])
-        if (leaveMap[ds] && baseDays[i].primary_status !== 'leave') {
-          baseDays[i] = { ...baseDays[i], primary_status: 'leave' }
-        }
-      }
+      setInactiveLeaveByDate(inactiveLeaveMap)
+      setBlockingConflictDates(blockingConflicts)
+      setPendingOverlapDates(pendingOverlaps)
+      // NOTE: leave reconciliation (auto-fill / revert) runs AFTER the DB merge below,
+      // not here, so DB values are respected first and all request states are included.
 
       const { data: week, error } = await supabase
         .from('timesheet_weeks')
@@ -419,18 +698,33 @@ export default function TimesheetsPage() {
         setReviewerComment(typedWeek.reviewer_comment ?? null)
         const dbDays = typedWeek.days ?? []
         const merged = mergeDaysWithDb(baseDays, dbDays)
-        // Auto-fill needs persisting if a covered day has no DB row yet
+
+        // Reconcile every day against active/inactive leave requests AFTER the DB merge.
+        // This fixes the bug where a previously-saved 'present' DB row would overwrite
+        // the pre-fill, and adds support for pending / denied / cancelled / returned
+        // requests.  Submitted/approved weeks are never modified by reconcileLeave.
+        const reconciled = merged.map((day, i) => {
+          if (i >= 5) return day  // weekends handled by their own logic
+          const ds = formatDateISO(dateArr[i])
+          const resolution = resolveLeaveStateForDate(ds, activeLeaveMap, inactiveLeaveMap, blockingConflicts, pendingOverlaps)
+          return reconcileLeave(day, resolution, typedWeek.status)
+        })
+
+        // Persist days changed by reconciliation: auto-filled (→ leave) or reverted (→ present).
+        // NOTE: the !dbDays.find() guard was intentionally removed — if leave is approved after
+        // a 'present' DB row was already saved, the reconciled value must overwrite the DB row.
         for (let i = 0; i < dateArr.length; i++) {
           const ds = formatDateISO(dateArr[i])
-          if (leaveMap[ds] && !dbDays.find(x => x.date === ds)) {
+          const wasAutoFilled = reconciled[i].primary_status === 'leave' && merged[i].primary_status !== 'leave'
+          const wasReverted   = reconciled[i].primary_status !== 'leave' && merged[i].primary_status === 'leave'
+          if (wasAutoFilled || wasReverted) {
             pendingLeaveAutofillRef.current.add(ds)
             needsPersist = true
           }
         }
-        setDays(merged)
-        finalDaysForPersist = merged
-        // Don't auto-persist (and thus auto-flip back to draft) for weeks that are
-        // already submitted/approved/rejected. The user can resubmit manually.
+        setDays(reconciled)
+        finalDaysForPersist = reconciled
+        // Don't auto-persist for submitted/approved/rejected weeks.
         if (typedWeek.status !== 'draft') needsPersist = false
       } else {
         // No DB record yet — use localStorage draft or blank
@@ -438,25 +732,36 @@ export default function TimesheetsPage() {
         setWeekStatus('draft')
         setResubmissionCount(0)
         setReviewerComment(null)
-        let finalDays: DayState[] = baseDays
+        let priorDays: DayState[] = baseDays
         if (localDraft) {
           try {
             const parsed = JSON.parse(localDraft) as DayState[]
             // Restore public holiday flags from fresh computation
-            finalDays = parsed.map((d, i) => ({
+            priorDays = parsed.map((d, i) => ({
               ...d,
               is_public_holiday: baseDays[i].is_public_holiday,
               holiday_name: baseDays[i].holiday_name,
               is_locked: d.is_locked,
             }))
           } catch {
-            finalDays = baseDays
+            priorDays = baseDays
           }
         }
-        // Every leave-covered day with no saved row yet needs persisting
-        for (let i = 0; i < dateArr.length; i++) {
+
+        // Reconcile against active/inactive leave requests (no DB rows exist for this week yet)
+        const finalDays = priorDays.map((day, i) => {
+          if (i >= 5) return day
           const ds = formatDateISO(dateArr[i])
-          if (leaveMap[ds]) {
+          const resolution = resolveLeaveStateForDate(ds, activeLeaveMap, inactiveLeaveMap, blockingConflicts, pendingOverlaps)
+          return reconcileLeave(day, resolution, 'draft')
+        })
+
+        // Persist days changed by reconciliation (auto-filled or reverted)
+        for (let i = 0; i < dateArr.length; i++) {
+          const wasAutoFilled = finalDays[i].primary_status === 'leave' && priorDays[i].primary_status !== 'leave'
+          const wasReverted   = finalDays[i].primary_status !== 'leave' && priorDays[i].primary_status === 'leave'
+          if (wasAutoFilled || wasReverted) {
+            const ds = formatDateISO(dateArr[i])
             pendingLeaveAutofillRef.current.add(ds)
             needsPersist = true
           }
@@ -491,6 +796,7 @@ export default function TimesheetsPage() {
       localStorage.setItem(draftKey, JSON.stringify(updatedDays))
 
       setSaving(true)
+      setSaveStatus('saving')
       setSaveError(null)
       try {
         // Upsert week
@@ -526,6 +832,8 @@ export default function TimesheetsPage() {
             day_of_week: DAY_NAMES[idx],
             // Standby/OT/LOL/LOI on a weekend without an explicit status default to 'present'
             primary_status: day.primary_status || 'present',
+            // leave_type_detail intentionally omitted — DB column does not exist.
+            // TODO: add leave_type_id (UUID) and leave_request_id (UUID) here after migration 073.
             overtime_flag: day.overtime_flag,
             overtime_hours: day.overtime_flag ? day.overtime_hours : null,
             overtime_reason: day.overtime_flag ? (day.overtime_reason || null) : null,
@@ -556,7 +864,7 @@ export default function TimesheetsPage() {
             const leave = leaveByDate[ds]
             if (!leave) continue
             const status = updatedDays[i].primary_status
-            if (status && status !== 'leave') {
+            if (status && status !== 'leave' && status !== 'public_holiday' && !updatedDays[i].is_public_holiday) {
               const key = `${currentWeekId}_${ds}`
               if (!notifiedMismatchesRef.current.has(key)) {
                 mismatches.push({ date: ds, status, leave_type: leave.leave_type })
@@ -591,9 +899,26 @@ export default function TimesheetsPage() {
         } catch (notifyErr) {
           console.error('mismatch notify failed', notifyErr)
         }
+        // Autosave succeeded — update indicator and schedule auto-clear
+        if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
+        setSaveStatus('saved')
+        saveStatusTimerRef.current = setTimeout(
+          () => setSaveStatus(s => s === 'saved' ? 'idle' : s),
+          2500
+        )
       } catch (err) {
-        setSaveError('Auto-save failed. Draft saved locally.')
-        console.error(err)
+        // Log only technical identifiers and error metadata — no PII, no payloads.
+        const errObj = err as { message?: string; code?: string; hint?: string } | null
+        console.error('[autoSave] timesheet save failed', {
+          weekStart: weekStartStr,   // date only, no names or personal data
+          employeeId: profile.id,    // UUID only
+          errorMessage: errObj?.message ?? String(err),
+          errorCode: errObj?.code,
+          errorHint: errObj?.hint,
+        })
+        setSaveStatus('error')
+        // saveError intentionally not set here — the inline indicator handles
+        // autosave failure display. saveError is reserved for submit/load failures.
       } finally {
         setSaving(false)
       }
@@ -1019,7 +1344,24 @@ export default function TimesheetsPage() {
               }
             />
           )}
-          {saving && <span className="text-xs text-[var(--text-muted)]">Saving…</span>}
+          {saveStatus === 'saving' && (
+            <span className="text-xs text-[var(--text-muted)]">Saving…</span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-xs text-green-600 font-medium">Saved ✓</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+              ⚠ Save failed — 
+              <button
+                type="button"
+                onClick={() => { setSaveStatus('idle'); autoSave(days) }}
+                className="underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -1085,25 +1427,38 @@ export default function TimesheetsPage() {
                   const DEFAULTS: Record<string, number> = { annual: 15, sick: 30, family: 3, study: 0 }
                   const total = bal?.total_days ?? DEFAULTS[type] ?? 0
                   const used = bal?.used_days ?? 0
+                  const pending = ctxPendingLeave[type] ?? 0
                   const avail = Math.max(0, total - used)
                   const LABELS: Record<string, string> = { annual: 'Annual', sick: 'Sick (36-mo)', family: 'Family Resp.', study: 'Study' }
                   const pct = total > 0 ? (used / total) * 100 : 0
+                  const pendingPct = total > 0 ? (pending / total) * 100 : 0
                   const colorCls = avail === 0 && total > 0 ? 'text-red-500' : avail > 0 && avail <= 3 && avail < total ? 'text-amber-500' : 'text-[var(--text-secondary)]'
                   return (
                     <div key={type} className="mb-2">
-                      <div className="flex justify-between text-xs mb-0.5">
+                      <div className="flex justify-between items-center text-xs mb-0.5 gap-2">
                         <span className="text-[var(--text-muted)]">{LABELS[type]}</span>
-                        <span className={`font-medium ${colorCls}`}>
-                          {total === 0 ? 'per policy' : `${avail} / ${total} days`}
-                          {avail === 0 && total > 0 ? ' ⚠' : avail > 0 && avail <= 3 && avail < total ? ' ⚠' : ''}
+                        <span className="flex items-center gap-1.5">
+                          <span className={`font-medium ${colorCls}`}>
+                            {total === 0 ? 'per policy' : `${avail} / ${total} days`}
+                            {avail === 0 && total > 0 ? ' ⚠' : avail > 0 && avail <= 3 && avail < total ? ' ⚠' : ''}
+                          </span>
+                          {pending > 0 && (
+                            <span className="text-[10px] text-amber-600 font-medium whitespace-nowrap">({pending} pending)</span>
+                          )}
                         </span>
                       </div>
                       {total > 0 && (
-                        <div className="h-1 rounded-full bg-[var(--surface-secondary)] overflow-hidden">
+                        <div className="h-1 rounded-full bg-[var(--surface-secondary)] overflow-hidden flex">
                           <div
-                            className={`h-full rounded-full ${avail === 0 ? 'bg-red-400' : avail > 0 && avail <= 3 && avail < total ? 'bg-amber-400' : 'bg-blue-400'}`}
+                            className={`h-full rounded-l-full ${avail === 0 ? 'bg-red-400' : avail > 0 && avail <= 3 && avail < total ? 'bg-amber-400' : 'bg-blue-400'}`}
                             style={{ width: `${Math.min(pct, 100)}%` }}
                           />
+                          {pending > 0 && avail > 0 && (
+                            <div
+                              className="h-full bg-amber-300"
+                              style={{ width: `${Math.min(pendingPct, 100 - Math.min(pct, 100))}%` }}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -1426,18 +1781,32 @@ export default function TimesheetsPage() {
 
       {/* Leave vs timesheet mismatch */}
       {(() => {
-        const mismatchDates = days
+        const activeMismatches = days
           .map((d, i) => ({ d, ds: dateArr[i] ? formatDateISO(dateArr[i]) : '' }))
-          .filter(({ d, ds }) => ds && leaveByDate[ds] && d.primary_status !== '' && d.primary_status !== 'leave')
-        if (mismatchDates.length === 0) return null
+          .filter(({ d, ds }) => ds && leaveByDate[ds] && d.primary_status !== '' && d.primary_status !== 'leave' && d.primary_status !== 'public_holiday' && !d.is_public_holiday)
+        // Denied/cancelled/returned leave on a submitted/approved timesheet where the day is still 'leave'
+        const inactiveMismatches = (weekStatus === 'submitted' || weekStatus === 'approved')
+          ? days
+              .map((d, i) => ({ d, ds: dateArr[i] ? formatDateISO(dateArr[i]) : '' }))
+              .filter(({ d, ds }) => ds && inactiveLeaveByDate[ds] && d.primary_status === 'leave')
+          : []
+        const total = activeMismatches.length + inactiveMismatches.length
+        if (total === 0) return null
         return (
           <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
             <p className="text-sm font-medium text-amber-800">
-              Leave vs timesheet mismatch on {mismatchDates.length} day{mismatchDates.length > 1 ? 's' : ''}
+              Leave vs timesheet mismatch on {total} day{total > 1 ? 's' : ''}
             </p>
-            <p className="text-xs text-amber-700 mt-1">
-              You have approved leave on {mismatchDates.map(({ ds }) => new Date(ds + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })).join(', ')} but the day{mismatchDates.length > 1 ? 's are' : ' is'} not marked as leave. Your supervisor has been notified. Update the day{mismatchDates.length > 1 ? 's' : ''} to "leave" if you took leave, or leave as-is if you actually worked.
-            </p>
+            {activeMismatches.length > 0 && (
+              <p className="text-xs text-amber-700 mt-1">
+                You have approved leave on {activeMismatches.map(({ ds }) => new Date(ds + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })).join(', ')} but the day{activeMismatches.length > 1 ? 's are' : ' is'} not marked as leave. Your supervisor has been notified. Update the day{activeMismatches.length > 1 ? 's' : ''} to "leave" if you took leave, or leave as-is if you actually worked.
+              </p>
+            )}
+            {inactiveMismatches.length > 0 && (
+              <p className="text-xs text-amber-700 mt-1">
+                The leave request for {inactiveMismatches.map(({ ds }) => new Date(ds + 'T00:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })).join(', ')} has been denied, cancelled, or returned but the day{inactiveMismatches.length > 1 ? 's are' : ' is'} still marked as leave. Please review and update.
+              </p>
+            )}
           </div>
         )
       })()}
@@ -1457,7 +1826,13 @@ export default function TimesheetsPage() {
               const isWeekend = idx >= 5
               const dateStr = formatDateISO(date)
               const approvedLeave = leaveByDate[dateStr]
-              const leaveMismatch = !!approvedLeave && day.primary_status !== '' && day.primary_status !== 'leave'
+              const resolution = resolveLeaveStateForDate(dateStr, activeLeaveByDate, inactiveLeaveByDate, blockingConflictDates, pendingOverlapDates)
+              const leaveMismatch = (
+                // Active approved request but day not marked as leave (ignore if it's a public holiday)
+                (!!approvedLeave && day.primary_status !== '' && day.primary_status !== 'leave' && !day.is_public_holiday) ||
+                // Denied/cancelled/returned leave on a locked (submitted/approved) timesheet while day is still 'leave'
+                (!!resolution.inactiveRequest && day.primary_status === 'leave' && (weekStatus === 'submitted' || weekStatus === 'approved'))
+              )
 
               return (
                 <div
@@ -1478,19 +1853,33 @@ export default function TimesheetsPage() {
                     </span>
                   )}
 
-                  {/* Approved leave badge */}
-                  {approvedLeave && !leaveMismatch && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 mb-2">
-                      Approved {approvedLeave.leave_type} leave
+                  {/* Leave request status badge — approved (green), pending (amber), denied (red), cancelled/returned (grey/amber) */}
+                  {resolution.badge && !day.is_public_holiday && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mb-2 ${
+                      resolution.badge.colour === 'green' ? 'bg-green-50 text-green-700 border border-green-200' :
+                      resolution.badge.colour === 'red'   ? 'bg-red-50 text-red-700 border border-red-200' :
+                      resolution.badge.colour === 'grey'  ? 'bg-gray-100 text-gray-600 border border-gray-200' :
+                      'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}>
+                      {resolution.badge.text}
                     </span>
                   )}
-                  {approvedLeave && leaveMismatch && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 mb-2">
-                      Mismatch: approved {approvedLeave.leave_type} leave
+                  {/* Mismatch: active approved request but day not marked as leave */}
+                  {!!approvedLeave && day.primary_status !== '' && day.primary_status !== 'leave' && !day.is_public_holiday && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 mb-2">
+                      ⚠ Mismatch: approved {leaveTypeName(approvedLeave.leave_type)} leave
+                    </span>
+                  )}
+                  {/* Mismatch: denied/cancelled/returned leave on a locked timesheet while day is still leave */}
+                  {resolution.inactiveRequest && day.primary_status === 'leave' && (weekStatus === 'submitted' || weekStatus === 'approved') && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 border border-red-200 mb-2">
+                      ⚠ Leave {resolution.inactiveRequest.status} — review required
                     </span>
                   )}
 
-                  {/* Primary status — no 'present' on weekends. Public holidays lock just the status. */}
+                  {/* Primary status — hidden on weekends (nobody works; OT/Standby/LOL/LOI still available below).
+                      Public holidays lock just the status. */}
+                  {!isWeekend && (
                   <select
                     value={day.primary_status}
                     disabled={locked || day.is_public_holiday}
@@ -1499,6 +1888,10 @@ export default function TimesheetsPage() {
                       const a = getAllowedFlagsForStatus(newStatus)
                       handleDayChange(idx, {
                         primary_status: newStatus,
+                        // Use the shared helper so onChange and loadWeek stay in sync
+                        leave_type_detail: newStatus === 'leave'
+                          ? leaveDetailFromRequest(activeLeaveByDate[dateStr]?.leave_type ?? '')
+                          : '',
                         ...(!a.ot          && { overtime_flag: false, overtime_hours: 0, overtime_reason: '' }),
                         ...(!a.standby     && { standby_flag: false }),
                         ...(!a.underground && { underground_flag: false, underground_hours: 0 }),
@@ -1510,35 +1903,79 @@ export default function TimesheetsPage() {
                       locked || day.is_public_holiday ? 'text-[var(--text-muted)] cursor-not-allowed' : 'text-[var(--text-secondary)]'
                     }`}
                   >
-                    {isWeekend && <option value="">— select —</option>}
-                    {(isWeekend ? WEEKEND_STATUS_OPTIONS : STATUS_OPTIONS).map(s => (
+                    {(STATUS_OPTIONS).map(s => (
                       <option key={s} value={s}>
                         {s.replace('_', ' ')}
                       </option>
                     ))}
                   </select>
+                  )}
+
+                  {/* Leave type display — read-only, derived from the active leave request.
+                      TODO: replace with leave_type_id FK display after migration 073. */}
+                  {day.primary_status === 'leave' && !locked && (
+                    resolution.activeRequest ? (
+                      <div className="text-xs px-2 py-1.5 mb-1 rounded border border-[var(--border)] bg-[var(--surface-secondary)] flex items-center gap-2">
+                        <span className="text-[var(--text-secondary)] truncate flex-1">
+                          {resolution.leaveType}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mb-1">
+                        <p className="text-[10px] text-amber-700 leading-tight mb-0.5">
+                          Leave type not saved — create a matching leave request for this date.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/leave', { state: { openForm: true, startDate: dateStr, endDate: dateStr } })}
+                          className="text-[10px] text-blue-600 hover:text-blue-700 underline"
+                        >
+                          + Create leave request
+                        </button>
+                      </div>
+                    )
+                  )}
 
                   {/* Inline leave-conflict warnings — soft hints; submit is the hard gate */}
                   {!locked && !isWeekend && !day.is_public_holiday && (() => {
-                    const active = activeLeaveByDate[dateStr]
-                    if ((day.primary_status === 'leave' || day.primary_status === 'sick') && !active) {
+                    // Blocking: multiple approved, OR multiple pending with no approved
+                    if (resolution.blockingConflict) {
                       return (
-                        <p className="text-[10px] text-amber-600 mb-1 flex items-center gap-1">
-                          ⚠️ No {day.primary_status === 'sick' ? 'sick' : ''} leave request for this day
+                        <p className="text-[10px] text-red-600 mb-1 flex items-center gap-1 font-medium">
+                          ⛔ Multiple leave requests conflict on this date — resolve before submitting
                         </p>
                       )
                     }
-                    if (day.primary_status === 'sick' && active && active.leave_type !== 'sick') {
+                    // Non-blocking overlap: one approved + additional pending requests
+                    if (resolution.pendingOverlap) {
                       return (
                         <p className="text-[10px] text-amber-600 mb-1 flex items-center gap-1">
-                          ⚠️ Leave request is {active.leave_type} — not sick leave
+                          ⚠️ A pending leave request also covers this date
                         </p>
                       )
                     }
-                    if (day.primary_status === 'present' && leaveByDate[dateStr]) {
+                    if ((day.primary_status === 'leave' || day.primary_status === 'sick') && !resolution.activeRequest && !resolution.inactiveRequest) {
                       return (
-                        <p className="text-[10px] text-blue-600 mb-1 flex items-center gap-1">
-                          ℹ️ Approved {leaveByDate[dateStr].leave_type} leave on this day
+                        <p className="text-[10px] text-amber-600 mb-1 flex items-center gap-1">
+                          ⚠️ No leave request found for this date — a formal request is required
+                        </p>
+                      )
+                    }
+                    if (day.primary_status === 'sick' && resolution.activeRequest && resolution.activeRequest.leave_type !== 'sick') {
+                      return (
+                        <p className="text-[10px] text-amber-600 mb-1 flex items-center gap-1">
+                          ⚠️ Leave request is {resolution.activeRequest.leave_type} — not sick leave
+                        </p>
+                      )
+                    }
+                    if (
+                      day.primary_status === 'leave' &&
+                      day.leave_type_detail &&
+                      resolution.activeRequest && resolution.activeRequest.leave_type !== day.leave_type_detail
+                    ) {
+                      return (
+                        <p className="text-[10px] text-amber-600 mb-1 flex items-center gap-1">
+                          ⚠️ Leave request is {resolution.activeRequest.leave_type} — type mismatch
                         </p>
                       )
                     }

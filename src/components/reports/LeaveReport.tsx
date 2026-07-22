@@ -54,8 +54,8 @@ export default function LeaveReport() {
       .from('leave_requests')
       .select(`leave_type, start_date, end_date, total_days, status, final_status, reason,
         employee:profiles!employee_id(first_name, surname, employee_code)`)
-      .gte('start_date', startDate)
-      .lte('end_date', endDate)
+      .lte('start_date', endDate)   // leave starts before or on the report end
+      .gte('end_date', startDate)   // leave ends after or on the report start (overlap)
       .order('start_date')
 
     if (leaveType) query = query.eq('leave_type', leaveType)
