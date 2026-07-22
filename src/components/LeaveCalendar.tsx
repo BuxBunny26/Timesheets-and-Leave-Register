@@ -152,8 +152,14 @@ export default function LeaveCalendar({
         .lt('week_start', formatDateISO(currentWeekStart))
 
       if (cancelled) return
+      function trueMondayISO(ws: string) {
+        const d = new Date(ws + 'T00:00:00')
+        const dow = d.getDay() // 0 = Sun, 1 = Mon
+        if (dow !== 1) d.setDate(d.getDate() + ((1 - dow + 7) % 7))
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      }
       const doneSet = new Set(
-        (data ?? []).filter(w => w.status === 'submitted' || w.status === 'approved').map(w => w.week_start)
+        (data ?? []).filter(w => w.status === 'submitted' || w.status === 'approved').map(w => trueMondayISO(w.week_start))
       )
       setOutstandingWeeks(new Set(expectedISOs.filter(iso => !doneSet.has(iso))))
     })()
