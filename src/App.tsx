@@ -19,17 +19,19 @@ import PerformanceReviewPage from './pages/PerformanceReviewPage'
 import MyVerificationPage from './pages/MyVerificationPage'
 import Layout from './components/Layout'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import CreatePasswordPage from './pages/CreatePasswordPage'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, profile, loading } = useAuth()
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
     </div>
   )
   if (!session) return <Navigate to="/login" replace />
+  if (profile?.must_change_password) return <CreatePasswordPage />
   return <>{children}</>
 }
 

@@ -57,6 +57,7 @@ export interface Profile {
   emergency_contact_phone: string | null
   sex: 'male' | 'female' | 'other' | null
   avatar_url: string | null
+  must_change_password: boolean
   created_at: string
   updated_at: string
   // joined fields
